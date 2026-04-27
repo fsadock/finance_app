@@ -1,0 +1,120 @@
+import { PageHeader } from "@/components/page-header";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { prisma } from "@/lib/db";
+import { formatBRL, monthBounds } from "@/lib/format";
+import { CategoriesTrendChart } from "@/components/categories/trend-chart";
+
+export default async function CategoriesPage() {
+  const now = new Date();
+  const { start, end } = monthBounds(now);
+  const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  const [categories, budgets, monthSpend, sixMonths] = await Promise.all([
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.budget.findMany({ where: { startMonth: monthStr } }),
+    prisma.transaction.groupBy({
+      by: ["categoryId"],
+      where: { date: { gte: start, lt: end }, amount: { lt: 0 } },
+      _sum: { amount: true },
+    }),
+    (async () => {
+      const startBack = new Date(now);
+      startBack.setMonth(startBack.getMonth() - 5);
+      startBack.setDate(1);
+      startBack.setHours(0, 0, 0, 0);
+      return prisma.transaction.findMany({
+        where: { date: { gte: startBack }, amount: { lt: 0 } },
+        select: { date: true, amount: true, categoryId: true },
+      });
+    })(),
+  ]);
+
+  const spentMap = new Map(monthSpend.map((m) => [m.categoryId, Math.abs(m._sum.amount ?? 0)]));
+  const budgetMap = new Map(budgets.map((b) => [b.categoryId, b.monthlyLimit]));
+
+  const grouped = new Map<string, Map<string, number>>(); // catId -> month -> spend
+  for (const t of sixMonths) {
+    if (!t.categoryId) continue;
+    const k = `${t.date.getFullYear()}-${String(t.date.getMonth() + 1).padStart(2, "0")}`;
+    if (!grouped.has(t.categoryId)) grouped.set(t.categoryId, new Map());
+    const m = grouped.get(t.categoryId)!;
+    m.set(k, (m.get(k) ?? 0) + Math.abs(t.amount));
+  }
+  const months: string[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now);
+    d.setMonth(d.getMonth() - i);
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+
+  const trendData = months.map((mo) => {
+    const row: Record<string, number | string> = { month: mo };
+    for (const c of categories) {
+      row[c.name] = grouped.get(c.id)?.get(mo) ?? 0;
+    }
+    return row;
+  });
+
+  const visible = categories
+    .filter((c) => !c.excludeFromBudget)
+    .map((c) => ({
+      cat: c,
+      spent: spentMap.get(c.id) ?? 0,
+      budget: budgetMap.get(c.id) ?? 0,
+    }))
+    .sort((a, b) => b.spent - a.spent);
+
+  return (
+    <>
+      <PageHeader title="Categorias" subtitle="Comparativo de gastos vs orçamento" />
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Tendência últimos 6 meses · top 6 categorias</CardTitle>
+        </CardHeader>
+        <CategoriesTrendChart
+          data={trendData}
+          categories={visible.slice(0, 6).map((v) => ({ name: v.cat.name, color: v.cat.color ?? "#6b7280" }))}
+        />
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {visible.map(({ cat, spent, budget }) => {
+          const pct = budget > 0 ? (spent / budget) * 100 : 0;
+          const overBudget = pct > 100;
+          return (
+            <Card key={cat.id}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="size-3 rounded-full" style={{ background: cat.color ?? "#6b7280" }} />
+                  <span className="font-medium">{cat.name}</span>
+                </div>
+                <span className="text-xs text-fg-muted">{cat.group}</span>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-semibold">{formatBRL(spent)}</span>
+                {budget > 0 && (
+                  <span className={`text-sm ${overBudget ? "text-danger" : "text-fg-muted"}`}>
+                    de {formatBRL(budget)}
+                  </span>
+                )}
+              </div>
+              {budget > 0 && (
+                <div className="mt-3 h-2 rounded-full bg-bg-hover overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(100, pct)}%`,
+                      background: overBudget ? "var(--color-danger)" : pct > 80 ? "var(--color-warn)" : (cat.color ?? "var(--color-accent)"),
+                    }}
+                  />
+                </div>
+              )}
+              {budget === 0 && <div className="mt-3 text-xs text-fg-muted">Sem orçamento</div>}
+            </Card>
+          );
+        })}
+      </div>
+    </>
+  );
+}
