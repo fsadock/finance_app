@@ -20,7 +20,7 @@ export async function getMonthSpend(month = new Date()) {
     where: {
       date: { gte: start, lt: end },
       excludeFromBudget: false,
-      category: { excludeFromBudget: false },
+      OR: [{ categoryId: null }, { category: { excludeFromBudget: false } }],
     },
     select: { amount: true },
   });
@@ -87,7 +87,11 @@ export async function getMonthlyCashflow(monthsBack = 6) {
   start.setDate(1);
   start.setHours(0, 0, 0, 0);
   const txs = await prisma.transaction.findMany({
-    where: { date: { gte: start }, category: { excludeFromBudget: false } },
+    where: {
+      date: { gte: start },
+      excludeFromBudget: false,
+      OR: [{ categoryId: null }, { category: { excludeFromBudget: false } }],
+    },
     select: { amount: true, date: true },
   });
   const buckets = new Map<string, { income: number; spend: number }>();

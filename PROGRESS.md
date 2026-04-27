@@ -54,6 +54,22 @@ Checkpoint log for resuming across sessions. Always read top-down to learn curre
 - Categories preserved (25 BR categories) so AI classifier has target labels
 - Empty-state guards added to goals + investments page (NaN%)
 
+## Manual classify + AI override (2026-04-27)
+- `src/app/actions/transactions.ts`: server action `setTransactionCategory(txId, categoryId | null)`
+  - Updates tx.categoryId + flips status (POSTED if assigned, REVIEW if cleared)
+  - Upserts MerchantRule with `source="USER"`, `confidence=1.0` — overrides any prior AI rule, applies to future tx with same merchant
+  - revalidatePath on `/transactions`, `/`, `/categories`
+- `src/components/category-picker.tsx`: client popover. Click cell → searchable dropdown grouped by category.group → click → server action → router refresh via useTransition
+- Wired on transactions table: replaced static category cell + warning icon. Click "Sem categoria" or any existing category to change.
+
+## Bug fixes (2026-04-27)
+- Categorize endpoint failed with 500 on malformed JSON when batch was 100 tx. Fixes:
+  - Batch size 100 → 40
+  - max_tokens 4096 → 8000
+  - Sanitize description (strip quotes/backslashes, cap 80 chars) before sending
+  - Fallback regex parser recovers individual `{txId,categoryName,confidence}` objects when JSON parse throws
+- Dashboard showed R$ 0,00 spend even with synced tx. Cause: query required tx to have non-excluded category, but Pluggy-synced tx are uncategorized (REVIEW status). Fix: `getMonthSpend` and `getMonthlyCashflow` now `OR: [{categoryId: null}, {category: {excludeFromBudget: false}}]` so uncategorized tx still count.
+
 ## Period filter (2026-04-27)
 - Pluggy sync: `from` extended from 90 days to 5 years back (Pluggy returns whatever the bank provides up to that window)
 - `src/lib/period.ts`: `parsePeriod(value)` reads `?month=YYYY-MM` or defaults to current month

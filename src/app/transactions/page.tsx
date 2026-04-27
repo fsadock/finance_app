@@ -2,11 +2,12 @@ import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
 import { formatBRL, formatDate } from "@/lib/format";
-import { Search, AlertCircle } from "lucide-react";
+import { Search } from "lucide-react";
 import { TxStatus, type Prisma } from "@/generated/prisma/client";
 import { PeriodPicker } from "@/components/period-picker";
 import { parsePeriod } from "@/lib/period";
 import { monthBounds } from "@/lib/format";
+import { CategoryPicker } from "@/components/category-picker";
 
 type Props = {
   searchParams: Promise<{ status?: string; q?: string; cat?: string; from?: string; to?: string; month?: string }>;
@@ -28,7 +29,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
     if (sp.to) where.date.lte = new Date(sp.to);
   }
 
-  const [txs, categories, accounts] = await Promise.all([
+  const [txs, categories] = await Promise.all([
     prisma.transaction.findMany({
       where,
       include: { account: true, category: true },
@@ -36,7 +37,6 @@ export default async function TransactionsPage({ searchParams }: Props) {
       take: 200,
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
-    prisma.account.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   const totalSpend = txs.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
@@ -115,20 +115,17 @@ export default async function TransactionsPage({ searchParams }: Props) {
               <tr key={t.id} className="border-b border-border hover:bg-bg-hover/40">
                 <td className="px-6 py-3 text-fg-muted whitespace-nowrap">{formatDate(t.date)}</td>
                 <td className="px-6 py-3">
-                  <div className="flex items-center gap-2">
-                    {t.status === "REVIEW" && <AlertCircle className="size-4 text-warn" />}
-                    <span className="font-medium">{t.description}</span>
-                  </div>
+                  <span className="font-medium">{t.description}</span>
                 </td>
                 <td className="px-6 py-3">
-                  {t.category ? (
-                    <span className="inline-flex items-center gap-2">
-                      <span className="size-2 rounded-full" style={{ background: t.category.color ?? "#6b7280" }} />
-                      {t.category.name}
-                    </span>
-                  ) : (
-                    <span className="text-fg-muted italic">Sem categoria</span>
-                  )}
+                  <CategoryPicker
+                    txId={t.id}
+                    currentCategoryId={t.categoryId}
+                    currentCategoryName={t.category?.name ?? null}
+                    currentCategoryColor={t.category?.color ?? null}
+                    needsReview={t.status === "REVIEW"}
+                    categories={categories.map((c) => ({ id: c.id, name: c.name, color: c.color, group: c.group }))}
+                  />
                 </td>
                 <td className="px-6 py-3 text-fg-muted">{t.account.name}</td>
                 <td className={`px-6 py-3 text-right whitespace-nowrap ${t.amount > 0 ? "text-accent" : ""}`}>

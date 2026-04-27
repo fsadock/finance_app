@@ -9,7 +9,7 @@ export async function categorizeReviewTransactions() {
     prisma.transaction.findMany({
       where: { status: "REVIEW" },
       select: { id: true, description: true, merchantRaw: true, amount: true, date: true },
-      take: 100,
+      take: 40,
     }),
     prisma.category.findMany({ where: { excludeFromBudget: false } }),
     prisma.merchantRule.findMany(),
@@ -54,14 +54,15 @@ export async function categorizeReviewTransactions() {
     .map((c) => `- ${c.name}${c.group ? ` (${c.group})` : ""}`)
     .join("\n");
 
+  const sanitize = (s: string) => s.replace(/[`"'\\]/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
   const txList = remaining
-    .map((t, i) => `${i + 1}. id=${t.id} | "${t.description}" | ${t.amount.toFixed(2)} BRL | ${t.date.toISOString().slice(0, 10)}`)
+    .map((t, i) => `${i + 1}. id=${t.id} | ${sanitize(t.description)} | ${t.amount.toFixed(2)} BRL | ${t.date.toISOString().slice(0, 10)}`)
     .join("\n");
 
   const client = getAnthropic();
   const resp = await client.messages.create({
     model: MODEL_FAST,
-    max_tokens: 4096,
+    max_tokens: 8000,
     system: [
       {
         type: "text",
@@ -69,10 +70,12 @@ export async function categorizeReviewTransactions() {
           "Você é um classificador de transações bancárias brasileiras. " +
           "Para cada transação, escolha a categoria mais apropriada da lista fornecida. " +
           "Considere comerciantes, padrões de descrição e valor típico no Brasil. " +
-          "Responda APENAS com JSON válido no formato: " +
-          `{"suggestions":[{"txId":"...","categoryName":"...","confidence":0.0-1.0}]}. ` +
+          "Responda APENAS com JSON válido, sem comentários, sem markdown. " +
+          "Formato exato: " +
+          `{"suggestions":[{"txId":"...","categoryName":"...","confidence":0.95}]}. ` +
           "Use exatamente o nome da categoria como aparece na lista. " +
-          "Se não tiver certeza (<0.5 confidence), use \"Outros\".\n\n" +
+          "NÃO inclua aspas dentro de strings JSON. " +
+          "Se não tiver certeza (<0.5 confidence), use Outros.\n\n" +
           "Categorias disponíveis:\n" +
           categoryList,
         cache_control: { type: "ephemeral" },
@@ -93,7 +96,20 @@ export async function categorizeReviewTransactions() {
   const raw = textBlock.text.trim();
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error(`Invalid JSON from Claude: ${raw.slice(0, 200)}`);
-  const parsed = JSON.parse(jsonMatch[0]) as { suggestions: Suggestion[] };
+  let parsed: { suggestions: Suggestion[] };
+  try {
+    parsed = JSON.parse(jsonMatch[0]) as { suggestions: Suggestion[] };
+  } catch {
+    // Recover individual suggestion objects via regex if JSON parse fails
+    const items: Suggestion[] = [];
+    const re = /\{\s*"txId"\s*:\s*"([^"]+)"\s*,\s*"categoryName"\s*:\s*"([^"]+)"\s*,\s*"confidence"\s*:\s*([0-9.]+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(jsonMatch[0])) !== null) {
+      items.push({ txId: m[1]!, categoryName: m[2]!, confidence: Number(m[3]) });
+    }
+    if (items.length === 0) throw new Error("Failed to recover any suggestions from malformed JSON");
+    parsed = { suggestions: items };
+  }
 
   let fromAI = 0;
   // Build txId -> tx map for merchant lookup
