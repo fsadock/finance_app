@@ -13,7 +13,11 @@ export default async function GoalsPage() {
     <>
       <PageHeader
         title="Metas"
-        subtitle={`${goals.length} metas · ${formatBRLCompact(totalSaved)} de ${formatBRLCompact(totalTarget)} (${Math.round((totalSaved / totalTarget) * 100)}%)`}
+        subtitle={
+          goals.length === 0
+            ? "Nenhuma meta cadastrada"
+            : `${goals.length} metas · ${formatBRLCompact(totalSaved)} de ${formatBRLCompact(totalTarget)} (${totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0}%)`
+        }
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
+    "db:wipe": "tsx prisma/wipe.ts",
     "db:studio": "prisma studio",
     "db:migrate": "prisma migrate dev"
   },

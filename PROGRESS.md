@@ -42,6 +42,18 @@ Checkpoint log for resuming across sessions. Always read top-down to learn curre
 ## Status
 - Anthropic API: wired + key in `.env`. **Credits balance is empty** as of 2026-04-27 — endpoint returns 400 until topped up at console.anthropic.com/settings/billing. Code is functional.
 
+## Merchant rules (learning loop)
+- [x] `MerchantRule` model (pattern unique, categoryId, confidence, source, hits)
+- [x] `src/lib/ai/merchant.ts` `normalizeMerchant()` strips digits/diacritics/parc-info
+- [x] Categorize flow: pass 1 looks up rules (free, instant, increments hits); pass 2 sends remainder to AI; high-confidence (≥0.8) AI results cached as new rules
+- [x] UI message shows `X via regras salvas, Y via IA`
+
+## Mock data wiped (2026-04-27)
+- All seeded accounts/transactions/goals/recurrings/investments/budgets/merchant rules/pluggy items deleted via `pnpm db:wipe`
+- `prisma/seed.ts` reduced to category-only taxonomy (idempotent upsert)
+- Categories preserved (25 BR categories) so AI classifier has target labels
+- Empty-state guards added to goals + investments page (NaN%)
+
 ## Pluggy
 - [x] `PLUGGY_CLIENT_ID` and `PLUGGY_CLIENT_SECRET` in `.env` (fixed double-underscore typo)
 - [x] `src/lib/pluggy/client.ts` singleton wrapper (`pluggy-sdk` v0.85.2)

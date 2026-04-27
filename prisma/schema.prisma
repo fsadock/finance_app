@@ -69,6 +69,7 @@ model Category {
   budgets       Budget[]
   transactions  Transaction[]
   recurrings    Recurring[]
+  merchantRules MerchantRule[]
   createdAt     DateTime      @default(now())
 }
 
@@ -152,6 +153,20 @@ model Investment {
   currency     String         @default("BRL")
   asOf         DateTime       @default(now())
   createdAt    DateTime       @default(now())
+}
+
+model MerchantRule {
+  id         String   @id @default(cuid())
+  pattern    String   @unique
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  confidence Float    @default(0.9)
+  source     String   @default("AI")
+  hits       Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([pattern])
 }
 
 model PluggyItem {

@@ -100,7 +100,7 @@ export default async function InvestmentsPage() {
                   {a.name}
                 </span>
                 <span className="text-fg-muted">
-                  {formatBRLCompact(a.value)} · {Math.round((a.value / total) * 100)}%
+                  {formatBRLCompact(a.value)} · {total > 0 ? Math.round((a.value / total) * 100) : 0}%
                 </span>
               </li>
             ))}

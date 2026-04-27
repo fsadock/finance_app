@@ -19,7 +19,9 @@ export function AIActions() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Falhou");
       if (action === "categorize") {
-        setMsg(`${data.applied} transação(ões) categorizadas pela IA.`);
+        const r = data.fromRules ?? 0;
+        const a = data.fromAI ?? 0;
+        setMsg(`${data.applied} categorizadas (${r} via regras salvas, ${a} via IA).`);
       } else {
         setMsg(`${data.detected} recorrência(s) detectada(s).`);
       }
