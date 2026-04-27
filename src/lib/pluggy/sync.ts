@@ -1,5 +1,6 @@
 import { getPluggy } from "./client";
 import { prisma } from "../db";
+import { detectTransfers } from "../transfers";
 import type { AccountType as PrismaAccountType, InvestmentType as PrismaInvestmentType } from "@/generated/prisma/client";
 
 function mapAccountType(pluggyType: string, subtype: string | undefined | null): PrismaAccountType {
@@ -140,5 +141,11 @@ export async function syncItem(itemId: string) {
     console.warn("[pluggy] investments fetch skipped:", e instanceof Error ? e.message : e);
   }
 
-  return { item, stats };
+  // Auto-detect transfer pairs after import (looks back 60 days)
+  try {
+    const transferResult = await detectTransfers(60);
+    return { item, stats: { ...stats, transfersPaired: transferResult.paired } };
+  } catch {
+    return { item, stats };
+  }
 }

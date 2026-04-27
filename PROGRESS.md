@@ -54,6 +54,17 @@ Checkpoint log for resuming across sessions. Always read top-down to learn curre
 - Categories preserved (25 BR categories) so AI classifier has target labels
 - Empty-state guards added to goals + investments page (NaN%)
 
+## Transfer detection (2026-04-27)
+- Added `Transaction.transferPairId String?` (indexed, NOT unique — pair shares same id) via migration `transfer_pair`
+- `src/lib/transfers.ts`:
+  - `detectTransfers(daysBack=60)`: scans unpaired tx, matches each negative tx with a positive tx in a different account where |amount| equal (±0.01) and date within ±3 days. Picks closest by date. Tags both with shared `transferPairId`, assigns category "Transferências", sets `excludeFromBudget=true`, status `POSTED`.
+  - `unpairTransfer(txId)`: undoes pairing if user disagrees
+- `POST /api/transfers/detect` route
+- Wired into `syncItem` so Pluggy sync auto-detects after import
+- "Detectar transferências" button added to dashboard `AIActions`
+- Transactions table renders blue "Transferência" badge on paired rows
+- Verified: 11 pairs detected on first run after Pluggy ingest
+
 ## Manual classify + AI override (2026-04-27)
 - `src/app/actions/transactions.ts`: server action `setTransactionCategory(txId, categoryId | null)`
   - Updates tx.categoryId + flips status (POSTED if assigned, REVIEW if cleared)

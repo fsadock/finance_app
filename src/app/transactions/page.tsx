@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
 import { formatBRL, formatDate } from "@/lib/format";
-import { Search } from "lucide-react";
+import { Search, ArrowLeftRight } from "lucide-react";
 import { TxStatus, type Prisma } from "@/generated/prisma/client";
 import { PeriodPicker } from "@/components/period-picker";
 import { parsePeriod } from "@/lib/period";
@@ -115,7 +115,14 @@ export default async function TransactionsPage({ searchParams }: Props) {
               <tr key={t.id} className="border-b border-border hover:bg-bg-hover/40">
                 <td className="px-6 py-3 text-fg-muted whitespace-nowrap">{formatDate(t.date)}</td>
                 <td className="px-6 py-3">
-                  <span className="font-medium">{t.description}</span>
+                  <div className="flex items-center gap-2">
+                    {t.transferPairId && (
+                      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-info/15 text-info">
+                        <ArrowLeftRight className="size-3" /> Transferência
+                      </span>
+                    )}
+                    <span className="font-medium">{t.description}</span>
+                  </div>
                 </td>
                 <td className="px-6 py-3">
                   <CategoryPicker
