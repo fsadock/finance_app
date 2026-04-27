@@ -1,0 +1,2 @@
+- [Project: Finance app](/home/fsadock/.claude/projects/-home-fsadock-repos-finance-app/memory/project_finance_app.md) — Copilot Money clone, BR open finance via Pluggy, Next.js stack
+- [User: role + mise](/home/fsadock/.claude/projects/-home-fsadock-repos-finance-app/memory/user_role.md) — autonomous coding, mise toolchain, BR market

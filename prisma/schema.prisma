@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  INVESTMENT
+  CASH
+  LOAN
+}
+
+enum TxStatus {
+  POSTED
+  PENDING
+  REVIEW
+}
+
+enum InvestmentType {
+  STOCK
+  ETF
+  FIXED_INCOME
+  CRYPTO
+  FUND
+  OTHER
+}
+
+enum RecurringCadence {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model Account {
+  id           String       @id @default(cuid())
+  name         String
+  type         AccountType
+  institution  String
+  currency     String       @default("BRL")
+  balance      Float        @default(0)
+  creditLimit  Float?
+  hidden       Boolean      @default(false)
+  pluggyItemId String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  transactions Transaction[]
+  investments  Investment[]
+  recurrings   Recurring[]
+}
+
+model Category {
+  id            String        @id @default(cuid())
+  name          String        @unique
+  icon          String?
+  color         String?
+  parentId      String?
+  parent        Category?     @relation("CategoryParent", fields: [parentId], references: [id])
+  children      Category[]    @relation("CategoryParent")
+  group         String?
+  excludeFromBudget Boolean   @default(false)
+  budgets       Budget[]
+  transactions  Transaction[]
+  recurrings    Recurring[]
+  createdAt     DateTime      @default(now())
+}
+
+model Budget {
+  id          String   @id @default(cuid())
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  monthlyLimit Float
+  startMonth  String
+  createdAt   DateTime @default(now())
+
+  @@unique([categoryId, startMonth])
+}
+
+model Transaction {
+  id            String     @id @default(cuid())
+  accountId     String
+  account       Account    @relation(fields: [accountId], references: [id])
+  date          DateTime
+  amount        Float
+  currency      String     @default("BRL")
+  description   String
+  merchantRaw   String?
+  categoryId    String?
+  category      Category?  @relation(fields: [categoryId], references: [id])
+  status        TxStatus   @default(POSTED)
+  notes         String?
+  isRecurring   Boolean    @default(false)
+  recurringId   String?
+  recurring     Recurring? @relation(fields: [recurringId], references: [id])
+  pluggyTxId    String?    @unique
+  excludeFromBudget Boolean @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([accountId, date])
+  @@index([categoryId])
+  @@index([status])
+}
+
+model Goal {
+  id            String   @id @default(cuid())
+  name          String
+  targetAmount  Float
+  currentAmount Float    @default(0)
+  deadline      DateTime?
+  icon          String?
+  color         String?
+  accountId     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Recurring {
+  id           String           @id @default(cuid())
+  name         String
+  amount       Float
+  cadence      RecurringCadence
+  nextDate     DateTime
+  accountId    String?
+  account      Account?         @relation(fields: [accountId], references: [id])
+  categoryId   String?
+  category     Category?        @relation(fields: [categoryId], references: [id])
+  active       Boolean          @default(true)
+  confidence   Float            @default(1.0)
+  detectedByAI Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+  transactions Transaction[]
+}
+
+model Investment {
+  id           String         @id @default(cuid())
+  accountId    String
+  account      Account        @relation(fields: [accountId], references: [id])
+  name         String
+  ticker       String?
+  type         InvestmentType
+  quantity     Float
+  currentPrice Float
+  costBasis    Float
+  currency     String         @default("BRL")
+  asOf         DateTime       @default(now())
+  createdAt    DateTime       @default(now())
+}
+
+model PluggyItem {
+  id          String   @id @default(cuid())
+  pluggyId    String   @unique
+  connector   String
+  status      String
+  lastUpdated DateTime?
+  createdAt   DateTime @default(now())
+}
