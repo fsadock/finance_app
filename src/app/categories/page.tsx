@@ -3,11 +3,17 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
 import { formatBRL, monthBounds } from "@/lib/format";
 import { CategoriesTrendChart } from "@/components/categories/trend-chart";
+import { PeriodPicker } from "@/components/period-picker";
+import { parsePeriod, formatPeriodLabel } from "@/lib/period";
 
-export default async function CategoriesPage() {
-  const now = new Date();
-  const { start, end } = monthBounds(now);
-  const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+type Props = { searchParams: Promise<{ month?: string }> };
+
+export default async function CategoriesPage({ searchParams }: Props) {
+  const sp = await searchParams;
+  const period = parsePeriod(sp.month);
+  const anchor = period.date;
+  const { start, end } = monthBounds(anchor);
+  const monthStr = period.key;
 
   const [categories, budgets, monthSpend, sixMonths] = await Promise.all([
     prisma.category.findMany({ orderBy: { name: "asc" } }),
@@ -18,12 +24,16 @@ export default async function CategoriesPage() {
       _sum: { amount: true },
     }),
     (async () => {
-      const startBack = new Date(now);
+      const startBack = new Date(anchor);
       startBack.setMonth(startBack.getMonth() - 5);
       startBack.setDate(1);
       startBack.setHours(0, 0, 0, 0);
+      const endBack = new Date(anchor);
+      endBack.setMonth(endBack.getMonth() + 1);
+      endBack.setDate(1);
+      endBack.setHours(0, 0, 0, 0);
       return prisma.transaction.findMany({
-        where: { date: { gte: startBack }, amount: { lt: 0 } },
+        where: { date: { gte: startBack, lt: endBack }, amount: { lt: 0 } },
         select: { date: true, amount: true, categoryId: true },
       });
     })(),
@@ -42,7 +52,7 @@ export default async function CategoriesPage() {
   }
   const months: string[] = [];
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(now);
+    const d = new Date(anchor);
     d.setMonth(d.getMonth() - i);
     months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
@@ -66,7 +76,11 @@ export default async function CategoriesPage() {
 
   return (
     <>
-      <PageHeader title="Categorias" subtitle="Comparativo de gastos vs orçamento" />
+      <PageHeader
+        title="Categorias"
+        subtitle={`${formatPeriodLabel(period)} · gastos vs orçamento`}
+        actions={<PeriodPicker />}
+      />
 
       <Card className="mb-6">
         <CardHeader>

@@ -10,31 +10,46 @@ import {
   getTopCategories,
   getUpcomingRecurrings,
 } from "@/lib/queries";
-import { formatBRL, formatBRLCompact, formatDate, formatMonthLong } from "@/lib/format";
+import { formatBRL, formatBRLCompact, formatDate } from "@/lib/format";
 import Link from "next/link";
 import { ArrowRight, AlertCircle } from "lucide-react";
 import { CashflowChart } from "@/components/dashboard/cashflow-chart";
 import { CategoryDonut } from "@/components/dashboard/category-donut";
 import { AIActions } from "@/components/ai-actions";
+import { PeriodPicker } from "@/components/period-picker";
+import { parsePeriod, formatPeriodLabel } from "@/lib/period";
 
-export default async function DashboardPage() {
-  const now = new Date();
+type Props = { searchParams: Promise<{ month?: string }> };
+
+export default async function DashboardPage({ searchParams }: Props) {
+  const sp = await searchParams;
+  const period = parsePeriod(sp.month);
+  const periodDate = period.date;
   const [networth, monthSpend, top, review, upcoming, goals, cashflow, budgets] = await Promise.all([
     getNetWorth(),
-    getMonthSpend(now),
-    getTopCategories(now, 6),
+    getMonthSpend(periodDate),
+    getTopCategories(periodDate, 6),
     getReviewTransactions(6),
     getUpcomingRecurrings(6),
     getGoals(),
     getMonthlyCashflow(6),
-    getMonthBudgetProgress(now),
+    getMonthBudgetProgress(periodDate),
   ]);
   const totalBudget = budgets.reduce((s, b) => s + b.budget.monthlyLimit, 0);
   const budgetPct = totalBudget > 0 ? Math.min(100, (monthSpend.spent / totalBudget) * 100) : 0;
 
   return (
     <>
-      <PageHeader title="Dashboard" subtitle={`Visão geral · ${formatMonthLong(now)}`} actions={<AIActions />} />
+      <PageHeader
+        title="Dashboard"
+        subtitle={`Visão geral · ${formatPeriodLabel(period)}`}
+        actions={
+          <div className="flex items-center gap-2">
+            <PeriodPicker />
+            <AIActions />
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-12 gap-4">
         <Card className="col-span-12 md:col-span-4">

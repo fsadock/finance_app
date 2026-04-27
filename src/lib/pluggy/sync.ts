@@ -79,9 +79,9 @@ export async function syncItem(itemId: string) {
         });
     stats.accounts++;
 
-    // Pull last 90 days of tx
+    // Pull all available history (Pluggy returns whatever the bank provides; cap at 5 years back)
     const from = new Date();
-    from.setDate(from.getDate() - 90);
+    from.setFullYear(from.getFullYear() - 5);
     let page = 1;
     while (true) {
       const txs = await pluggy.fetchTransactions(a.id, { from: from.toISOString().slice(0, 10), pageSize: 200, page });

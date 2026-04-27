@@ -4,9 +4,12 @@ import { prisma } from "@/lib/db";
 import { formatBRL, formatDate } from "@/lib/format";
 import { Search, AlertCircle } from "lucide-react";
 import { TxStatus, type Prisma } from "@/generated/prisma/client";
+import { PeriodPicker } from "@/components/period-picker";
+import { parsePeriod } from "@/lib/period";
+import { monthBounds } from "@/lib/format";
 
 type Props = {
-  searchParams: Promise<{ status?: string; q?: string; cat?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; cat?: string; from?: string; to?: string; month?: string }>;
 };
 
 export default async function TransactionsPage({ searchParams }: Props) {
@@ -15,7 +18,11 @@ export default async function TransactionsPage({ searchParams }: Props) {
   if (sp.status === "REVIEW") where.status = TxStatus.REVIEW;
   if (sp.cat) where.categoryId = sp.cat;
   if (sp.q) where.description = { contains: sp.q };
-  if (sp.from || sp.to) {
+  if (sp.month && !sp.from && !sp.to) {
+    const period = parsePeriod(sp.month);
+    const { start, end } = monthBounds(period.date);
+    where.date = { gte: start, lt: end };
+  } else if (sp.from || sp.to) {
     where.date = {};
     if (sp.from) where.date.gte = new Date(sp.from);
     if (sp.to) where.date.lte = new Date(sp.to);
@@ -40,6 +47,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
       <PageHeader
         title="Transações"
         subtitle={`${txs.length} resultado(s) · saída ${formatBRL(totalSpend)} · entrada ${formatBRL(totalIncome)}`}
+        actions={<PeriodPicker />}
       />
 
       <Card className="mb-6 p-4">

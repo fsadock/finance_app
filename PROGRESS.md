@@ -54,6 +54,14 @@ Checkpoint log for resuming across sessions. Always read top-down to learn curre
 - Categories preserved (25 BR categories) so AI classifier has target labels
 - Empty-state guards added to goals + investments page (NaN%)
 
+## Period filter (2026-04-27)
+- Pluggy sync: `from` extended from 90 days to 5 years back (Pluggy returns whatever the bank provides up to that window)
+- `src/lib/period.ts`: `parsePeriod(value)` reads `?month=YYYY-MM` or defaults to current month
+- `src/components/period-picker.tsx`: client component with prev/next chevrons, month + year selects, "Hoje" shortcut, navigates by updating `?month=` searchParam
+- Wired on Dashboard, Categories, Transactions page headers
+- Categories trend chart anchors to selected month (6-month rolling window ending at picked month)
+- Transactions: `?month=` overrides `?from/?to` only if neither manual date is set
+
 ## Pluggy
 - [x] `PLUGGY_CLIENT_ID` and `PLUGGY_CLIENT_SECRET` in `.env` (fixed double-underscore typo)
 - [x] `src/lib/pluggy/client.ts` singleton wrapper (`pluggy-sdk` v0.85.2)
