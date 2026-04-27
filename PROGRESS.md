@@ -33,11 +33,22 @@ Checkpoint log for resuming across sessions. Always read top-down to learn curre
   - Investments: KPIs + diversification donut + 10-year projection (3 scenarios) + holdings table
   - Recurrings: subscriptions/bills/income split with monthly normalized totals + AI badge
 
+## Done (cont.)
+- [x] AI categorization service `src/lib/ai/categorize.ts` (claude-haiku-4-5, prompt-cached system prompt with category list)
+- [x] AI recurring detection `src/lib/ai/recurrings.ts` (heuristic grouping by normalized merchant + amount stability, then Claude validates cadence)
+- [x] API routes `/api/ai/categorize` `/api/ai/recurrings` (POST)
+- [x] Dashboard "AI Actions" buttons (`src/components/ai-actions.tsx`) calling routes + `router.refresh()`
+
+## Status
+- Anthropic API: wired + key in `.env`. **Credits balance is empty** as of 2026-04-27 — endpoint returns 400 until topped up at console.anthropic.com/settings/billing. Code is functional.
+
 ## Next
-- [ ] AI categorization (Claude haiku-4-5) for REVIEW transactions
-- [ ] AI recurring detection job
-- [ ] Pluggy SDK integration (awaiting keys)
-- [ ] Server actions for editing tx/categories/goals/budgets
+- [ ] Pluggy SDK integration (awaiting client_id/client_secret)
+- [ ] Server actions to manually edit tx category, status, goals, budgets
+- [ ] Add account/goal/budget CRUD UIs
+- [ ] Per-tx AI categorization with accept/reject UI (instead of blind apply)
+- [ ] Date-range selector on dashboard (currently always "current month")
+- [ ] Postgres migration path for production deploy
 
 ## Resume guide
 1. Read this file

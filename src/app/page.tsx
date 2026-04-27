@@ -15,6 +15,7 @@ import Link from "next/link";
 import { ArrowRight, AlertCircle } from "lucide-react";
 import { CashflowChart } from "@/components/dashboard/cashflow-chart";
 import { CategoryDonut } from "@/components/dashboard/category-donut";
+import { AIActions } from "@/components/ai-actions";
 
 export default async function DashboardPage() {
   const now = new Date();
@@ -33,7 +34,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="Dashboard" subtitle={`Visão geral · ${formatMonthLong(now)}`} />
+      <PageHeader title="Dashboard" subtitle={`Visão geral · ${formatMonthLong(now)}`} actions={<AIActions />} />
 
       <div className="grid grid-cols-12 gap-4">
         <Card className="col-span-12 md:col-span-4">
