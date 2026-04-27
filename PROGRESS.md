@@ -42,13 +42,25 @@ Checkpoint log for resuming across sessions. Always read top-down to learn curre
 ## Status
 - Anthropic API: wired + key in `.env`. **Credits balance is empty** as of 2026-04-27 — endpoint returns 400 until topped up at console.anthropic.com/settings/billing. Code is functional.
 
+## Pluggy
+- [x] `PLUGGY_CLIENT_ID` and `PLUGGY_CLIENT_SECRET` in `.env` (fixed double-underscore typo)
+- [x] `src/lib/pluggy/client.ts` singleton wrapper (`pluggy-sdk` v0.85.2)
+- [x] `src/lib/pluggy/sync.ts`:
+  - `registerItem(itemId)` upserts `PluggyItem`
+  - `syncItem(itemId)` pulls accounts (mapping AccountSubtype → our AccountType, credit cards stored negative), 90 days of transactions (paginated, dedup via `pluggyTxId`), investments (best-effort, non-fatal)
+  - All synced tx land in `REVIEW` status so AI categorization can claim them
+- [x] `POST /api/pluggy/connect-token` → returns `accessToken` for Connect widget (verified 200)
+- [x] `POST /api/pluggy/sync` body `{itemId?}` → sync one item, or all known items if empty
+- [x] `src/components/pluggy-connect-button.tsx`: lazy-loads CDN script, opens Connect widget, calls sync on success, refreshes UI
+- [x] Buttons live on `/accounts` page header
+
 ## Next
-- [ ] Pluggy SDK integration (awaiting client_id/client_secret)
 - [ ] Server actions to manually edit tx category, status, goals, budgets
-- [ ] Add account/goal/budget CRUD UIs
 - [ ] Per-tx AI categorization with accept/reject UI (instead of blind apply)
-- [ ] Date-range selector on dashboard (currently always "current month")
+- [ ] Date-range selector on dashboard
 - [ ] Postgres migration path for production deploy
+- [ ] Pluggy webhook endpoint for async item updates
+- [ ] Cron-style auto-sync (e.g., daily)
 
 ## Resume guide
 1. Read this file

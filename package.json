@@ -21,6 +21,7 @@
     "date-fns": "^4.1.0",
     "lucide-react": "^1.11.0",
     "next": "16.2.4",
+    "pluggy-sdk": "^0.85.2",
     "prisma": "^7.8.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",

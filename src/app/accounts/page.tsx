@@ -3,6 +3,7 @@ import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
 import { formatBRL } from "@/lib/format";
 import { Wallet, CreditCard, PiggyBank, TrendingUp, Coins, Banknote } from "lucide-react";
+import { PluggyConnectButton } from "@/components/pluggy-connect-button";
 
 const ACCOUNT_ICON = {
   CHECKING: Wallet,
@@ -36,7 +37,7 @@ export default async function AccountsPage() {
 
   return (
     <>
-      <PageHeader title="Contas" subtitle="Todas as suas contas e cartões" />
+      <PageHeader title="Contas" subtitle="Todas as suas contas e cartões" actions={<PluggyConnectButton />} />
 
       <div className="grid grid-cols-12 gap-4 mb-6">
         <Card className="col-span-12 md:col-span-4">
