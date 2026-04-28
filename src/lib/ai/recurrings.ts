@@ -15,7 +15,16 @@ export async function detectRecurrings() {
   since.setMonth(since.getMonth() - 6);
 
   const txs = await prisma.transaction.findMany({
-    where: { date: { gte: since }, amount: { lt: 0 }, isRecurring: false },
+    where: {
+      date: { gte: since },
+      amount: { lt: 0 },
+      isRecurring: false,
+      // Skip tx paired as transfer or excluded from budget — those are not recurring "bills"
+      transferPairId: null,
+      excludeFromBudget: false,
+      // Skip tx already in transfer/payment categories (e.g. "Pagamento de fatura")
+      OR: [{ categoryId: null }, { category: { excludeFromBudget: false } }],
+    },
     select: { id: true, description: true, amount: true, date: true },
     orderBy: { date: "asc" },
   });

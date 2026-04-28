@@ -144,16 +144,21 @@ export async function syncItem(itemId: string) {
       await prisma.investment.deleteMany({ where: { accountId: invAccount.id } });
       let totalValue = 0;
       const rows = invPage.results.map((inv) => {
-        const value = inv.value ?? inv.balance ?? 0;
-        totalValue += inv.balance ?? 0;
+        // Pluggy returns *total* balance and *total* amountOriginal already
+        // aggregated across the whole position. We don't multiply by quantity
+        // (which can be in raw units like 178500 for fixed income).
+        // Store as: quantity=1, currentPrice=total balance, costBasis=total cost.
+        const balance = inv.balance ?? inv.value ?? 0;
+        const original = inv.amountOriginal ?? balance;
+        totalValue += balance;
         return {
           accountId: invAccount.id,
           name: inv.name,
           ticker: inv.code ?? null,
           type: mapInvestmentType(inv.type),
-          quantity: inv.quantity ?? 1,
-          currentPrice: value,
-          costBasis: inv.amountOriginal ?? value,
+          quantity: 1,
+          currentPrice: balance,
+          costBasis: original,
           currency: inv.currencyCode ?? "BRL",
         };
       });

@@ -65,6 +65,71 @@ export async function setTransactionCategory(txId: string, categoryId: string | 
   return { ok: true };
 }
 
+/**
+ * Wipe all AI-source rules and reset AI-classified transactions back to REVIEW.
+ * Keeps USER rules and user-classified tx untouched. Runs the categorize loop
+ * so the new prompt + category taxonomy can re-examine everything.
+ *
+ * Safe to run multiple times.
+ */
+export async function resetAiClassifications() {
+  const { categorizeReviewTransactions } = await import("@/lib/ai/categorize");
+
+  // Drop AI rules
+  const ruleResult = await prisma.merchantRule.deleteMany({ where: { source: "AI" } });
+
+  // Reset tx that were classified by AI (not by user, not transfer-paired)
+  const userRules = await prisma.merchantRule.findMany({
+    where: { source: "USER" },
+    select: { categoryId: true },
+  });
+  const userCategoryIds = new Set(userRules.map((r) => r.categoryId));
+
+  const candidates = await prisma.transaction.findMany({
+    where: {
+      status: "POSTED",
+      transferPairId: null,
+      excludeFromBudget: false,
+      categoryId: { not: null },
+    },
+    select: { id: true, categoryId: true, description: true, merchantRaw: true },
+  });
+
+  const { normalizeMerchant } = await import("@/lib/ai/merchant");
+
+  // Build set of patterns covered by USER rules (so we don't reset those tx)
+  const userRulesByPattern = await prisma.merchantRule.findMany({
+    where: { source: "USER" },
+    select: { pattern: true },
+  });
+  const userPatterns = new Set(userRulesByPattern.map((r) => r.pattern));
+
+  const toReset = candidates.filter((t) => {
+    const pattern = normalizeMerchant(t.merchantRaw ?? t.description);
+    return !userPatterns.has(pattern) && !userCategoryIds.has(t.categoryId!);
+  });
+
+  if (toReset.length > 0) {
+    await prisma.transaction.updateMany({
+      where: { id: { in: toReset.map((t) => t.id) } },
+      data: { status: "REVIEW", categoryId: null },
+    });
+  }
+
+  // Re-categorize with new prompt + taxonomy
+  let totalApplied = 0;
+  for (let i = 0; i < 20; i++) {
+    const r = await categorizeReviewTransactions();
+    if (!r.applied) break;
+    totalApplied += r.applied;
+  }
+
+  revalidatePath("/transactions");
+  revalidatePath("/");
+  revalidatePath("/categories");
+  return { rulesDeleted: ruleResult.count, txReset: toReset.length, recategorized: totalApplied };
+}
+
 export async function createCategory(input: {
   name: string;
   group?: string;
