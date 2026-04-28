@@ -16,7 +16,9 @@ The data will probably come from Brazils open finance service that I will try us
 
 You will need to occasionally save your progress somehow because my tokens might expire.
 
-I have mise installed you can use it to install any tool you want by using inside this directory: 
+Mise is installed and you can use it to install any tool you want by using: 
 mise use tool@too_version
 
-I might have some environment variables inside the .env file
+Environment variables are inside the .env file
+
+On every milestone check the structure of the app to see if everything makes sense, if this is growing in a controlled manner and if there isnt any unnecessary code sticking around. Everything must be tight and functioning

@@ -1,5 +1,6 @@
 import { getAnthropic, MODEL_FAST } from "./client";
 import { prisma } from "../db";
+import { normalizeMerchant } from "./merchant";
 
 type DetectedRecurring = {
   name: string;
@@ -8,15 +9,6 @@ type DetectedRecurring = {
   confidence: number;
   reasoning: string;
 };
-
-function normalizeMerchant(s: string) {
-  return s
-    .toLowerCase()
-    .replace(/\d+/g, "")
-    .replace(/[^a-záéíóúâêôãõç\s]/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 export async function detectRecurrings() {
   const since = new Date();
@@ -37,25 +29,31 @@ export async function detectRecurrings() {
     groups.get(k)!.push(t);
   }
 
-  // Candidates: ≥3 occurrences with similar amount
+  // Candidates: ≥2 occurrences with similar amount (broad net; AI filters noise)
   const candidates: { merchant: string; samples: typeof txs; avgAmount: number }[] = [];
   for (const [merchant, list] of groups) {
-    if (list.length < 3) continue;
+    if (list.length < 2) continue;
     const amts = list.map((l) => l.amount);
     const avg = amts.reduce((s, x) => s + x, 0) / amts.length;
     const stddev = Math.sqrt(amts.reduce((s, x) => s + (x - avg) ** 2, 0) / amts.length);
     const cv = Math.abs(stddev / avg);
-    if (cv > 0.15) continue;
+    if (cv > 0.30) continue;
     candidates.push({ merchant, samples: list, avgAmount: avg });
   }
   if (candidates.length === 0) return { detected: 0, candidates: [] as DetectedRecurring[] };
 
+  // Skip AI for candidates whose merchant pattern matches an already-saved recurring (prevents recurring AI calls on repeated syncs)
+  const existing = await prisma.recurring.findMany({ select: { name: true } });
+  const existingPatterns = new Set(existing.map((e) => normalizeMerchant(e.name)).filter(Boolean));
+  const novelCandidates = candidates.filter((c) => !existingPatterns.has(c.merchant));
+  if (novelCandidates.length === 0) return { detected: 0, candidates: [] as DetectedRecurring[] };
+
   const client = getAnthropic();
-  const candidateText = candidates
+  const candidateText = novelCandidates
     .map((c, i) => {
       const dates = c.samples.map((s) => s.date.toISOString().slice(0, 10)).join(", ");
-      const sample = c.samples[0]!.description;
-      return `${i + 1}. "${sample}" | valor médio ${c.avgAmount.toFixed(2)} | ${c.samples.length} ocorrências em [${dates}]`;
+      const sample = c.samples[0]!.description.replace(/[`"'\\]/g, "").slice(0, 60);
+      return `${i + 1}. ${sample} | valor médio ${c.avgAmount.toFixed(2)} | ${c.samples.length} ocorrências em [${dates}]`;
     })
     .join("\n");
 
@@ -89,7 +87,6 @@ export async function detectRecurrings() {
   if (!m) throw new Error("Invalid JSON from Claude");
   const parsed = JSON.parse(m[0]) as { detected: DetectedRecurring[] };
 
-  const existing = await prisma.recurring.findMany({ select: { name: true } });
   const existingNames = new Set(existing.map((e) => e.name.toLowerCase()));
 
   let saved = 0;
@@ -98,7 +95,7 @@ export async function detectRecurrings() {
     if (d.confidence < 0.7) continue;
     const next = new Date();
     next.setMonth(next.getMonth() + 1);
-    await prisma.recurring.create({
+    const rec = await prisma.recurring.create({
       data: {
         name: d.name,
         amount: d.amount,
@@ -108,6 +105,17 @@ export async function detectRecurrings() {
         detectedByAI: true,
       },
     });
+    // Mark matching tx as recurring so they don't recandidate next run
+    const pattern = normalizeMerchant(d.name);
+    if (pattern) {
+      const matched = novelCandidates.find((c) => c.merchant === pattern);
+      if (matched) {
+        await prisma.transaction.updateMany({
+          where: { id: { in: matched.samples.map((s) => s.id) } },
+          data: { isRecurring: true, recurringId: rec.id },
+        });
+      }
+    }
     saved++;
   }
 

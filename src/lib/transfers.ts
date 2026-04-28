@@ -1,16 +1,20 @@
 import { prisma } from "./db";
 
-const PAIR_DAY_WINDOW = 3;
+const PAIR_DAY_WINDOW = 5;
 
 function genPairId() {
   return `pair_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function amountTolerance(amount: number) {
+  // R$ 0.02 absolute floor, otherwise 0.5% of |amount| to allow IOF/small fees
+  return Math.max(0.02, Math.abs(amount) * 0.005);
 }
 
 export async function detectTransfers(daysBack = 60) {
   const since = new Date();
   since.setDate(since.getDate() - daysBack);
 
-  // Pull recent unpaired tx
   const txs = await prisma.transaction.findMany({
     where: {
       date: { gte: since },
@@ -29,13 +33,14 @@ export async function detectTransfers(daysBack = 60) {
   let paired = 0;
   for (const out of negatives) {
     const target = Math.abs(out.amount);
+    const tol = amountTolerance(out.amount);
     let bestMatch: typeof positives[number] | null = null;
     let bestDelta = Infinity;
 
     for (const inn of positives) {
       if (usedPositive.has(inn.id)) continue;
       if (inn.accountId === out.accountId) continue; // must be different account
-      if (Math.abs(inn.amount - target) > 0.01) continue;
+      if (Math.abs(inn.amount - target) > tol) continue;
       const dayDelta = Math.abs(inn.date.getTime() - out.date.getTime()) / (1000 * 60 * 60 * 24);
       if (dayDelta > PAIR_DAY_WINDOW) continue;
       if (dayDelta < bestDelta) {

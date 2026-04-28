@@ -45,3 +45,6 @@ next-env.d.ts
 # sqlite
 *.db
 *.db-journal
+image-*.png
+image.png
+issues.md

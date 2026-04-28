@@ -49,6 +49,7 @@ model Account {
   creditLimit  Float?
   hidden       Boolean      @default(false)
   pluggyItemId String?
+  pluggyAccountId String?   @unique
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   transactions Transaction[]

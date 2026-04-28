@@ -12,12 +12,13 @@ import {
 } from "@/lib/queries";
 import { formatBRL, formatBRLCompact, formatDate } from "@/lib/format";
 import Link from "next/link";
-import { ArrowRight, AlertCircle } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { CashflowChart } from "@/components/dashboard/cashflow-chart";
 import { CategoryDonut } from "@/components/dashboard/category-donut";
-import { AIActions } from "@/components/ai-actions";
 import { PeriodPicker } from "@/components/period-picker";
 import { parsePeriod, formatPeriodLabel } from "@/lib/period";
+import { CategoryPicker } from "@/components/category-picker";
+import { prisma } from "@/lib/db";
 
 type Props = { searchParams: Promise<{ month?: string }> };
 
@@ -25,7 +26,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const sp = await searchParams;
   const period = parsePeriod(sp.month);
   const periodDate = period.date;
-  const [networth, monthSpend, top, review, upcoming, goals, cashflow, budgets] = await Promise.all([
+  const [networth, monthSpend, top, review, upcoming, goals, cashflow, budgets, categories] = await Promise.all([
     getNetWorth(),
     getMonthSpend(periodDate),
     getTopCategories(periodDate, 6),
@@ -34,7 +35,9 @@ export default async function DashboardPage({ searchParams }: Props) {
     getGoals(),
     getMonthlyCashflow(6),
     getMonthBudgetProgress(periodDate),
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
+  const categoryProps = categories.map((c) => ({ id: c.id, name: c.name, color: c.color, group: c.group }));
   const totalBudget = budgets.reduce((s, b) => s + b.budget.monthlyLimit, 0);
   const budgetPct = totalBudget > 0 ? Math.min(100, (monthSpend.spent / totalBudget) * 100) : 0;
 
@@ -43,12 +46,7 @@ export default async function DashboardPage({ searchParams }: Props) {
       <PageHeader
         title="Dashboard"
         subtitle={`Visão geral · ${formatPeriodLabel(period)}`}
-        actions={
-          <div className="flex items-center gap-2">
-            <PeriodPicker />
-            <AIActions />
-          </div>
-        }
+        actions={<PeriodPicker />}
       />
 
       <div className="grid grid-cols-12 gap-4">
@@ -137,17 +135,22 @@ export default async function DashboardPage({ searchParams }: Props) {
             <ul className="divide-y divide-border">
               {review.map((t) => (
                 <li key={t.id} className="flex items-center justify-between py-3 gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="size-9 rounded-lg bg-warn/10 grid place-items-center shrink-0">
-                      <AlertCircle className="size-4 text-warn" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-medium truncate">{t.description}</div>
-                      <div className="text-xs text-fg-muted">{formatDate(t.date)} · {t.account.name}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium truncate">{t.description}</div>
+                    <div className="text-xs text-fg-muted mt-0.5">{formatDate(t.date)} · {t.account.name}</div>
+                    <div className="mt-1.5">
+                      <CategoryPicker
+                        txId={t.id}
+                        currentCategoryId={t.categoryId}
+                        currentCategoryName={t.category?.name ?? null}
+                        currentCategoryColor={t.category?.color ?? null}
+                        needsReview={true}
+                        categories={categoryProps}
+                      />
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className={t.amount < 0 ? "" : "text-accent"}>{formatBRL(t.amount)}</div>
+                  <div className={`text-right whitespace-nowrap ${t.amount < 0 ? "" : "text-accent"}`}>
+                    {formatBRL(t.amount)}
                   </div>
                 </li>
               ))}

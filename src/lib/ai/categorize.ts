@@ -69,13 +69,30 @@ export async function categorizeReviewTransactions() {
         text:
           "Você é um classificador de transações bancárias brasileiras. " +
           "Para cada transação, escolha a categoria mais apropriada da lista fornecida. " +
-          "Considere comerciantes, padrões de descrição e valor típico no Brasil. " +
+          "Considere comerciantes, padrões de descrição e contexto brasileiro.\n\n" +
+          "REGRAS DE CLASSIFICAÇÃO:\n" +
+          "- Pix recebido/enviado, TED, DOC, transferência: \"Transferências\"\n" +
+          "- Pagamento de fatura/cartão de crédito: \"Pagamento de fatura\"\n" +
+          "- Apple, apple.com/bill, iCloud, Microsoft 365, Google One, ChatGPT, Notion, GitHub: \"Tecnologia & Software\"\n" +
+          "- Netflix, Spotify, Disney+, HBO, Globoplay, Prime Video, YouTube Premium, Deezer, walt disney: \"Streaming\"\n" +
+          "- Barbearia, cabeleireiro, salão, estética, cosmético, manicure: \"Cuidados pessoais\"\n" +
+          "- Supermercado (Pão de Açúcar, Carrefour, Extra, Atacadão, Sam's Club): \"Mercado\"\n" +
+          "- iFood, Rappi, James, Zé Delivery: \"Delivery\"\n" +
+          "- Uber, 99, InDriver, Cabify: \"Apps de mobilidade\"\n" +
+          "- Posto Shell/Ipiranga/BR/Petrobras + qualquer combustível: \"Combustível\"\n" +
+          "- Drogasil, Drogaria São Paulo, Pague Menos, Raia: \"Farmácia\"\n" +
+          "- Smartfit, Bluefit, academia: \"Academia\"\n" +
+          "- Mc Surpreenda, Mastercard Surpreenda, Surpreenda: classifique pelo contexto, geralmente Casa & Decoração ou Vestuário\n" +
+          "- Mercado Livre, Amazon, Shopee, Magalu, Casas Bahia: olhe o item se descrito; default \"Eletrônicos\" ou \"Casa & Decoração\"\n" +
+          "- Imposto, IPVA, IPTU, DARF, Receita Federal: \"Impostos & Taxas\"\n" +
+          "- Seguro, Porto Seguro, SulAmérica, Bradesco Seguros: \"Seguros\"\n" +
+          "- Petshop, ração, veterinário: \"Pets\"\n\n" +
           "Responda APENAS com JSON válido, sem comentários, sem markdown. " +
           "Formato exato: " +
           `{"suggestions":[{"txId":"...","categoryName":"...","confidence":0.95}]}. ` +
           "Use exatamente o nome da categoria como aparece na lista. " +
           "NÃO inclua aspas dentro de strings JSON. " +
-          "Se não tiver certeza (<0.5 confidence), use Outros.\n\n" +
+          "Se realmente não conseguir identificar, use Outros com confidence baixa (<0.5).\n\n" +
           "Categorias disponíveis:\n" +
           categoryList,
         cache_control: { type: "ephemeral" },

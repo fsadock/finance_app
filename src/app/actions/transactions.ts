@@ -4,6 +4,14 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { normalizeMerchant } from "@/lib/ai/merchant";
 
+/**
+ * Set the category for a single transaction. Always propagates the assignment
+ * to every other transaction sharing the same normalized merchant pattern,
+ * and saves a USER MerchantRule (highest priority) so future imports auto-apply
+ * the same category.
+ *
+ * Pass categoryId=null to clear (sends tx back to REVIEW).
+ */
 export async function setTransactionCategory(txId: string, categoryId: string | null) {
   const tx = await prisma.transaction.findUnique({
     where: { id: txId },
@@ -11,38 +19,69 @@ export async function setTransactionCategory(txId: string, categoryId: string | 
   });
   if (!tx) throw new Error("Transação não encontrada");
 
-  await prisma.transaction.update({
-    where: { id: txId },
-    data: {
-      categoryId,
-      status: categoryId ? "POSTED" : "REVIEW",
-    },
-  });
+  const pattern = normalizeMerchant(tx.merchantRaw ?? tx.description);
 
-  // Save USER rule when assigning a category (overrides any AI rule)
   if (categoryId) {
-    const pattern = normalizeMerchant(tx.merchantRaw ?? tx.description);
+    // 1. USER rule (overrides AI rules forever)
     if (pattern) {
       await prisma.merchantRule.upsert({
         where: { pattern },
-        create: {
-          pattern,
-          categoryId,
-          confidence: 1.0,
-          source: "USER",
-          hits: 1,
-        },
-        update: {
-          categoryId,
-          confidence: 1.0,
-          source: "USER",
-        },
+        create: { pattern, categoryId, confidence: 1.0, source: "USER", hits: 1 },
+        update: { categoryId, confidence: 1.0, source: "USER" },
       });
     }
+    // 2. Update target tx + propagate to all matching tx (same pattern)
+    if (pattern) {
+      const allTx = await prisma.transaction.findMany({
+        select: { id: true, description: true, merchantRaw: true },
+      });
+      const matchingIds = allTx
+        .filter((t) => normalizeMerchant(t.merchantRaw ?? t.description) === pattern)
+        .map((t) => t.id);
+      if (matchingIds.length > 0) {
+        await prisma.transaction.updateMany({
+          where: { id: { in: matchingIds } },
+          data: { categoryId, status: "POSTED" },
+        });
+      }
+    } else {
+      // No usable pattern — just update this single tx
+      await prisma.transaction.update({
+        where: { id: txId },
+        data: { categoryId, status: "POSTED" },
+      });
+    }
+  } else {
+    // Clear category on the single tx only (don't mass-uncategorize others)
+    await prisma.transaction.update({
+      where: { id: txId },
+      data: { categoryId: null, status: "REVIEW" },
+    });
   }
 
   revalidatePath("/transactions");
   revalidatePath("/");
   revalidatePath("/categories");
   return { ok: true };
+}
+
+export async function createCategory(input: {
+  name: string;
+  group?: string;
+  color?: string;
+}) {
+  const name = input.name.trim();
+  if (!name) throw new Error("Nome obrigatório");
+  const existing = await prisma.category.findUnique({ where: { name } });
+  if (existing) throw new Error("Categoria já existe");
+  const c = await prisma.category.create({
+    data: {
+      name,
+      group: input.group?.trim() || "Personalizadas",
+      color: input.color || "#6b7280",
+    },
+  });
+  revalidatePath("/categories");
+  revalidatePath("/transactions");
+  return c;
 }

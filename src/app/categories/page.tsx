@@ -5,6 +5,7 @@ import { formatBRL, monthBounds } from "@/lib/format";
 import { CategoriesTrendChart } from "@/components/categories/trend-chart";
 import { PeriodPicker } from "@/components/period-picker";
 import { parsePeriod, formatPeriodLabel } from "@/lib/period";
+import { CategoryCreateDialog } from "@/components/category-create-dialog";
 
 type Props = { searchParams: Promise<{ month?: string }> };
 
@@ -65,7 +66,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
     return row;
   });
 
-  const visible = categories
+  const all = categories
     .filter((c) => !c.excludeFromBudget)
     .map((c) => ({
       cat: c,
@@ -73,13 +74,21 @@ export default async function CategoriesPage({ searchParams }: Props) {
       budget: budgetMap.get(c.id) ?? 0,
     }))
     .sort((a, b) => b.spent - a.spent);
+  // Show only categories with activity (spent > 0) or a budget set; rest collapsed
+  const visible = all.filter((v) => v.spent > 0 || v.budget > 0);
+  const hiddenCount = all.length - visible.length;
 
   return (
     <>
       <PageHeader
         title="Categorias"
         subtitle={`${formatPeriodLabel(period)} · gastos vs orçamento`}
-        actions={<PeriodPicker />}
+        actions={
+          <div className="flex items-center gap-2">
+            <PeriodPicker />
+            <CategoryCreateDialog />
+          </div>
+        }
       />
 
       <Card className="mb-6">
@@ -129,6 +138,16 @@ export default async function CategoriesPage({ searchParams }: Props) {
           );
         })}
       </div>
+      {hiddenCount > 0 && (
+        <p className="text-xs text-fg-muted text-center mt-6">
+          {hiddenCount} categoria(s) sem gastos no período
+        </p>
+      )}
+      {visible.length === 0 && (
+        <Card className="text-center text-sm text-fg-muted py-12">
+          Sem gastos categorizados em {formatPeriodLabel(period)}.
+        </Card>
+      )}
     </>
   );
 }

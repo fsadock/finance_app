@@ -1,6 +1,8 @@
 import { getPluggy } from "./client";
 import { prisma } from "../db";
 import { detectTransfers } from "../transfers";
+import { categorizeReviewTransactions } from "../ai/categorize";
+import { detectRecurrings } from "../ai/recurrings";
 import type { AccountType as PrismaAccountType, InvestmentType as PrismaInvestmentType } from "@/generated/prisma/client";
 
 function mapAccountType(pluggyType: string, subtype: string | undefined | null): PrismaAccountType {
@@ -60,24 +62,28 @@ export async function syncItem(itemId: string) {
   for (const a of accountsPage.results) {
     const mapped = mapAccountType(a.type, a.subtype);
     const balance = a.subtype === "CREDIT_CARD" ? -Math.abs(a.balance ?? 0) : a.balance ?? 0;
-
-    const existing = await prisma.account.findFirst({ where: { pluggyItemId: item.id, name: a.name } });
-    const acct = existing
-      ? await prisma.account.update({
-          where: { id: existing.id },
-          data: { balance, type: mapped, institution: institutionName, currency: a.currencyCode ?? "BRL", creditLimit: a.creditData?.creditLimit ?? null },
-        })
-      : await prisma.account.create({
-          data: {
-            name: a.name || a.marketingName || "Conta",
-            type: mapped,
-            institution: institutionName,
-            currency: a.currencyCode ?? "BRL",
-            balance,
-            creditLimit: a.creditData?.creditLimit ?? null,
-            pluggyItemId: item.id,
-          },
-        });
+    const accountData = {
+      name: a.name || a.marketingName || "Conta",
+      type: mapped,
+      institution: institutionName,
+      currency: a.currencyCode ?? "BRL",
+      balance,
+      creditLimit: a.creditData?.creditLimit ?? null,
+      pluggyItemId: item.id,
+      pluggyAccountId: a.id,
+    };
+    const acct = await prisma.account.upsert({
+      where: { pluggyAccountId: a.id },
+      create: accountData,
+      update: {
+        balance: accountData.balance,
+        type: accountData.type,
+        institution: accountData.institution,
+        currency: accountData.currency,
+        creditLimit: accountData.creditLimit,
+        pluggyItemId: item.id,
+      },
+    });
     stats.accounts++;
 
     // Pull all available history (Pluggy returns whatever the bank provides; cap at 5 years back)
@@ -87,7 +93,7 @@ export async function syncItem(itemId: string) {
     while (true) {
       const txs = await pluggy.fetchTransactions(a.id, { from: from.toISOString().slice(0, 10), pageSize: 200, page });
       for (const t of txs.results) {
-        const exists = await prisma.transaction.findFirst({ where: { pluggyTxId: t.id } });
+        const exists = await prisma.transaction.findFirst({ where: { pluggyTxId: t.id }, select: { id: true } });
         if (exists) continue;
         await prisma.transaction.create({
           data: {
@@ -108,44 +114,79 @@ export async function syncItem(itemId: string) {
     }
   }
 
-  // Investments
+  // Investments: snapshot pattern (delete-and-replace) per item.
+  // Investment values change over time; storing append-only would inflate net worth on every sync.
   try {
     const invPage = await pluggy.fetchInvestments(itemId);
+    const invAccountId = `inv-${itemId}`;
     if (invPage.results.length > 0) {
       const invAccount = await prisma.account.upsert({
-        where: { id: `inv-${itemId}` },
-        create: { id: `inv-${itemId}`, name: `Investimentos ${institutionName}`, type: "INVESTMENT", institution: institutionName, balance: 0, pluggyItemId: item.id },
-        update: { institution: institutionName },
+        where: { id: invAccountId },
+        create: { id: invAccountId, name: `Investimentos ${institutionName}`, type: "INVESTMENT", institution: institutionName, balance: 0, pluggyItemId: item.id },
+        update: { institution: institutionName, pluggyItemId: item.id },
       });
+      // Wipe prior snapshot for this account, then re-insert
+      await prisma.investment.deleteMany({ where: { accountId: invAccount.id } });
       let totalValue = 0;
-      for (const inv of invPage.results) {
+      const rows = invPage.results.map((inv) => {
+        const value = inv.value ?? inv.balance ?? 0;
         totalValue += inv.balance ?? 0;
-        await prisma.investment.create({
-          data: {
-            accountId: invAccount.id,
-            name: inv.name,
-            ticker: inv.code ?? null,
-            type: mapInvestmentType(inv.type),
-            quantity: inv.quantity ?? 1,
-            currentPrice: inv.value ?? inv.balance ?? 0,
-            costBasis: inv.amountOriginal ?? inv.value ?? 0,
-            currency: inv.currencyCode ?? "BRL",
-          },
-        });
-        stats.investments++;
-      }
+        return {
+          accountId: invAccount.id,
+          name: inv.name,
+          ticker: inv.code ?? null,
+          type: mapInvestmentType(inv.type),
+          quantity: inv.quantity ?? 1,
+          currentPrice: value,
+          costBasis: inv.amountOriginal ?? value,
+          currency: inv.currencyCode ?? "BRL",
+        };
+      });
+      await prisma.investment.createMany({ data: rows });
+      stats.investments = rows.length;
       await prisma.account.update({ where: { id: invAccount.id }, data: { balance: totalValue } });
+    } else {
+      // Item has no investments — clean up any stale snapshot
+      await prisma.investment.deleteMany({ where: { accountId: invAccountId } });
     }
   } catch (e) {
     // Connector may not support investments — non-fatal
     console.warn("[pluggy] investments fetch skipped:", e instanceof Error ? e.message : e);
   }
 
-  // Auto-detect transfer pairs after import (looks back 60 days)
+  return { item, stats };
+}
+
+export async function runPostSyncJobs() {
+  const out = { transfersPaired: 0, categorized: 0, fromRules: 0, fromAI: 0, recurringsDetected: 0 };
+
   try {
-    const transferResult = await detectTransfers(60);
-    return { item, stats: { ...stats, transfersPaired: transferResult.paired } };
-  } catch {
-    return { item, stats };
+    const t = await detectTransfers(60);
+    out.transfersPaired = t.paired;
+  } catch (e) {
+    console.warn("[post-sync] transfers failed:", e instanceof Error ? e.message : e);
   }
+
+  // Drain REVIEW queue with up to 12 categorize batches
+  for (let i = 0; i < 12; i++) {
+    try {
+      const c = await categorizeReviewTransactions();
+      if (!c.applied) break;
+      out.categorized += c.applied;
+      out.fromRules += c.fromRules ?? 0;
+      out.fromAI += c.fromAI ?? 0;
+    } catch (e) {
+      console.warn("[post-sync] categorize failed:", e instanceof Error ? e.message : e);
+      break;
+    }
+  }
+
+  try {
+    const r = await detectRecurrings();
+    out.recurringsDetected = r.detected;
+  } catch (e) {
+    console.warn("[post-sync] recurrings failed:", e instanceof Error ? e.message : e);
+  }
+
+  return out;
 }

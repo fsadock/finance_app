@@ -54,6 +54,34 @@ Checkpoint log for resuming across sessions. Always read top-down to learn curre
 - Categories preserved (25 BR categories) so AI classifier has target labels
 - Empty-state guards added to goals + investments page (NaN%)
 
+## 2026-04-28 — Bug-fix sweep + structure audit
+
+### Audit findings
+- Removed orphan API routes: `/api/ai/categorize`, `/api/ai/recurrings`, `/api/transfers/detect` (no UI references after auto-run move; AIActions component already deleted).
+- All routes 200. Type-check clean. No dead components left.
+
+### Root-cause fixes (no merchant-specific patches)
+- **Investment dedup (root cause of net-worth +17k drift on every sync)**: investment rows were `prisma.investment.create`d per sync without dedup. Switched to snapshot pattern: `deleteMany({accountId})` + `createMany`. Investment data is transient (current prices change); snapshot replace is correct.
+- **Account dedup**: was matching by `name` only — fragile if Pluggy renames. Added `Account.pluggyAccountId @unique`, sync now upserts by Pluggy's account id. Schema pushed via `db push` (added column non-destructively).
+- **Transfer pairing too narrow**: window 3d → 5d, amount tolerance ±R$ 0.01 → max(R$ 0.02, 0.5%·|amount|). Catches PIX entre próprias contas + pagamento de fatura even when small fees alter amount or settlement crosses 4-day banking gap.
+- **AI categorize prompt**: added explicit BR rules (Pix → Transferências, apple.com/bill → Tecnologia & Software, walt disney/Disney+ → Streaming, barbearia → Cuidados pessoais, Mc Surpreenda contextual, etc). Generalized — not a per-merchant patch.
+- **Recurring detection too strict**: min 3 → 2 occurrences, cv 0.15 → 0.30. Detected tx now `update isRecurring=true, recurringId` so they don't re-candidate next run (saves AI tokens).
+- **Manual classify propagation**: `setTransactionCategory` now also bulk-updates every tx with the same normalized merchant pattern. User edits one Mercado Livre tx → all Mercado Livre tx instantly switch + USER MerchantRule saved + future imports auto-apply.
+- **Categories page zero-noise**: filters out categories with 0 spent and 0 budget; shows "X categoria(s) sem gastos no período" footer instead.
+- **Empty-state guards** carried into investments/goals (no NaN%).
+
+### New features
+- **Category CRUD**: `createCategory` server action + `<CategoryCreateDialog>` popover on /categories header. User can add categories on the fly with name/group/color.
+- **Inline classify on dashboard review queue**: replaced static warning icon with full `<CategoryPicker>` inline. Click → assign → auto-propagates to all matching tx.
+- **Expanded category seed**: 25 → 36 categories. Added Cuidados pessoais, Casa & Decoração, Tecnologia & Software, Presentes, Pets, Impostos & Taxas, Seguros, Doações, Estacionamento & Pedágio, Reembolsos, Pagamento de fatura.
+
+### How to verify root-cause fixes on existing data
+- User must hit **Sincronizar** once on /accounts. New sync will:
+  1. Snapshot-replace duplicate investments (net worth normalizes)
+  2. Upsert accounts via pluggyAccountId (no orphans)
+  3. Re-run wider transfer detection on existing tx (more pairs get marked, false expense/income drops)
+  4. Categorize loop drains REVIEW with new 36-category taxonomy + better prompt
+
 ## Transfer detection (2026-04-27)
 - Added `Transaction.transferPairId String?` (indexed, NOT unique — pair shares same id) via migration `transfer_pair`
 - `src/lib/transfers.ts`:
