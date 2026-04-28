@@ -6,11 +6,13 @@ import { CategoriesTrendChart } from "@/components/categories/trend-chart";
 import { PeriodPicker } from "@/components/period-picker";
 import { parsePeriod, formatPeriodLabel } from "@/lib/period";
 import { CategoryCreateDialog } from "@/components/category-create-dialog";
+import { BudgetEditor } from "@/components/budget-editor";
 
-type Props = { searchParams: Promise<{ month?: string }> };
+type Props = { searchParams: Promise<{ month?: string; all?: string }> };
 
 export default async function CategoriesPage({ searchParams }: Props) {
   const sp = await searchParams;
+  const showAll = sp.all === "1";
   const period = parsePeriod(sp.month);
   const anchor = period.date;
   const { start, end } = monthBounds(anchor);
@@ -74,9 +76,9 @@ export default async function CategoriesPage({ searchParams }: Props) {
       budget: budgetMap.get(c.id) ?? 0,
     }))
     .sort((a, b) => b.spent - a.spent);
-  // Show only categories with activity (spent > 0) or a budget set; rest collapsed
-  const visible = all.filter((v) => v.spent > 0 || v.budget > 0);
-  const hiddenCount = all.length - visible.length;
+  const active = all.filter((v) => v.spent > 0 || v.budget > 0);
+  const visible = showAll ? all : active;
+  const hiddenCount = all.length - active.length;
 
   return (
     <>
@@ -114,13 +116,9 @@ export default async function CategoriesPage({ searchParams }: Props) {
                 </div>
                 <span className="text-xs text-fg-muted">{cat.group}</span>
               </div>
-              <div className="flex items-baseline justify-between">
+              <div className="flex items-baseline justify-between gap-2">
                 <span className="text-2xl font-semibold">{formatBRL(spent)}</span>
-                {budget > 0 && (
-                  <span className={`text-sm ${overBudget ? "text-danger" : "text-fg-muted"}`}>
-                    de {formatBRL(budget)}
-                  </span>
-                )}
+                <BudgetEditor categoryId={cat.id} startMonth={monthStr} current={budget} />
               </div>
               {budget > 0 && (
                 <div className="mt-3 h-2 rounded-full bg-bg-hover overflow-hidden">
@@ -133,14 +131,21 @@ export default async function CategoriesPage({ searchParams }: Props) {
                   />
                 </div>
               )}
-              {budget === 0 && <div className="mt-3 text-xs text-fg-muted">Sem orçamento</div>}
             </Card>
           );
         })}
       </div>
       {hiddenCount > 0 && (
         <p className="text-xs text-fg-muted text-center mt-6">
-          {hiddenCount} categoria(s) sem gastos no período
+          {showAll ? (
+            <a href={`?month=${period.key}`} className="hover:text-fg underline-offset-2 hover:underline">
+              Ocultar categorias sem gastos
+            </a>
+          ) : (
+            <a href={`?month=${period.key}&all=1`} className="hover:text-fg underline-offset-2 hover:underline">
+              {hiddenCount} categoria(s) sem gastos no período · mostrar todas
+            </a>
+          )}
         </p>
       )}
       {visible.length === 0 && (
