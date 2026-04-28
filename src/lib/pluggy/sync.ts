@@ -62,8 +62,23 @@ export async function syncItem(itemId: string) {
   for (const a of accountsPage.results) {
     const mapped = mapAccountType(a.type, a.subtype);
     const balance = a.subtype === "CREDIT_CARD" ? -Math.abs(a.balance ?? 0) : a.balance ?? 0;
+    const displayName = a.name || a.marketingName || "Conta";
+
+    // Backfill: if a legacy account exists for this item+name without pluggyAccountId,
+    // adopt it before upsert to avoid creating a duplicate row.
+    const legacy = await prisma.account.findFirst({
+      where: { pluggyItemId: item.id, name: displayName, pluggyAccountId: null },
+      select: { id: true },
+    });
+    if (legacy) {
+      await prisma.account.update({
+        where: { id: legacy.id },
+        data: { pluggyAccountId: a.id },
+      });
+    }
+
     const accountData = {
-      name: a.name || a.marketingName || "Conta",
+      name: displayName,
       type: mapped,
       institution: institutionName,
       currency: a.currencyCode ?? "BRL",
