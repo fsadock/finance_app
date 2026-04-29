@@ -54,10 +54,43 @@ Checkpoint log for resuming across sessions. Always read top-down to learn curre
 - Categories preserved (25 BR categories) so AI classifier has target labels
 - Empty-state guards added to goals + investments page (NaN%)
 
-## 2026-04-28 — Bug-fix sweep + structure audit
+## 2026-04-28 — Copilot Phase 2: Advanced Budgeting (Adaptive Logic)
+
+### New Features
+- **Rollover Budgets**: Carry over unused budget funds to the next month. Recursive calculation (up to 6 months) with per-category toggles.
+- **Custom Tagging**: Many-to-many tagging system for transactions. Added `TagPicker` to transaction list for rapid organization.
+- **Smart Rebalancing**: "Ajuste Inteligente" feature on the Categories page that automatically suggests and applies moves from surplus categories to cover overages.
+- **Goals Management**: Fully functional "Metas" page with the ability to create, edit, and delete financial goals, including progress tracking and monthly saving requirements.
+- **Advanced Account Spending Goals**:
+    - Added `personalLimit` to the `Account` model to allow users to set custom monthly spending targets per account (separate from bank limits).
+    - Implemented a "Daily Allowance" feature showing exactly how much you can spend per day to stay within your goal.
+    - Added "Spending Projections" that predict your month-end total based on your current daily rhythm.
+    - Added pacing indicators to Accounts page to show if you are currently on track or over-spending relative to your trajectory.
+
+## 2026-04-28 — Copilot Phase 1: Dashboard & Visual Insights
+
+### New Features
+- **"Free to Spend" Metric**: Added to dashboard to show remaining discretionary funds after budget and bills.
+- **Spending Pace Graph**: Interactive line chart on dashboard showing cumulative spending vs. ideal pace.
+- **Net Worth History**: 12-month historical area chart added to the Accounts page.
+- **Sankey Cash Flow**: Interactive flow diagram on the Cash Flow page visualizing Income -> Fixed vs. Variable -> Savings.
 
 ### Audit findings
-- Removed orphan API routes: `/api/ai/categorize`, `/api/ai/recurrings`, `/api/transfers/detect` (no UI references after auto-run move; AIActions component already deleted).
+- **Advanced Account Spending Goals**:
+    - Added `personalLimit` to the `Account` model to allow users to set custom monthly spending targets per account (separate from bank limits).
+    - Implemented a "Daily Allowance" feature showing exactly how much you can spend per day to stay within your goal.
+    - Added "Spending Projections" that predict your month-end total based on your current daily rhythm.
+    - Added pacing indicators (green/red) to show if you are currently on track or over-spending relative to your trajectory.
+- **Improved Recurring Detection**:
+    - Added `normalizeForGrouping` to better identify merchants without losing context (e.g., distinguishing between different services that both start with "PAGAMENTO").
+    - Updated AI detection to include categorization; detected recurrings now correctly link to their appropriate `Category`.
+    - Expanded "Assinaturas" filter on the Recurrentes page to include categories like Tecnologia & Software, Educação, and Lazer.
+- **Fixed Credit Card Transaction Signs**:
+    - Problem: Spending was positive and payments were negative (opposite of app logic).
+    - **Solution**: Implemented a database-level SQLite trigger `fix_credit_card_signs` that automatically flips the `amount` for `CREDIT_CARD` accounts on insertion.
+    - **Data Fix**: Updated all existing credit card transactions to flip their signs and set `signFixed = 1`.
+    - **Impact**: Budgeting, cash flow, and transfer detection now work correctly for credit card accounts without requiring changes to the application's TypeScript logic.
+- Removed orphan API routes: `/api/ai/categorize`, `/api/ai/recurrings`, `/api/transfers/detect`.
 - All routes 200. Type-check clean. No dead components left.
 
 ### Root-cause fixes (no merchant-specific patches)

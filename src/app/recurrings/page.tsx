@@ -27,8 +27,20 @@ export default async function RecurringsPage() {
     orderBy: { nextDate: "asc" },
   });
 
-  const subscriptions = recurrings.filter((r) => r.amount < 0 && (r.category?.name === "Streaming" || r.category?.name === "Assinaturas" || r.category?.name === "Academia"));
-  const bills = recurrings.filter((r) => r.amount < 0 && !subscriptions.includes(r));
+  const subscriptions = recurrings.filter((r) => {
+    if (r.amount >= 0) return false;
+    const cat = r.category?.name;
+    return (
+      cat === "Streaming" ||
+      cat === "Assinaturas" ||
+      cat === "Academia" ||
+      cat === "Tecnologia & Software" ||
+      cat === "Educação" ||
+      cat === "Lazer" ||
+      cat === "Cuidados pessoais"
+    );
+  });
+  const bills = recurrings.filter((r) => r.amount < 0 && !subscriptions.some((s) => s.id === r.id));
   const incomes = recurrings.filter((r) => r.amount > 0);
 
   const monthlySubs = subscriptions.reduce((s, r) => s + Math.abs(r.amount) * (CADENCE_TO_MONTHLY[r.cadence] ?? 1), 0);

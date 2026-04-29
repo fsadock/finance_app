@@ -2,11 +2,15 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { CashflowChart } from "@/components/dashboard/cashflow-chart";
 import { CashflowAreaChart } from "@/components/cashflow/area-chart";
-import { getMonthlyCashflow } from "@/lib/queries";
+import { CashflowSankey } from "@/components/cashflow/sankey";
+import { getMonthlyCashflow, getSankeyData } from "@/lib/queries";
 import { formatBRL, formatBRLCompact } from "@/lib/format";
 
 export default async function CashflowPage() {
-  const data = await getMonthlyCashflow(12);
+  const [data, sankey] = await Promise.all([
+    getMonthlyCashflow(12),
+    getSankeyData(),
+  ]);
   const totalIncome = data.reduce((s, d) => s + d.income, 0);
   const totalSpend = data.reduce((s, d) => s + d.spend, 0);
   const avgNet = data.length > 0 ? (totalIncome - totalSpend) / data.length : 0;
@@ -47,6 +51,13 @@ export default async function CashflowPage() {
           </div>
         </Card>
       </div>
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Diagrama de Fluxo (Mês Atual)</CardTitle>
+        </CardHeader>
+        <CashflowSankey data={sankey} />
+      </Card>
 
       <Card className="mb-4">
         <CardHeader>

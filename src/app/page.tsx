@@ -1,19 +1,22 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import {
-  getGoals,
   getMonthBudgetProgress,
   getMonthSpend,
   getMonthlyCashflow,
   getNetWorth,
   getReviewTransactions,
+  getSpendingPace,
   getTopCategories,
   getUpcomingRecurrings,
+  getCCSpendingData,
 } from "@/lib/queries";
 import { formatBRL, formatBRLCompact, formatDate } from "@/lib/format";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Wallet } from "lucide-react";
 import { CashflowChart } from "@/components/dashboard/cashflow-chart";
+import { SpendingPaceChart } from "@/components/dashboard/spending-pace-chart";
+import { CCLimitEditor } from "@/components/dashboard/cc-limit-editor";
 import { CategoryDonut } from "@/components/dashboard/category-donut";
 import { PeriodPicker } from "@/components/period-picker";
 import { parsePeriod, formatPeriodLabel } from "@/lib/period";
@@ -26,20 +29,38 @@ export default async function DashboardPage({ searchParams }: Props) {
   const sp = await searchParams;
   const period = parsePeriod(sp.month);
   const periodDate = period.date;
-  const [networth, monthSpend, top, review, upcoming, goals, cashflow, budgets, categories] = await Promise.all([
+
+  const [networth, monthSpend, top, review, upcoming, cashflow, budgets, categories, pace, ccData] = await Promise.all([
     getNetWorth(),
     getMonthSpend(periodDate),
     getTopCategories(periodDate, 6),
     getReviewTransactions(6),
-    getUpcomingRecurrings(6),
-    getGoals(),
+    getUpcomingRecurrings(10),
     getMonthlyCashflow(6),
     getMonthBudgetProgress(periodDate),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
+    getSpendingPace(periodDate),
+    getCCSpendingData(periodDate),
   ]);
+
   const categoryProps = categories.map((c) => ({ id: c.id, name: c.name, color: c.color, group: c.group }));
   const totalBudget = budgets.reduce((s, b) => s + b.budget.monthlyLimit, 0);
   const budgetPct = totalBudget > 0 ? Math.min(100, (monthSpend.spent / totalBudget) * 100) : 0;
+
+  const today = new Date();
+  const upcomingThisMonth = upcoming.filter(r => {
+    const d = new Date(r.nextDate);
+    return d.getMonth() === periodDate.getMonth() && d.getFullYear() === periodDate.getFullYear() && d > today;
+  });
+  const upcomingTotal = upcomingThisMonth.reduce((s, r) => s + Math.abs(r.amount), 0);
+  const freeToSpend = Math.max(0, totalBudget - monthSpend.spent - upcomingTotal);
+
+  // Merge CC data into pace chart rows
+  const mergedPaceData = pace.data.map((row, i) => ({
+    ...row,
+    ccActual: ccData.data[i]?.ccActual ?? null,
+    ccIdeal: ccData.data[i]?.ccIdeal ?? 0,
+  }));
 
   return (
     <>
@@ -50,18 +71,20 @@ export default async function DashboardPage({ searchParams }: Props) {
       />
 
       <div className="grid grid-cols-12 gap-4">
-        <Card className="col-span-12 md:col-span-4">
+        {/* Row 1: Key Metrics */}
+        <Card className="col-span-12 md:col-span-3">
           <CardHeader>
-            <CardTitle>Patrimônio líquido</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Wallet className="size-4 text-accent" /> Liberdade p/ gastar
+            </CardTitle>
           </CardHeader>
-          <CardValue className="text-accent">{formatBRL(networth.net)}</CardValue>
-          <div className="mt-3 text-xs text-fg-muted flex gap-4">
-            <span>Ativos: {formatBRLCompact(networth.assets)}</span>
-            <span>Dívidas: {formatBRLCompact(networth.debts)}</span>
+          <CardValue className="text-accent">{formatBRL(freeToSpend)}</CardValue>
+          <div className="mt-3 text-xs text-fg-muted">
+            Livre após contas e orçamento
           </div>
         </Card>
 
-        <Card className="col-span-12 md:col-span-4">
+        <Card className="col-span-12 md:col-span-3">
           <CardHeader>
             <CardTitle>Gasto do mês</CardTitle>
             <span className="text-xs text-fg-muted">{Math.round(budgetPct)}% do orçamento</span>
@@ -76,10 +99,9 @@ export default async function DashboardPage({ searchParams }: Props) {
               }}
             />
           </div>
-          <div className="mt-3 text-xs text-fg-muted">de {formatBRLCompact(totalBudget)} orçados</div>
         </Card>
 
-        <Card className="col-span-12 md:col-span-4">
+        <Card className="col-span-12 md:col-span-3">
           <CardHeader>
             <CardTitle>Recebido no mês</CardTitle>
           </CardHeader>
@@ -91,26 +113,42 @@ export default async function DashboardPage({ searchParams }: Props) {
           </div>
         </Card>
 
+        <Card className="col-span-12 md:col-span-3">
+          <CardHeader>
+            <CardTitle>Patrimônio líquido</CardTitle>
+          </CardHeader>
+          <CardValue className="text-accent">{formatBRL(networth.net)}</CardValue>
+          <div className="mt-3 text-xs text-fg-muted truncate">
+            {formatBRLCompact(networth.assets)} Ativos · {formatBRLCompact(networth.debts)} Dívidas
+          </div>
+        </Card>
+
+        {/* Row 2: Charts */}
         <Card className="col-span-12 lg:col-span-8">
           <CardHeader>
-            <CardTitle>Fluxo de caixa</CardTitle>
-            <Link href="/cashflow" className="text-xs text-fg-muted hover:text-fg flex items-center gap-1">
-              Ver tudo <ArrowRight className="size-3" />
-            </Link>
+            <CardTitle>Ritmo de Gastos</CardTitle>
+            <div className="text-xs text-fg-muted">
+              Real (verde) vs Ideal (tracejado)
+              {ccData.totalBudget > 0 && " · Cartão (laranja)"}
+            </div>
           </CardHeader>
-          <CashflowChart data={cashflow} />
+          <SpendingPaceChart data={mergedPaceData} showCC={ccData.totalBudget > 0} />
+          <CCLimitEditor
+            current={ccData.totalBudget}
+            currentSpend={ccData.currentSpend}
+            remaining={ccData.remaining}
+            dailyAllowance={ccData.dailyAllowance}
+            isOverBudget={ccData.isOverBudget}
+          />
         </Card>
 
         <Card className="col-span-12 lg:col-span-4">
           <CardHeader>
             <CardTitle>Top categorias</CardTitle>
-            <Link href="/categories" className="text-xs text-fg-muted hover:text-fg flex items-center gap-1">
-              Ver tudo <ArrowRight className="size-3" />
-            </Link>
           </CardHeader>
           <CategoryDonut data={top.map((t) => ({ name: t.category.name, value: t.spent, color: t.category.color ?? "#6b7280" }))} />
           <ul className="mt-4 space-y-2">
-            {top.map((t) => (
+            {top.slice(0, 4).map((t) => (
               <li key={t.category.id} className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
                   <span className="size-2.5 rounded-full" style={{ background: t.category.color ?? "#6b7280" }} />
@@ -122,6 +160,7 @@ export default async function DashboardPage({ searchParams }: Props) {
           </ul>
         </Card>
 
+        {/* Row 3: Details */}
         <Card className="col-span-12 lg:col-span-6">
           <CardHeader>
             <CardTitle>Transações para revisar</CardTitle>
@@ -160,50 +199,12 @@ export default async function DashboardPage({ searchParams }: Props) {
 
         <Card className="col-span-12 lg:col-span-6">
           <CardHeader>
-            <CardTitle>Próximas recorrentes</CardTitle>
-            <Link href="/recurrings" className="text-xs text-fg-muted hover:text-fg flex items-center gap-1">
+            <CardTitle>Fluxo de caixa (6 meses)</CardTitle>
+            <Link href="/cashflow" className="text-xs text-fg-muted hover:text-fg flex items-center gap-1">
               Ver tudo <ArrowRight className="size-3" />
             </Link>
           </CardHeader>
-          <ul className="divide-y divide-border">
-            {upcoming.map((r) => (
-              <li key={r.id} className="flex items-center justify-between py-3 gap-3">
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{r.name}</div>
-                  <div className="text-xs text-fg-muted">{formatDate(r.nextDate)} · {r.cadence.toLowerCase()}</div>
-                </div>
-                <div className={r.amount < 0 ? "" : "text-accent"}>{formatBRL(r.amount)}</div>
-              </li>
-            ))}
-          </ul>
-        </Card>
-
-        <Card className="col-span-12">
-          <CardHeader>
-            <CardTitle>Metas</CardTitle>
-            <Link href="/goals" className="text-xs text-fg-muted hover:text-fg flex items-center gap-1">
-              Ver tudo <ArrowRight className="size-3" />
-            </Link>
-          </CardHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {goals.map((g) => {
-              const pct = Math.min(100, (g.currentAmount / g.targetAmount) * 100);
-              return (
-                <div key={g.id} className="rounded-xl border border-border bg-bg-elev p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{g.name}</span>
-                    <span className="text-xs text-fg-muted">{Math.round(pct)}%</span>
-                  </div>
-                  <div className="mt-3 h-2 rounded-full bg-bg-hover overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: g.color ?? "var(--color-accent)" }} />
-                  </div>
-                  <div className="mt-2 text-xs text-fg-muted">
-                    {formatBRLCompact(g.currentAmount)} de {formatBRLCompact(g.targetAmount)}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <CashflowChart data={cashflow} />
         </Card>
       </div>
     </>

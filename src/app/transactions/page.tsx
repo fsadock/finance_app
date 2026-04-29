@@ -8,6 +8,7 @@ import { PeriodPicker } from "@/components/period-picker";
 import { parsePeriod } from "@/lib/period";
 import { monthBounds } from "@/lib/format";
 import { CategoryPicker } from "@/components/category-picker";
+import { TagPicker } from "@/components/tag-picker";
 
 type Props = {
   searchParams: Promise<{ status?: string; q?: string; cat?: string; from?: string; to?: string; month?: string }>;
@@ -29,14 +30,15 @@ export default async function TransactionsPage({ searchParams }: Props) {
     if (sp.to) where.date.lte = new Date(sp.to);
   }
 
-  const [txs, categories] = await Promise.all([
+  const [txs, categories, allTags] = await Promise.all([
     prisma.transaction.findMany({
       where,
-      include: { account: true, category: true },
+      include: { account: true, category: true, tags: true },
       orderBy: { date: "desc" },
       take: 200,
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.tag.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   const totalSpend = txs.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
@@ -123,6 +125,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
                     )}
                     <span className="font-medium">{t.description}</span>
                   </div>
+                  <TagPicker txId={t.id} currentTags={t.tags} allTags={allTags} />
                 </td>
                 <td className="px-6 py-3">
                   <CategoryPicker

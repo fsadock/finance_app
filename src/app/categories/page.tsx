@@ -7,6 +7,9 @@ import { PeriodPicker } from "@/components/period-picker";
 import { parsePeriod, formatPeriodLabel } from "@/lib/period";
 import { CategoryCreateDialog } from "@/components/category-create-dialog";
 import { BudgetEditor } from "@/components/budget-editor";
+import { getEffectiveBudget, getRebalanceSuggestions } from "@/lib/queries";
+import { RebalanceSuggestions } from "@/components/rebalance-suggestions";
+import { cn } from "@/lib/utils";
 
 type Props = { searchParams: Promise<{ month?: string; all?: string }> };
 
@@ -18,7 +21,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
   const { start, end } = monthBounds(anchor);
   const monthStr = period.key;
 
-  const [categories, budgets, monthSpend, sixMonths] = await Promise.all([
+  const [categories, budgets, monthSpend, sixMonths, suggestions] = await Promise.all([
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     prisma.budget.findMany({ where: { startMonth: monthStr } }),
     prisma.transaction.groupBy({
@@ -40,7 +43,16 @@ export default async function CategoriesPage({ searchParams }: Props) {
         select: { date: true, amount: true, categoryId: true },
       });
     })(),
+    getRebalanceSuggestions(anchor),
   ]);
+
+  const effectiveBudgets = await Promise.all(
+    categories.map(async (c) => ({
+      id: c.id,
+      effective: await getEffectiveBudget(c.id, anchor),
+    }))
+  );
+  const effectiveMap = new Map(effectiveBudgets.map((b) => [b.id, b.effective]));
 
   const spentMap = new Map(monthSpend.map((m) => [m.categoryId, Math.abs(m._sum.amount ?? 0)]));
   const budgetMap = new Map(budgets.map((b) => [b.categoryId, b.monthlyLimit]));
@@ -74,6 +86,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
       cat: c,
       spent: spentMap.get(c.id) ?? 0,
       budget: budgetMap.get(c.id) ?? 0,
+      effective: effectiveMap.get(c.id) ?? 0,
     }))
     .sort((a, b) => b.spent - a.spent);
   const active = all.filter((v) => v.spent > 0 || v.budget > 0);
@@ -87,6 +100,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
         subtitle={`${formatPeriodLabel(period)} · gastos vs orçamento`}
         actions={
           <div className="flex items-center gap-2">
+            <RebalanceSuggestions monthStr={monthStr} suggestions={suggestions} />
             <PeriodPicker />
             <CategoryCreateDialog />
           </div>
@@ -104,31 +118,60 @@ export default async function CategoriesPage({ searchParams }: Props) {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {visible.map(({ cat, spent, budget }) => {
-          const pct = budget > 0 ? (spent / budget) * 100 : 0;
+        {visible.map(({ cat, spent, budget, effective }) => {
+          const pct = effective > 0 ? (spent / effective) * 100 : 0;
           const overBudget = pct > 100;
+          const rolloverAmount = effective - budget;
+
           return (
             <Card key={cat.id}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <span className="size-3 rounded-full" style={{ background: cat.color ?? "#6b7280" }} />
                   <span className="font-medium">{cat.name}</span>
+                  {cat.rolloverEnabled && rolloverAmount !== 0 && (
+                    <span
+                      className={cn(
+                        "text-[10px] px-1.5 py-0.5 rounded font-medium",
+                        rolloverAmount > 0 ? "bg-accent/10 text-accent" : "bg-danger/10 text-danger"
+                      )}
+                      title={`Rollover do mês anterior: ${formatBRL(rolloverAmount)}`}
+                    >
+                      {rolloverAmount > 0 ? "+" : ""}
+                      {formatBRL(rolloverAmount)}
+                    </span>
+                  )}
                 </div>
                 <span className="text-xs text-fg-muted">{cat.group}</span>
               </div>
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-2xl font-semibold">{formatBRL(spent)}</span>
-                <BudgetEditor categoryId={cat.id} startMonth={monthStr} current={budget} />
+                <BudgetEditor
+                  categoryId={cat.id}
+                  startMonth={monthStr}
+                  current={budget}
+                  rolloverEnabled={cat.rolloverEnabled}
+                />
               </div>
-              {budget > 0 && (
+              {effective > 0 && (
                 <div className="mt-3 h-2 rounded-full bg-bg-hover overflow-hidden">
                   <div
-                    className="h-full rounded-full"
+                    className="h-full rounded-full transition-all duration-500"
                     style={{
                       width: `${Math.min(100, pct)}%`,
-                      background: overBudget ? "var(--color-danger)" : pct > 80 ? "var(--color-warn)" : (cat.color ?? "var(--color-accent)"),
+                      background: overBudget
+                        ? "var(--color-danger)"
+                        : pct > 80
+                        ? "var(--color-warn)"
+                        : cat.color ?? "var(--color-accent)",
                     }}
                   />
+                </div>
+              )}
+              {effective > 0 && (
+                <div className="mt-2 text-[10px] text-fg-muted flex justify-between">
+                  <span>{Math.round(pct)}% do orçamento efetivo</span>
+                  {effective !== budget && <span>Efetivo: {formatBRL(effective)}</span>}
                 </div>
               )}
             </Card>
