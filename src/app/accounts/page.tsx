@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { formatBRL } from "@/lib/format";
 import { Wallet, CreditCard, PiggyBank, TrendingUp, Coins, Banknote } from "lucide-react";
 import { PluggyConnectButton } from "@/components/pluggy-connect-button";
+import { getNetWorthHistory } from "@/lib/queries";
+import { NetWorthChart } from "@/components/dashboard/net-worth-chart";
 
 const ACCOUNT_ICON = {
   CHECKING: Wallet,
@@ -24,7 +26,10 @@ const ACCOUNT_LABEL = {
 } as const;
 
 export default async function AccountsPage() {
-  const accounts = await prisma.account.findMany({ orderBy: [{ type: "asc" }, { name: "asc" }] });
+  const [accounts, history] = await Promise.all([
+    prisma.account.findMany({ orderBy: [{ type: "asc" }, { name: "asc" }] }),
+    getNetWorthHistory(12),
+  ]);
 
   const groups = new Map<string, typeof accounts>();
   for (const a of accounts) {
@@ -38,6 +43,13 @@ export default async function AccountsPage() {
   return (
     <>
       <PageHeader title="Contas" subtitle="Todas as suas contas e cartões" actions={<PluggyConnectButton />} />
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Evolução do Patrimônio</CardTitle>
+        </CardHeader>
+        <NetWorthChart data={history} />
+      </Card>
 
       <div className="grid grid-cols-12 gap-4 mb-6">
         <Card className="col-span-12 md:col-span-4">
@@ -76,29 +88,37 @@ export default async function AccountsPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {list.map((a) => (
-                  <Card key={a.id} className="p-5">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="font-medium">{a.name}</div>
-                        <div className="text-xs text-fg-muted mt-0.5">{a.institution}</div>
+                  <Card key={a.id} className="p-5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="font-medium">{a.name}</div>
+                          <div className="text-xs text-fg-muted mt-0.5">{a.institution}</div>
+                        </div>
+                        <Icon className="size-5 text-fg-muted" strokeWidth={1.5} />
                       </div>
-                      <Icon className="size-5 text-fg-muted" strokeWidth={1.5} />
-                    </div>
-                    <div className={`mt-5 text-2xl font-semibold ${a.balance < 0 ? "text-danger" : ""}`}>
-                      {formatBRL(a.balance)}
-                    </div>
-                    {a.creditLimit && (
-                      <div className="mt-3 text-xs text-fg-muted">
-                        Limite: {formatBRL(a.creditLimit)} ·{" "}
-                        {Math.round((Math.abs(a.balance) / a.creditLimit) * 100)}% usado
+                      <div className={`mt-5 text-2xl font-semibold ${a.balance < 0 ? "text-danger" : ""}`}>
+                        {formatBRL(a.balance)}
                       </div>
-                    )}
+                    </div>
+
                     {a.creditLimit && (
-                      <div className="mt-2 h-1.5 rounded-full bg-bg-hover overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-accent"
-                          style={{ width: `${Math.min(100, (Math.abs(a.balance) / a.creditLimit) * 100)}%` }}
-                        />
+                      <div className="mt-6 pt-4 border-t border-border">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between text-[10px] text-fg-muted uppercase tracking-wider font-bold">
+                            <span>Limite Bancário</span>
+                            <span>{Math.round((Math.abs(a.balance) / a.creditLimit) * 100)}%</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-bg-hover overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-fg-muted/30"
+                              style={{ width: `${Math.min(100, (Math.abs(a.balance) / a.creditLimit) * 100)}%` }}
+                            />
+                          </div>
+                          <div className="text-[10px] text-fg-muted italic">
+                            Limite: {formatBRL(a.creditLimit)}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </Card>

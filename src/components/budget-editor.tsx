@@ -1,24 +1,31 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Pencil, Check, X, Loader2, Trash2 } from "lucide-react";
-import { setBudget, deleteBudget } from "@/app/actions/budgets";
+import { Pencil, Check, X, Loader2, Trash2, RefreshCcw } from "lucide-react";
+import { setBudget, deleteBudget, toggleRollover } from "@/app/actions/budgets";
 import { formatBRL } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export function BudgetEditor({
   categoryId,
   startMonth,
   current,
+  rolloverEnabled,
 }: {
   categoryId: string;
   startMonth: string;
   current: number;
+  rolloverEnabled: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState<string>(current > 0 ? String(current) : "");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) setValue(current > 0 ? String(current) : "");
+  }, [editing, current]);
 
   useEffect(() => {
     if (editing) inputRef.current?.focus();
@@ -41,6 +48,16 @@ export function BudgetEditor({
     });
   }
 
+  function handleToggleRollover() {
+    startTransition(async () => {
+      try {
+        await toggleRollover(categoryId, !rolloverEnabled);
+      } catch (e) {
+        console.error(e);
+      }
+    });
+  }
+
   function remove() {
     if (!confirm("Remover orçamento desta categoria?")) return;
     startTransition(async () => {
@@ -56,17 +73,29 @@ export function BudgetEditor({
 
   if (!editing) {
     return (
-      <button
-        onClick={() => setEditing(true)}
-        className="inline-flex items-center gap-1.5 text-sm text-fg-muted hover:text-fg group"
-      >
-        {current > 0 ? (
-          <>de {formatBRL(current)}</>
-        ) : (
-          <span className="italic">Definir orçamento</span>
-        )}
-        <Pencil className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleToggleRollover}
+          className={cn(
+            "p-1 rounded transition-colors",
+            rolloverEnabled ? "bg-accent/10 text-accent" : "text-fg-muted hover:bg-bg-hover"
+          )}
+          title={rolloverEnabled ? "Rollover ativado" : "Ativar rollover"}
+        >
+          <RefreshCcw className={cn("size-3.5", pending && "animate-spin")} />
+        </button>
+        <button
+          onClick={() => setEditing(true)}
+          className="inline-flex items-center gap-1.5 text-sm text-fg-muted hover:text-fg group"
+        >
+          {current > 0 ? (
+            <>de {formatBRL(current)}</>
+          ) : (
+            <span className="italic">Definir orçamento</span>
+          )}
+          <Pencil className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </button>
+      </div>
     );
   }
 

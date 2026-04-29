@@ -40,21 +40,41 @@ enum RecurringCadence {
 }
 
 model Account {
-  id           String       @id @default(cuid())
-  name         String
-  type         AccountType
-  institution  String
-  currency     String       @default("BRL")
-  balance      Float        @default(0)
-  creditLimit  Float?
-  hidden       Boolean      @default(false)
-  pluggyItemId String?
-  pluggyAccountId String?   @unique
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  transactions Transaction[]
-  investments  Investment[]
-  recurrings   Recurring[]
+  id                  String       @id @default(cuid())
+  name                String
+  type                AccountType
+  institution         String
+  currency            String       @default("BRL")
+  balance             Float        @default(0)
+  creditLimit         Float?
+  availableCreditLimit Float?
+  balanceCloseDate    DateTime?
+  balanceDueDate      DateTime?
+  minimumPayment      Float?
+  personalLimit       Float?
+  hidden              Boolean      @default(false)
+  pluggyItemId        String?
+  pluggyAccountId     String?      @unique
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  transactions        Transaction[]
+  investments         Investment[]
+  recurrings          Recurring[]
+  creditCardBills     CreditCardBill[]
+}
+
+model CreditCardBill {
+  id             String   @id @default(cuid())
+  accountId      String
+  account        Account  @relation(fields: [accountId], references: [id])
+  pluggyBillId   String   @unique
+  dueDate        DateTime
+  totalAmount    Float
+  minimumPayment Float?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([accountId, dueDate])
 }
 
 model Category {
@@ -67,6 +87,7 @@ model Category {
   children      Category[]    @relation("CategoryParent")
   group         String?
   excludeFromBudget Boolean   @default(false)
+  rolloverEnabled   Boolean   @default(false)
   budgets       Budget[]
   transactions  Transaction[]
   recurrings    Recurring[]
@@ -101,9 +122,11 @@ model Transaction {
   isRecurring   Boolean    @default(false)
   recurringId   String?
   recurring     Recurring? @relation(fields: [recurringId], references: [id])
+  tags          Tag[]
   pluggyTxId    String?    @unique
   excludeFromBudget Boolean @default(false)
   transferPairId String?
+  signFixed     Boolean    @default(false)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -111,6 +134,14 @@ model Transaction {
   @@index([categoryId])
   @@index([status])
   @@index([transferPairId])
+}
+
+model Tag {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  color        String?
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
 }
 
 model Goal {
@@ -179,4 +210,9 @@ model PluggyItem {
   status      String
   lastUpdated DateTime?
   createdAt   DateTime @default(now())
+}
+
+model AppConfig {
+  key   String @id
+  value String
 }

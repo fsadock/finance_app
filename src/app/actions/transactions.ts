@@ -150,3 +150,39 @@ export async function createCategory(input: {
   revalidatePath("/transactions");
   return c;
 }
+
+export async function addTransactionTag(txId: string, tagName: string) {
+  const name = tagName.trim().toLowerCase();
+  if (!name) return;
+
+  await prisma.transaction.update({
+    where: { id: txId },
+    data: {
+      tags: {
+        connectOrCreate: {
+          where: { name },
+          create: { name, color: "#6b7280" },
+        },
+      },
+    },
+  });
+
+  revalidatePath("/transactions");
+  revalidatePath("/");
+  return { ok: true };
+}
+
+export async function removeTransactionTag(txId: string, tagId: string) {
+  await prisma.transaction.update({
+    where: { id: txId },
+    data: {
+      tags: {
+        disconnect: { id: tagId },
+      },
+    },
+  });
+
+  revalidatePath("/transactions");
+  revalidatePath("/");
+  return { ok: true };
+}

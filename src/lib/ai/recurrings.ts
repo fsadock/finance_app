@@ -1,11 +1,12 @@
 import { getAnthropic, MODEL_FAST } from "./client";
 import { prisma } from "../db";
-import { normalizeMerchant } from "./merchant";
+import { normalizeForGrouping, normalizeMerchant } from "./merchant";
 
 type DetectedRecurring = {
   name: string;
   amount: number;
   cadence: "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+  categoryName?: string;
   confidence: number;
   reasoning: string;
 };
@@ -14,25 +15,31 @@ export async function detectRecurrings() {
   const since = new Date();
   since.setMonth(since.getMonth() - 6);
 
-  const txs = await prisma.transaction.findMany({
-    where: {
-      date: { gte: since },
-      amount: { lt: 0 },
-      isRecurring: false,
-      // Skip tx paired as transfer or excluded from budget — those are not recurring "bills"
-      transferPairId: null,
-      excludeFromBudget: false,
-      // Skip tx already in transfer/payment categories (e.g. "Pagamento de fatura")
-      OR: [{ categoryId: null }, { category: { excludeFromBudget: false } }],
-    },
-    select: { id: true, description: true, amount: true, date: true },
-    orderBy: { date: "asc" },
-  });
+  const [txs, categories] = await Promise.all([
+    prisma.transaction.findMany({
+      where: {
+        date: { gte: since },
+        amount: { lt: 0 },
+        isRecurring: false,
+        // Skip tx paired as transfer or excluded from budget — those are not recurring "bills"
+        transferPairId: null,
+        excludeFromBudget: false,
+        // Skip tx already in transfer/payment categories (e.g. "Pagamento de fatura")
+        OR: [{ categoryId: null }, { category: { excludeFromBudget: false } }],
+      },
+      select: { id: true, description: true, amount: true, date: true, categoryId: true },
+      orderBy: { date: "asc" },
+    }),
+    prisma.category.findMany({ where: { excludeFromBudget: false } }),
+  ]);
 
-  // Group by normalized merchant
+  const catMap = new Map(categories.map((c) => [c.id, c.name]));
+  const catByName = new Map(categories.map((c) => [c.name, c.id]));
+
+  // Group by refined merchant for grouping
   const groups = new Map<string, typeof txs>();
   for (const t of txs) {
-    const k = normalizeMerchant(t.description);
+    const k = normalizeForGrouping(t.description);
     if (!k) continue;
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k)!.push(t);
@@ -51,9 +58,9 @@ export async function detectRecurrings() {
   }
   if (candidates.length === 0) return { detected: 0, candidates: [] as DetectedRecurring[] };
 
-  // Skip AI for candidates whose merchant pattern matches an already-saved recurring (prevents recurring AI calls on repeated syncs)
+  // Skip AI for candidates whose merchant pattern matches an already-saved recurring
   const existing = await prisma.recurring.findMany({ select: { name: true } });
-  const existingPatterns = new Set(existing.map((e) => normalizeMerchant(e.name)).filter(Boolean));
+  const existingPatterns = new Set(existing.map((e) => normalizeForGrouping(e.name)).filter(Boolean));
   const novelCandidates = candidates.filter((c) => !existingPatterns.has(c.merchant));
   if (novelCandidates.length === 0) return { detected: 0, candidates: [] as DetectedRecurring[] };
 
@@ -62,9 +69,13 @@ export async function detectRecurrings() {
     .map((c, i) => {
       const dates = c.samples.map((s) => s.date.toISOString().slice(0, 10)).join(", ");
       const sample = c.samples[0]!.description.replace(/[`"'\\]/g, "").slice(0, 60);
-      return `${i + 1}. ${sample} | valor médio ${c.avgAmount.toFixed(2)} | ${c.samples.length} ocorrências em [${dates}]`;
+      const cat = c.samples.find((s) => s.categoryId)?.categoryId;
+      const catName = cat ? catMap.get(cat) : "Sem categoria";
+      return `${i + 1}. ${sample} | valor médio ${c.avgAmount.toFixed(2)} | ${c.samples.length} ocorrências em [${dates}] | Categoria atual: ${catName}`;
     })
     .join("\n");
+
+  const categoryList = categories.map((c) => `- ${c.name}`).join("\n");
 
   const resp = await client.messages.create({
     model: MODEL_FAST,
@@ -74,11 +85,13 @@ export async function detectRecurrings() {
         type: "text",
         text:
           "Você analisa padrões de transações para detectar pagamentos recorrentes (assinaturas, contas fixas). " +
-          "Para cada candidato, determine: (1) é realmente recorrente? (2) qual cadência (WEEKLY/BIWEEKLY/MONTHLY/QUARTERLY/YEARLY)? (3) confiança (0-1). " +
+          "Para cada candidato, determine: (1) é realmente recorrente? (2) qual cadência (WEEKLY/BIWEEKLY/MONTHLY/QUARTERLY/YEARLY)? (3) categoria apropriada da lista; (4) confiança (0-1). " +
           "Responda APENAS JSON: " +
-          `{"detected":[{"name":"...","amount":-99.9,"cadence":"MONTHLY","confidence":0.9,"reasoning":"..."}]}. ` +
+          `{"detected":[{"name":"...","amount":-99.9,"cadence":"MONTHLY","categoryName":"...","confidence":0.9,"reasoning":"..."}]}. ` +
           "name = nome amigável do serviço/conta. amount = valor médio (negativo). " +
-          "Inclua APENAS itens com confidence >= 0.7.",
+          "Inclua APENAS itens com confidence >= 0.7.\n\n" +
+          "Categorias disponíveis:\n" +
+          categoryList,
         cache_control: { type: "ephemeral" },
       },
     ],
@@ -102,20 +115,24 @@ export async function detectRecurrings() {
   for (const d of parsed.detected) {
     if (existingNames.has(d.name.toLowerCase())) continue;
     if (d.confidence < 0.7) continue;
+    
+    const catId = d.categoryName ? catByName.get(d.categoryName) : undefined;
     const next = new Date();
     next.setMonth(next.getMonth() + 1);
+
     const rec = await prisma.recurring.create({
       data: {
         name: d.name,
         amount: d.amount,
         cadence: d.cadence,
+        categoryId: catId,
         nextDate: next,
         confidence: d.confidence,
         detectedByAI: true,
       },
     });
     // Mark matching tx as recurring so they don't recandidate next run
-    const pattern = normalizeMerchant(d.name);
+    const pattern = normalizeForGrouping(d.name);
     if (pattern) {
       const matched = novelCandidates.find((c) => c.merchant === pattern);
       if (matched) {

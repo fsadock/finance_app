@@ -34,3 +34,33 @@ export async function deleteBudget(input: { categoryId: string; startMonth: stri
   revalidatePath("/");
   return { ok: true };
 }
+
+export async function toggleRollover(categoryId: string, enabled: boolean) {
+  await prisma.category.update({
+    where: { id: categoryId },
+    data: { rolloverEnabled: enabled },
+  });
+  revalidatePath("/categories");
+  return { ok: true };
+}
+
+export async function applyRebalance(
+  startMonth: string,
+  moves: { fromId: string; toId: string; amount: number }[]
+) {
+  await prisma.$transaction(
+    moves.flatMap((m) => [
+      prisma.budget.update({
+        where: { categoryId_startMonth: { categoryId: m.fromId, startMonth } },
+        data: { monthlyLimit: { decrement: m.amount } },
+      }),
+      prisma.budget.update({
+        where: { categoryId_startMonth: { categoryId: m.toId, startMonth } },
+        data: { monthlyLimit: { increment: m.amount } },
+      }),
+    ])
+  );
+  revalidatePath("/categories");
+  revalidatePath("/");
+  return { ok: true };
+}
