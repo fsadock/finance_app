@@ -41,3 +41,9 @@ pnpm-debug.log*
 
 # generated
 src/generated/prisma
+
+# AI/Planning files
+CLAUDE.md
+MEMORY.md
+PROGRESS.md
+ROADMAP_COPILOT.md
