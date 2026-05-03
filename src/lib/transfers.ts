@@ -1,48 +1,40 @@
 import { prisma } from "./db";
-
-const PAIR_DAY_WINDOW = 5;
+import {
+  TRANSFER_PAIR_DAY_WINDOW,
+  TRANSFER_AMOUNT_TOLERANCE_RATE,
+  TRANSFER_AMOUNT_TOLERANCE_FLOOR,
+  TRANSFER_DETECTION_DAYS_BACK,
+} from "./constants";
 
 function genPairId() {
   return `pair_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function amountTolerance(amount: number) {
-  // R$ 0.02 absolute floor, otherwise 0.5% of |amount| to allow IOF/small fees
-  return Math.max(0.02, Math.abs(amount) * 0.005);
+export function amountTolerance(amount: number) {
+  return Math.max(TRANSFER_AMOUNT_TOLERANCE_FLOOR, Math.abs(amount) * TRANSFER_AMOUNT_TOLERANCE_RATE);
 }
 
-export async function detectTransfers(daysBack = 60) {
-  const since = new Date();
-  since.setDate(since.getDate() - daysBack);
+type TxStub = { id: string; accountId: string; amount: number; date: Date };
 
-  const txs = await prisma.transaction.findMany({
-    where: {
-      date: { gte: since },
-      transferPairId: null,
-    },
-    select: { id: true, accountId: true, amount: true, date: true, description: true },
-    orderBy: { date: "asc" },
-  });
-
-  const transferCat = await prisma.category.findUnique({ where: { name: "Transferências" } });
-
+/** Pure matching logic — finds pairs of outgoing/incoming transactions that look like transfers. */
+export function findTransferPairs(txs: TxStub[]): Array<[TxStub, TxStub]> {
   const negatives = txs.filter((t) => t.amount < 0);
   const positives = txs.filter((t) => t.amount > 0);
   const usedPositive = new Set<string>();
+  const pairs: Array<[TxStub, TxStub]> = [];
 
-  let paired = 0;
   for (const out of negatives) {
     const target = Math.abs(out.amount);
     const tol = amountTolerance(out.amount);
-    let bestMatch: typeof positives[number] | null = null;
+    let bestMatch: TxStub | null = null;
     let bestDelta = Infinity;
 
     for (const inn of positives) {
       if (usedPositive.has(inn.id)) continue;
-      if (inn.accountId === out.accountId) continue; // must be different account
+      if (inn.accountId === out.accountId) continue;
       if (Math.abs(inn.amount - target) > tol) continue;
       const dayDelta = Math.abs(inn.date.getTime() - out.date.getTime()) / (1000 * 60 * 60 * 24);
-      if (dayDelta > PAIR_DAY_WINDOW) continue;
+      if (dayDelta > TRANSFER_PAIR_DAY_WINDOW) continue;
       if (dayDelta < bestDelta) {
         bestDelta = dayDelta;
         bestMatch = inn;
@@ -51,32 +43,41 @@ export async function detectTransfers(daysBack = 60) {
 
     if (bestMatch) {
       usedPositive.add(bestMatch.id);
-      const pairId = genPairId();
-      await prisma.$transaction([
-        prisma.transaction.update({
-          where: { id: out.id },
-          data: {
-            transferPairId: pairId,
-            categoryId: transferCat?.id ?? null,
-            excludeFromBudget: true,
-            status: "POSTED",
-          },
-        }),
-        prisma.transaction.update({
-          where: { id: bestMatch.id },
-          data: {
-            transferPairId: pairId,
-            categoryId: transferCat?.id ?? null,
-            excludeFromBudget: true,
-            status: "POSTED",
-          },
-        }),
-      ]);
-      paired++;
+      pairs.push([out, bestMatch]);
     }
   }
 
-  return { paired };
+  return pairs;
+}
+
+export async function detectTransfers(daysBack = TRANSFER_DETECTION_DAYS_BACK) {
+  const since = new Date();
+  since.setDate(since.getDate() - daysBack);
+
+  const txs = await prisma.transaction.findMany({
+    where: { date: { gte: since }, transferPairId: null },
+    select: { id: true, accountId: true, amount: true, date: true, description: true },
+    orderBy: { date: "asc" },
+  });
+
+  const transferCat = await prisma.category.findUnique({ where: { name: "Transferências" } });
+  const pairs = findTransferPairs(txs);
+
+  for (const [out, inn] of pairs) {
+    const pairId = genPairId();
+    await prisma.$transaction([
+      prisma.transaction.update({
+        where: { id: out.id },
+        data: { transferPairId: pairId, categoryId: transferCat?.id ?? null, excludeFromBudget: true, status: "POSTED" },
+      }),
+      prisma.transaction.update({
+        where: { id: inn.id },
+        data: { transferPairId: pairId, categoryId: transferCat?.id ?? null, excludeFromBudget: true, status: "POSTED" },
+      }),
+    ]);
+  }
+
+  return { paired: pairs.length };
 }
 
 export async function unpairTransfer(txId: string) {

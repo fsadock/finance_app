@@ -1,6 +1,12 @@
 import { getAnthropic, MODEL_FAST } from "./client";
 import { prisma } from "../db";
 import { normalizeForGrouping, normalizeMerchant } from "./merchant";
+import {
+  RECURRING_LOOKBACK_MONTHS,
+  RECURRING_CV_THRESHOLD,
+  RECURRING_MIN_CONFIDENCE,
+  RECURRING_MIN_OCCURRENCES,
+} from "../constants";
 
 type DetectedRecurring = {
   name: string;
@@ -13,7 +19,7 @@ type DetectedRecurring = {
 
 export async function detectRecurrings() {
   const since = new Date();
-  since.setMonth(since.getMonth() - 6);
+  since.setMonth(since.getMonth() - RECURRING_LOOKBACK_MONTHS);
 
   const [txs, categories] = await Promise.all([
     prisma.transaction.findMany({
@@ -48,12 +54,12 @@ export async function detectRecurrings() {
   // Candidates: ≥2 occurrences with similar amount (broad net; AI filters noise)
   const candidates: { merchant: string; samples: typeof txs; avgAmount: number }[] = [];
   for (const [merchant, list] of groups) {
-    if (list.length < 2) continue;
+    if (list.length < RECURRING_MIN_OCCURRENCES) continue;
     const amts = list.map((l) => l.amount);
     const avg = amts.reduce((s, x) => s + x, 0) / amts.length;
     const stddev = Math.sqrt(amts.reduce((s, x) => s + (x - avg) ** 2, 0) / amts.length);
     const cv = Math.abs(stddev / avg);
-    if (cv > 0.30) continue;
+    if (cv > RECURRING_CV_THRESHOLD) continue;
     candidates.push({ merchant, samples: list, avgAmount: avg });
   }
   if (candidates.length === 0) return { detected: 0, candidates: [] as DetectedRecurring[] };
@@ -114,7 +120,7 @@ export async function detectRecurrings() {
   let saved = 0;
   for (const d of parsed.detected) {
     if (existingNames.has(d.name.toLowerCase())) continue;
-    if (d.confidence < 0.7) continue;
+    if (d.confidence < RECURRING_MIN_CONFIDENCE) continue;
     
     const catId = d.categoryName ? catByName.get(d.categoryName) : undefined;
     const next = new Date();
