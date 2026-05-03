@@ -13,10 +13,11 @@ import { formatBRLCompact } from "@/lib/format";
 
 type Row = {
   day: number;
+  label?: string;
   actual: number | null;
-  ideal: number;
+  ideal: number | null;
   ccActual?: number | null;
-  ccIdeal?: number;
+  ccIdeal?: number | null;
 };
 
 const LABEL: Record<string, string> = {
@@ -33,7 +34,7 @@ export function SpendingPaceChart({ data, showCC = false }: { data: Row[]; showC
         <LineChart data={data}>
           <CartesianGrid stroke="#232831" strokeDasharray="3 3" vertical={false} />
           <XAxis
-            dataKey="day"
+            dataKey="label"
             stroke="#9aa0a6"
             tickLine={false}
             axisLine={false}
@@ -60,7 +61,7 @@ export function SpendingPaceChart({ data, showCC = false }: { data: Row[]; showC
               formatBRLCompact(Number(v)),
               LABEL[String(n)] ?? String(n),
             ]}
-            labelFormatter={(l) => `Dia ${l}`}
+            labelFormatter={(l) => String(l)}
           />
           <Line
             type="monotone"

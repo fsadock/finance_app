@@ -86,6 +86,10 @@ export async function syncItem(itemId: string) {
       currency: a.currencyCode ?? "BRL",
       balance,
       creditLimit: a.creditData?.creditLimit ?? null,
+      availableCreditLimit: a.creditData?.availableCreditLimit ?? null,
+      balanceCloseDate: a.creditData?.balanceCloseDate ? new Date(a.creditData.balanceCloseDate) : null,
+      balanceDueDate: a.creditData?.balanceDueDate ? new Date(a.creditData.balanceDueDate) : null,
+      minimumPayment: a.creditData?.minimumPayment ?? null,
       pluggyItemId: item.id,
       pluggyAccountId: a.id,
     };
@@ -98,10 +102,39 @@ export async function syncItem(itemId: string) {
         institution: accountData.institution,
         currency: accountData.currency,
         creditLimit: accountData.creditLimit,
+        availableCreditLimit: accountData.availableCreditLimit,
+        balanceCloseDate: accountData.balanceCloseDate,
+        balanceDueDate: accountData.balanceDueDate,
+        minimumPayment: accountData.minimumPayment,
         pluggyItemId: item.id,
       },
     });
     stats.accounts++;
+
+    // Pull credit card bills for CC accounts
+    if (mapped === "CREDIT_CARD") {
+      try {
+        const bills = await pluggy.fetchCreditCardBills(a.id);
+        for (const bill of bills.results) {
+          await prisma.creditCardBill.upsert({
+            where: { pluggyBillId: bill.id },
+            create: {
+              accountId: acct.id,
+              pluggyBillId: bill.id,
+              dueDate: new Date(bill.dueDate),
+              totalAmount: bill.totalAmount,
+              minimumPayment: bill.minimumPaymentAmount ?? null,
+            },
+            update: {
+              totalAmount: bill.totalAmount,
+              minimumPayment: bill.minimumPaymentAmount ?? null,
+            },
+          });
+        }
+      } catch (e) {
+        console.warn("[pluggy] bills fetch skipped:", e instanceof Error ? e.message : e);
+      }
+    }
 
     // Pull all available history (Pluggy returns whatever the bank provides; cap at 5 years back)
     const from = new Date();

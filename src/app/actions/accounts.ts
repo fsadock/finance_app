@@ -21,3 +21,18 @@ export async function setCCMonthlyLimit(limit: number | null) {
   revalidatePath("/accounts");
   return { ok: true };
 }
+
+export async function setCCCycleCloseDay(day: number | null) {
+  if (!day || day < 1 || day > 28) {
+    await prisma.appConfig.deleteMany({ where: { key: "cc_cycle_close_day" } });
+  } else {
+    await prisma.appConfig.upsert({
+      where: { key: "cc_cycle_close_day" },
+      update: { value: String(day) },
+      create: { key: "cc_cycle_close_day", value: String(day) },
+    });
+  }
+  revalidatePath("/");
+  revalidatePath("/accounts");
+  return { ok: true };
+}

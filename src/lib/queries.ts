@@ -135,11 +135,16 @@ export async function getMonthBudgetProgress(month = new Date()) {
   }));
 }
 
-export async function getSpendingPace(month = new Date()) {
-  const { start, end } = monthBounds(month);
+export async function getSpendingPace(month = new Date(), chartStart?: Date, chartEnd?: Date) {
+  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+  const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+
+  const from = chartStart ?? monthStart;
+  const to = chartEnd ?? monthEnd;
+
   const txs = await prisma.transaction.findMany({
     where: {
-      date: { gte: start, lt: end },
+      date: { gte: monthStart, lt: monthEnd },
       amount: { lt: 0 },
       excludeFromBudget: false,
       OR: [{ categoryId: null }, { category: { excludeFromBudget: false } }],
@@ -153,26 +158,39 @@ export async function getSpendingPace(month = new Date()) {
   });
   const totalBudget = budgets.reduce((s, b) => s + b.monthlyLimit, 0);
 
-  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const data: { day: number; actual: number; ideal: number }[] = [];
+  const monthDays = Math.ceil((monthEnd.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24));
+  const chartDays = Math.max(1, Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)));
 
-  let cumulative = 0;
-  const dayMap = new Map<number, number>();
+  const dateMap = new Map<string, number>();
   for (const t of txs) {
-    const d = new Date(t.date).getDate();
-    dayMap.set(d, (dayMap.get(d) ?? 0) + Math.abs(t.amount));
+    const key = new Date(t.date).toISOString().slice(0, 10);
+    dateMap.set(key, (dateMap.get(key) ?? 0) + Math.abs(t.amount));
   }
 
   const today = new Date();
-  const isCurrentMonth = today.getFullYear() === month.getFullYear() && today.getMonth() === month.getMonth();
-  const currentDay = isCurrentMonth ? today.getDate() : daysInMonth;
+  today.setHours(0, 0, 0, 0);
 
-  for (let i = 1; i <= daysInMonth; i++) {
-    cumulative += dayMap.get(i) ?? 0;
+  const data: { day: number; label: string; actual: number | null; ideal: number | null }[] = [];
+  let cumulative = 0;
+  for (let i = 0; i < chartDays; i++) {
+    const d = new Date(from);
+    d.setDate(d.getDate() + i);
+    d.setHours(0, 0, 0, 0);
+
+    const inCalendarMonth = d >= monthStart && d < monthEnd;
+    if (inCalendarMonth && d <= today) {
+      cumulative += dateMap.get(d.toISOString().slice(0, 10)) ?? 0;
+    }
+
+    const monthDayOffset = inCalendarMonth
+      ? Math.floor((d.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      : 0;
+
     data.push({
-      day: i,
-      actual: i <= currentDay ? cumulative : (null as any),
-      ideal: (totalBudget / daysInMonth) * i,
+      day: i + 1,
+      label: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`,
+      actual: inCalendarMonth && d <= today ? cumulative : null,
+      ideal: inCalendarMonth && totalBudget > 0 ? (totalBudget / monthDays) * monthDayOffset : null,
     });
   }
 
@@ -377,59 +395,170 @@ export async function getEffectiveBudget(categoryId: string, month: Date, depth 
 }
 
 export async function getCCSpendingData(month = new Date()) {
-  const { start, end } = monthBounds(month);
+  const { start: monthStart, end: monthEnd } = monthBounds(month);
 
-  const config = await prisma.appConfig.findUnique({ where: { key: "cc_monthly_limit" } });
-  const totalBudget = config ? parseFloat(config.value) : 0;
+  const [limitConfig, closeDayConfig] = await Promise.all([
+    prisma.appConfig.findUnique({ where: { key: "cc_monthly_limit" } }),
+    prisma.appConfig.findUnique({ where: { key: "cc_cycle_close_day" } }),
+  ]);
+  const totalBudget = limitConfig ? parseFloat(limitConfig.value) : 0;
+  const closeDay = closeDayConfig ? parseInt(closeDayConfig.value) : null;
 
-  const txs = await prisma.transaction.findMany({
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const isCurrentMonth =
+    month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth();
+
+  // Chart always starts at the first of the selected month
+  const chartStart = monthStart;
+
+  const ccAccountIds = (await prisma.account.findMany({
+    where: { type: "CREDIT_CARD", hidden: false },
+    select: { id: true },
+  })).map(a => a.id);
+
+  // Per-account billing starts and ends (only meaningful for current month)
+  const accountBillingStarts = new Map<string, Date>();
+  const accountBillingEnds = new Map<string, Date>();
+
+  if (!isCurrentMonth) {
+    // Past/future month: constrain everything to calendar month, no cycle extension
+    for (const id of ccAccountIds) {
+      accountBillingStarts.set(id, monthStart);
+      accountBillingEnds.set(id, monthEnd);
+    }
+  } else if (closeDay) {
+    let billingStartDate = new Date(today.getFullYear(), today.getMonth(), closeDay);
+    billingStartDate.setHours(0, 0, 0, 0);
+    if (billingStartDate > today) {
+      billingStartDate = new Date(today.getFullYear(), today.getMonth() - 1, closeDay);
+      billingStartDate.setHours(0, 0, 0, 0);
+    }
+    let nextClose = new Date(today.getFullYear(), today.getMonth(), closeDay);
+    nextClose.setHours(0, 0, 0, 0);
+    if (nextClose <= today) {
+      nextClose = new Date(today.getFullYear(), today.getMonth() + 1, closeDay);
+      nextClose.setHours(0, 0, 0, 0);
+    }
+    for (const id of ccAccountIds) {
+      accountBillingStarts.set(id, billingStartDate);
+      accountBillingEnds.set(id, nextClose);
+    }
+  } else {
+    // Heuristic: billing start = last closed bill dueDate - 7 days per account
+    const recentBills = await prisma.creditCardBill.findMany({
+      where: { accountId: { in: ccAccountIds } },
+      orderBy: { dueDate: "desc" },
+      distinct: ["accountId"],
+    });
+    for (const bill of recentBills) {
+      const s = new Date(bill.dueDate);
+      s.setDate(s.getDate() - 7);
+      s.setHours(0, 0, 0, 0);
+      accountBillingStarts.set(bill.accountId, s);
+      const e = new Date(bill.dueDate);
+      e.setDate(e.getDate() + 23);
+      e.setHours(0, 0, 0, 0);
+      accountBillingEnds.set(bill.accountId, e);
+    }
+    for (const id of ccAccountIds) {
+      if (!accountBillingStarts.has(id)) accountBillingStarts.set(id, monthStart);
+      if (!accountBillingEnds.has(id)) accountBillingEnds.set(id, monthEnd);
+    }
+  }
+
+  // chartEnd = latest billing end; nextCloseDate = earliest billing end (for daily allowance)
+  let chartEnd = monthEnd;
+  let nextCloseDate = monthEnd;
+  let firstEnd = true;
+  for (const e of accountBillingEnds.values()) {
+    if (firstEnd || e > chartEnd) chartEnd = e;
+    if (firstEnd || e < nextCloseDate) nextCloseDate = e;
+    firstEnd = false;
+  }
+
+  // Earliest billing start = where the orange CC line begins
+  let earliestBillingStart = chartEnd;
+  for (const s of accountBillingStarts.values()) {
+    if (s < earliestBillingStart) earliestBillingStart = s;
+  }
+  if (accountBillingStarts.size === 0) earliestBillingStart = chartStart;
+
+  const totalCCDays = Math.max(1, Math.ceil((chartEnd.getTime() - earliestBillingStart.getTime()) / (1000 * 60 * 60 * 24)));
+
+  const txs = ccAccountIds.length > 0 ? await prisma.transaction.findMany({
     where: {
-      account: { type: "CREDIT_CARD" },
-      date: { gte: start, lt: end },
+      accountId: { in: ccAccountIds },
+      date: { gte: earliestBillingStart, lt: chartEnd },
       amount: { lt: 0 },
       excludeFromBudget: false,
     },
-    select: { amount: true, date: true },
+    select: { amount: true, date: true, accountId: true },
     orderBy: { date: "asc" },
-  });
+  }) : [];
 
-  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const today = new Date();
-  const isCurrentMonth = today.getFullYear() === month.getFullYear() && today.getMonth() === month.getMonth();
-  const currentDay = isCurrentMonth ? today.getDate() : daysInMonth;
-
-  const dayMap = new Map<number, number>();
+  const accountDayMap = new Map<string, Map<string, number>>();
+  for (const id of ccAccountIds) accountDayMap.set(id, new Map());
   for (const t of txs) {
-    const d = new Date(t.date).getDate();
-    dayMap.set(d, (dayMap.get(d) ?? 0) + Math.abs(t.amount));
+    const key = new Date(t.date).toISOString().slice(0, 10);
+    const m = accountDayMap.get(t.accountId);
+    if (m) m.set(key, (m.get(key) ?? 0) + Math.abs(t.amount));
   }
 
-  const data: { day: number; ccActual: number | null; ccIdeal: number }[] = [];
-  let cumulative = 0;
-  for (let i = 1; i <= daysInMonth; i++) {
-    cumulative += dayMap.get(i) ?? 0;
+  const chartDays = Math.max(1, Math.ceil((chartEnd.getTime() - chartStart.getTime()) / (1000 * 60 * 60 * 24)));
+  const data: { day: number; label: string; ccActual: number | null; ccIdeal: number | null }[] = [];
+  let ccCumulative = 0;
+
+  for (let i = 0; i < chartDays; i++) {
+    const d = new Date(chartStart);
+    d.setDate(d.getDate() + i);
+    d.setHours(0, 0, 0, 0);
+    const dateKey = d.toISOString().slice(0, 10);
+
+    if (d <= today) {
+      for (const [accountId, acctStart] of accountBillingStarts) {
+        if (d >= acctStart) {
+          ccCumulative += accountDayMap.get(accountId)?.get(dateKey) ?? 0;
+        }
+      }
+    }
+
+    const inCCRange = d >= earliestBillingStart;
+    const ccDayOffset = inCCRange
+      ? Math.floor((d.getTime() - earliestBillingStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      : 0;
+
     data.push({
-      day: i,
-      ccActual: i <= currentDay ? cumulative : null,
-      ccIdeal: totalBudget > 0 ? (totalBudget / daysInMonth) * i : 0,
+      day: i + 1,
+      label: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`,
+      ccActual: inCCRange && d <= today ? ccCumulative : null,
+      ccIdeal: inCCRange && totalBudget > 0 ? (totalBudget / totalCCDays) * ccDayOffset : null,
     });
   }
 
-  const daysLeft = Math.max(1, daysInMonth - currentDay + 1);
-  const dailyAvg = currentDay > 0 ? cumulative / currentDay : 0;
-  const projected = dailyAvg * daysInMonth;
-  const remaining = Math.max(0, totalBudget - cumulative);
-  const dailyAllowance = totalBudget > 0 && remaining > 0 ? remaining / daysLeft : 0;
+  const currentSpend = ccCumulative;
+  const daysLeft = Math.max(1, Math.ceil((nextCloseDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+  const daysElapsed = Math.max(1, Math.ceil((today.getTime() - earliestBillingStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  const dailyAvg = currentSpend / daysElapsed;
+  const projected = dailyAvg * totalCCDays;
+  const remaining = Math.max(0, totalBudget - currentSpend);
+  const dailyAllowance = isCurrentMonth && totalBudget > 0 && remaining > 0 ? remaining / daysLeft : 0;
 
   return {
     data,
     totalBudget,
-    currentSpend: cumulative,
+    currentSpend,
     remaining,
     dailyAllowance,
     projected,
-    isOverBudget: totalBudget > 0 && cumulative > totalBudget,
-    isOverPace: totalBudget > 0 && projected > totalBudget,
+    closeDay,
+    billingStart: earliestBillingStart,
+    billingEnd: chartEnd,
+    chartStart,
+    chartEnd,
+    isOverBudget: isCurrentMonth && totalBudget > 0 && currentSpend > totalBudget,
+    isOverPace: isCurrentMonth && totalBudget > 0 && projected > totalBudget,
   };
 }
 
