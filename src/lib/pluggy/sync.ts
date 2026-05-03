@@ -3,6 +3,8 @@ import { prisma } from "../db";
 import { detectTransfers } from "../transfers";
 import { categorizeReviewTransactions } from "../ai/categorize";
 import { detectRecurrings } from "../ai/recurrings";
+import { withRetry } from "../retry";
+import { POST_SYNC_CATEGORIZE_PASSES, TRANSFER_DETECTION_DAYS_BACK } from "../constants";
 import type { AccountType as PrismaAccountType, InvestmentType as PrismaInvestmentType } from "@/generated/prisma/client";
 
 function mapAccountType(pluggyType: string, subtype: string | undefined | null): PrismaAccountType {
@@ -34,7 +36,7 @@ function mapInvestmentType(pluggyType: string): PrismaInvestmentType {
 
 export async function registerItem(itemId: string) {
   const pluggy = getPluggy();
-  const item = await pluggy.fetchItem(itemId);
+  const item = await withRetry(() => pluggy.fetchItem(itemId));
   await prisma.pluggyItem.upsert({
     where: { pluggyId: item.id },
     create: {
@@ -56,7 +58,7 @@ export async function syncItem(itemId: string) {
   const item = await registerItem(itemId);
   const institutionName = String(item.connector?.name ?? "Open Finance");
 
-  const accountsPage = await pluggy.fetchAccounts(itemId);
+  const accountsPage = await withRetry(() => pluggy.fetchAccounts(itemId));
   const stats = { accounts: 0, transactions: 0, investments: 0 };
 
   for (const a of accountsPage.results) {
@@ -106,7 +108,7 @@ export async function syncItem(itemId: string) {
     from.setFullYear(from.getFullYear() - 5);
     let page = 1;
     while (true) {
-      const txs = await pluggy.fetchTransactions(a.id, { from: from.toISOString().slice(0, 10), pageSize: 200, page });
+      const txs = await withRetry(() => pluggy.fetchTransactions(a.id, { from: from.toISOString().slice(0, 10), pageSize: 200, page }));
       for (const t of txs.results) {
         const exists = await prisma.transaction.findFirst({ where: { pluggyTxId: t.id }, select: { id: true } });
         if (exists) continue;
@@ -132,7 +134,7 @@ export async function syncItem(itemId: string) {
   // Investments: snapshot pattern (delete-and-replace) per item.
   // Investment values change over time; storing append-only would inflate net worth on every sync.
   try {
-    const invPage = await pluggy.fetchInvestments(itemId);
+    const invPage = await withRetry(() => pluggy.fetchInvestments(itemId));
     const invAccountId = `inv-${itemId}`;
     if (invPage.results.length > 0) {
       const invAccount = await prisma.account.upsert({
@@ -181,14 +183,13 @@ export async function runPostSyncJobs() {
   const out = { transfersPaired: 0, categorized: 0, fromRules: 0, fromAI: 0, recurringsDetected: 0 };
 
   try {
-    const t = await detectTransfers(60);
+    const t = await detectTransfers(TRANSFER_DETECTION_DAYS_BACK);
     out.transfersPaired = t.paired;
   } catch (e) {
     console.warn("[post-sync] transfers failed:", e instanceof Error ? e.message : e);
   }
 
-  // Drain REVIEW queue with up to 12 categorize batches
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < POST_SYNC_CATEGORIZE_PASSES; i++) {
     try {
       const c = await categorizeReviewTransactions();
       if (!c.applied) break;

@@ -7,6 +7,7 @@ import {
   RECURRING_MIN_CONFIDENCE,
   RECURRING_MIN_OCCURRENCES,
 } from "../constants";
+import { withRetry } from "../retry";
 
 type DetectedRecurring = {
   name: string;
@@ -83,7 +84,7 @@ export async function detectRecurrings() {
 
   const categoryList = categories.map((c) => `- ${c.name}`).join("\n");
 
-  const resp = await client.messages.create({
+  const resp = await withRetry(() => client.messages.create({
     model: MODEL_FAST,
     max_tokens: 2048,
     system: [
@@ -107,7 +108,7 @@ export async function detectRecurrings() {
         content: `Analise estes candidatos a recorrências:\n\n${candidateText}\n\nResponda apenas o JSON.`,
       },
     ],
-  });
+  }));
 
   const textBlock = resp.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") throw new Error("No response");
