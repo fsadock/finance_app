@@ -30,7 +30,8 @@ export default async function DashboardPage({ searchParams }: Props) {
   const period = parsePeriod(sp.month);
   const periodDate = period.date;
 
-  const [networth, monthSpend, top, review, upcoming, cashflow, budgets, categories, pace, ccData] = await Promise.all([
+  const ccData = await getCCSpendingData(periodDate);
+  const [networth, monthSpend, top, review, upcoming, cashflow, budgets, categories, pace] = await Promise.all([
     getNetWorth(),
     getMonthSpend(periodDate),
     getTopCategories(periodDate, 6),
@@ -39,8 +40,7 @@ export default async function DashboardPage({ searchParams }: Props) {
     getMonthlyCashflow(6),
     getMonthBudgetProgress(periodDate),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
-    getSpendingPace(periodDate),
-    getCCSpendingData(periodDate),
+    getSpendingPace(periodDate, ccData.chartStart, ccData.chartEnd),
   ]);
 
   const categoryProps = categories.map((c) => ({ id: c.id, name: c.name, color: c.color, group: c.group }));
@@ -59,7 +59,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const mergedPaceData = pace.data.map((row, i) => ({
     ...row,
     ccActual: ccData.data[i]?.ccActual ?? null,
-    ccIdeal: ccData.data[i]?.ccIdeal ?? 0,
+    ccIdeal: ccData.data[i]?.ccIdeal ?? null,
   }));
 
   return (
@@ -139,6 +139,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             remaining={ccData.remaining}
             dailyAllowance={ccData.dailyAllowance}
             isOverBudget={ccData.isOverBudget}
+            closeDay={ccData.closeDay}
           />
         </Card>
 
