@@ -2,6 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { z } from "zod";
+
+const setGoalSchema = z.object({
+  id: z.string().min(1).optional(),
+  name: z.string().min(1).max(100).trim(),
+  targetAmount: z.number().positive().finite(),
+  currentAmount: z.number().nonnegative().finite(),
+  deadline: z.coerce.date().optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+});
 
 export async function setGoal(input: {
   id?: string;
@@ -11,26 +21,16 @@ export async function setGoal(input: {
   deadline?: Date;
   color?: string;
 }) {
-  if (input.id) {
+  const { id, name, targetAmount, currentAmount, deadline, color } = setGoalSchema.parse(input);
+
+  if (id) {
     await prisma.goal.update({
-      where: { id: input.id },
-      data: {
-        name: input.name,
-        targetAmount: input.targetAmount,
-        currentAmount: input.currentAmount,
-        deadline: input.deadline,
-        color: input.color,
-      },
+      where: { id },
+      data: { name, targetAmount, currentAmount, deadline, color },
     });
   } else {
     await prisma.goal.create({
-      data: {
-        name: input.name,
-        targetAmount: input.targetAmount,
-        currentAmount: input.currentAmount,
-        deadline: input.deadline,
-        color: input.color,
-      },
+      data: { name, targetAmount, currentAmount, deadline, color },
     });
   }
 
@@ -40,6 +40,7 @@ export async function setGoal(input: {
 }
 
 export async function deleteGoal(id: string) {
+  z.string().min(1).parse(id);
   await prisma.goal.delete({ where: { id } });
   revalidatePath("/goals");
   revalidatePath("/");

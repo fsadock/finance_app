@@ -1,15 +1,45 @@
 import { getAnthropic, MODEL_FAST } from "./client";
 import { prisma } from "../db";
 import { normalizeMerchant } from "./merchant";
+import {
+  CATEGORIZE_BATCH_SIZE,
+  CATEGORIZE_MIN_CONFIDENCE,
+  CATEGORIZE_CACHE_RULE_MIN_CONFIDENCE,
+} from "../constants";
 
 type Suggestion = { txId: string; categoryName: string; confidence: number };
+
+type TxInput = { id: string; description: string; merchantRaw: string | null };
+type RuleInput = { pattern: string; categoryId: string; id: string };
+
+/** Pure pass-1 rule matching — no DB calls. Returns matched tx→categoryId pairs and unmatched remainder. */
+export function matchRulesToTransactions<T extends TxInput>(
+  txs: T[],
+  rules: RuleInput[]
+): { matched: Array<{ tx: T; rule: RuleInput }>; remaining: T[] } {
+  const ruleMap = new Map(rules.map((r) => [r.pattern, r]));
+  const matched: Array<{ tx: T; rule: RuleInput }> = [];
+  const remaining: T[] = [];
+
+  for (const t of txs) {
+    const pattern = normalizeMerchant(t.merchantRaw ?? t.description);
+    const rule = pattern ? ruleMap.get(pattern) : undefined;
+    if (rule) {
+      matched.push({ tx: t, rule });
+    } else {
+      remaining.push(t);
+    }
+  }
+
+  return { matched, remaining };
+}
 
 export async function categorizeReviewTransactions() {
   const [txs, categories, rules] = await Promise.all([
     prisma.transaction.findMany({
       where: { status: "REVIEW" },
       select: { id: true, description: true, merchantRaw: true, amount: true, date: true },
-      take: 40,
+      take: CATEGORIZE_BATCH_SIZE,
     }),
     prisma.category.findMany({ where: { excludeFromBudget: false } }),
     prisma.merchantRule.findMany(),
@@ -19,30 +49,23 @@ export async function categorizeReviewTransactions() {
     return { applied: 0, fromRules: 0, fromAI: 0, suggestions: [] as Suggestion[] };
   }
 
-  const ruleMap = new Map(rules.map((r) => [r.pattern, r]));
   const catByName = new Map(categories.map((c) => [c.name, c]));
 
   // Pass 1: apply existing rules
+  const { matched, remaining } = matchRulesToTransactions(txs, rules);
   let fromRules = 0;
-  const remaining: typeof txs = [];
-  for (const t of txs) {
-    const pattern = normalizeMerchant(t.merchantRaw ?? t.description);
-    const rule = pattern ? ruleMap.get(pattern) : undefined;
-    if (rule) {
-      await prisma.$transaction([
-        prisma.transaction.update({
-          where: { id: t.id },
-          data: { categoryId: rule.categoryId, status: "POSTED" },
-        }),
-        prisma.merchantRule.update({
-          where: { id: rule.id },
-          data: { hits: { increment: 1 } },
-        }),
-      ]);
-      fromRules++;
-    } else {
-      remaining.push(t);
-    }
+  for (const { tx: t, rule } of matched) {
+    await prisma.$transaction([
+      prisma.transaction.update({
+        where: { id: t.id },
+        data: { categoryId: rule.categoryId, status: "POSTED" },
+      }),
+      prisma.merchantRule.update({
+        where: { id: rule.id },
+        data: { hits: { increment: 1 } },
+      }),
+    ]);
+    fromRules++;
   }
 
   if (remaining.length === 0) {
@@ -134,7 +157,7 @@ export async function categorizeReviewTransactions() {
   for (const s of parsed.suggestions) {
     const cat = catByName.get(s.categoryName);
     if (!cat) continue;
-    if (s.confidence < 0.6) continue;
+    if (s.confidence < CATEGORIZE_MIN_CONFIDENCE) continue;
     const tx = txById.get(s.txId);
     if (!tx) continue;
 
@@ -146,7 +169,7 @@ export async function categorizeReviewTransactions() {
 
     // Cache rule for future tx
     const pattern = normalizeMerchant(tx.merchantRaw ?? tx.description);
-    if (pattern && s.confidence >= 0.8) {
+    if (pattern && s.confidence >= CATEGORIZE_CACHE_RULE_MIN_CONFIDENCE) {
       await prisma.merchantRule.upsert({
         where: { pattern },
         create: {
