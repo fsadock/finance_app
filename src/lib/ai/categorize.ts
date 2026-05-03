@@ -6,6 +6,7 @@ import {
   CATEGORIZE_MIN_CONFIDENCE,
   CATEGORIZE_CACHE_RULE_MIN_CONFIDENCE,
 } from "../constants";
+import { withRetry } from "../retry";
 
 type Suggestion = { txId: string; categoryName: string; confidence: number };
 
@@ -83,7 +84,7 @@ export async function categorizeReviewTransactions() {
     .join("\n");
 
   const client = getAnthropic();
-  const resp = await client.messages.create({
+  const resp = await withRetry(() => client.messages.create({
     model: MODEL_FAST,
     max_tokens: 8000,
     system: [
@@ -127,7 +128,7 @@ export async function categorizeReviewTransactions() {
         content: `Classifique estas ${remaining.length} transações:\n\n${txList}\n\nResponda apenas o JSON.`,
       },
     ],
-  });
+  }));
 
   const textBlock = resp.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {

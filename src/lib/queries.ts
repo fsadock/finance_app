@@ -247,7 +247,93 @@ export async function getSankeyData(month = new Date()) {
 }
 
 /**
- * Calculates the effective budget for a category in a given month,
+ * Batch version of getEffectiveBudget — loads all data in 3 queries instead of
+ * 2*(depth+1) queries per category, eliminating the N+1 on the categories page.
+ */
+export async function batchGetEffectiveBudgets(
+  categoryIds: string[],
+  month: Date
+): Promise<Map<string, number>> {
+  if (categoryIds.length === 0) return new Map();
+
+  const DEPTH = 6;
+
+  // Build month strings [m-6, ..., m] oldest-first
+  const monthStrings: string[] = [];
+  for (let i = DEPTH; i >= 0; i--) {
+    const d = new Date(month);
+    d.setMonth(d.getMonth() - i);
+    monthStrings.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  const currentMonthStr = monthStrings[monthStrings.length - 1]!;
+
+  const startDate = new Date(month);
+  startDate.setMonth(startDate.getMonth() - DEPTH);
+  startDate.setDate(1);
+  startDate.setHours(0, 0, 0, 0);
+  const endDate = new Date(month);
+  endDate.setMonth(endDate.getMonth() + 1);
+  endDate.setDate(1);
+  endDate.setHours(0, 0, 0, 0);
+
+  const [budgets, categories, transactions] = await Promise.all([
+    prisma.budget.findMany({
+      where: { categoryId: { in: categoryIds }, startMonth: { in: monthStrings } },
+    }),
+    prisma.category.findMany({
+      where: { id: { in: categoryIds } },
+      select: { id: true, rolloverEnabled: true },
+    }),
+    prisma.transaction.findMany({
+      where: {
+        categoryId: { in: categoryIds },
+        date: { gte: startDate, lt: endDate },
+        excludeFromBudget: false,
+        amount: { lt: 0 },
+      },
+      select: { categoryId: true, amount: true, date: true },
+    }),
+  ]);
+
+  const budgetLookup = new Map<string, number>();
+  for (const b of budgets) budgetLookup.set(`${b.categoryId}:${b.startMonth}`, b.monthlyLimit);
+
+  const rolloverEnabled = new Map<string, boolean>();
+  for (const c of categories) rolloverEnabled.set(c.id, c.rolloverEnabled);
+
+  const spentLookup = new Map<string, Map<string, number>>();
+  for (const t of transactions) {
+    if (!t.categoryId) continue;
+    const ms = `${t.date.getFullYear()}-${String(t.date.getMonth() + 1).padStart(2, "0")}`;
+    if (!spentLookup.has(t.categoryId)) spentLookup.set(t.categoryId, new Map());
+    const bucket = spentLookup.get(t.categoryId)!;
+    bucket.set(ms, (bucket.get(ms) ?? 0) + Math.abs(t.amount));
+  }
+
+  const result = new Map<string, number>();
+
+  for (const catId of categoryIds) {
+    if (!rolloverEnabled.get(catId)) {
+      result.set(catId, budgetLookup.get(`${catId}:${currentMonthStr}`) ?? 0);
+      continue;
+    }
+
+    // Iterate oldest→newest, carrying forward rollover
+    let effective = budgetLookup.get(`${catId}:${monthStrings[0]!}`) ?? 0;
+    for (let i = 1; i < monthStrings.length; i++) {
+      const prevMs = monthStrings[i - 1]!;
+      const thisMs = monthStrings[i]!;
+      const thisLimit = budgetLookup.get(`${catId}:${thisMs}`) ?? 0;
+      const prevSpent = spentLookup.get(catId)?.get(prevMs) ?? 0;
+      effective = thisLimit + (effective - prevSpent);
+    }
+
+    result.set(catId, effective);
+  }
+
+  return result;
+}
+
  * including rollovers (surplus/deficit) from previous months if enabled.
  * Recursion depth limited to 6 months.
  */

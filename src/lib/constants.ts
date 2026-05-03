@@ -10,6 +10,9 @@ export const CATEGORIZE_MIN_CONFIDENCE = 0.6;
 export const CATEGORIZE_CACHE_RULE_MIN_CONFIDENCE = 0.8;
 export const CATEGORIZE_MAX_RETRY_PASSES = 20;
 
+// Post-sync jobs
+export const POST_SYNC_CATEGORIZE_PASSES = 12;
+
 // Recurring detection
 export const RECURRING_LOOKBACK_MONTHS = 6;
 export const RECURRING_CV_THRESHOLD = 0.30; // max coefficient of variation for amount grouping
