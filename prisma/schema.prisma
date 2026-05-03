@@ -131,6 +131,8 @@ model Transaction {
   updatedAt     DateTime   @updatedAt
 
   @@index([accountId, date])
+  @@index([date])
+  @@index([date, excludeFromBudget])
   @@index([categoryId])
   @@index([status])
   @@index([transferPairId])
