@@ -7,6 +7,7 @@ import {
   CATEGORIZE_CACHE_RULE_MIN_CONFIDENCE,
 } from "../constants";
 import { withRetry } from "../retry";
+import { logger } from "../logger";
 
 type Suggestion = { txId: string; categoryName: string; confidence: number };
 
@@ -189,16 +190,13 @@ export async function categorizeReviewTransactions() {
     }
   }
 
-  return {
-    applied: fromRules + fromAI,
-    fromRules,
-    fromAI,
-    suggestions: parsed.suggestions,
-    usage: {
-      input: resp.usage.input_tokens,
-      output: resp.usage.output_tokens,
-      cacheRead: resp.usage.cache_read_input_tokens ?? 0,
-      cacheCreation: resp.usage.cache_creation_input_tokens ?? 0,
-    },
+  const usage = {
+    input: resp.usage.input_tokens,
+    output: resp.usage.output_tokens,
+    cacheRead: resp.usage.cache_read_input_tokens ?? 0,
+    cacheCreation: resp.usage.cache_creation_input_tokens ?? 0,
   };
+  logger.info("ai:categorize", { fromRules, fromAI, ...usage });
+
+  return { applied: fromRules + fromAI, fromRules, fromAI, suggestions: parsed.suggestions, usage };
 }

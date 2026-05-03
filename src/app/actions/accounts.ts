@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 
 const setCCMonthlyLimitSchema = z.number().positive().nullable();
+const setCCCycleCloseDaySchema = z.number().int().min(1).max(28).nullable();
 
 export async function setCCMonthlyLimit(limit: number | null) {
   const parsed = setCCMonthlyLimitSchema.parse(limit);
@@ -23,13 +24,14 @@ export async function setCCMonthlyLimit(limit: number | null) {
 }
 
 export async function setCCCycleCloseDay(day: number | null) {
-  if (!day || day < 1 || day > 28) {
+  const validated = setCCCycleCloseDaySchema.parse(day);
+  if (!validated) {
     await prisma.appConfig.deleteMany({ where: { key: "cc_cycle_close_day" } });
   } else {
     await prisma.appConfig.upsert({
       where: { key: "cc_cycle_close_day" },
-      update: { value: String(day) },
-      create: { key: "cc_cycle_close_day", value: String(day) },
+      update: { value: String(validated) },
+      create: { key: "cc_cycle_close_day", value: String(validated) },
     });
   }
   revalidatePath("/");
