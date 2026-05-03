@@ -5,6 +5,7 @@ import { categorizeReviewTransactions } from "../ai/categorize";
 import { detectRecurrings } from "../ai/recurrings";
 import { withRetry } from "../retry";
 import { POST_SYNC_CATEGORIZE_PASSES, TRANSFER_DETECTION_DAYS_BACK } from "../constants";
+import { logger } from "../logger";
 import type { AccountType as PrismaAccountType, InvestmentType as PrismaInvestmentType } from "@/generated/prisma/client";
 
 function mapAccountType(pluggyType: string, subtype: string | undefined | null): PrismaAccountType {
@@ -57,6 +58,7 @@ export async function syncItem(itemId: string) {
   const pluggy = getPluggy();
   const item = await registerItem(itemId);
   const institutionName = String(item.connector?.name ?? "Open Finance");
+  logger.info("sync:start", { itemId, institution: institutionName });
 
   const accountsPage = await withRetry(() => pluggy.fetchAccounts(itemId));
   const stats = { accounts: 0, transactions: 0, investments: 0 };
@@ -132,7 +134,7 @@ export async function syncItem(itemId: string) {
           });
         }
       } catch (e) {
-        console.warn("[pluggy] bills fetch skipped:", e instanceof Error ? e.message : e);
+        logger.warn("sync:bills_skipped", { accountId: a.id, error: e instanceof Error ? e.message : String(e) });
       }
     }
 
@@ -205,21 +207,23 @@ export async function syncItem(itemId: string) {
       await prisma.investment.deleteMany({ where: { accountId: invAccountId } });
     }
   } catch (e) {
-    // Connector may not support investments — non-fatal
-    console.warn("[pluggy] investments fetch skipped:", e instanceof Error ? e.message : e);
+    logger.warn("sync:investments_skipped", { itemId, error: e instanceof Error ? e.message : String(e) });
   }
 
+  logger.info("sync:done", { itemId, ...stats });
   return { item, stats };
 }
 
 export async function runPostSyncJobs() {
   const out = { transfersPaired: 0, categorized: 0, fromRules: 0, fromAI: 0, recurringsDetected: 0 };
+  logger.info("post-sync:start");
 
   try {
     const t = await detectTransfers(TRANSFER_DETECTION_DAYS_BACK);
     out.transfersPaired = t.paired;
+    logger.info("post-sync:transfers", { paired: t.paired });
   } catch (e) {
-    console.warn("[post-sync] transfers failed:", e instanceof Error ? e.message : e);
+    logger.error("post-sync:transfers_failed", { error: e instanceof Error ? e.message : String(e) });
   }
 
   for (let i = 0; i < POST_SYNC_CATEGORIZE_PASSES; i++) {
@@ -229,8 +233,9 @@ export async function runPostSyncJobs() {
       out.categorized += c.applied;
       out.fromRules += c.fromRules ?? 0;
       out.fromAI += c.fromAI ?? 0;
+      logger.info("post-sync:categorize_pass", { pass: i + 1, applied: c.applied, fromRules: c.fromRules, fromAI: c.fromAI });
     } catch (e) {
-      console.warn("[post-sync] categorize failed:", e instanceof Error ? e.message : e);
+      logger.error("post-sync:categorize_failed", { pass: i + 1, error: e instanceof Error ? e.message : String(e) });
       break;
     }
   }
@@ -238,9 +243,11 @@ export async function runPostSyncJobs() {
   try {
     const r = await detectRecurrings();
     out.recurringsDetected = r.detected;
+    logger.info("post-sync:recurrings", { detected: r.detected });
   } catch (e) {
-    console.warn("[post-sync] recurrings failed:", e instanceof Error ? e.message : e);
+    logger.error("post-sync:recurrings_failed", { error: e instanceof Error ? e.message : String(e) });
   }
 
+  logger.info("post-sync:done", out);
   return out;
 }

@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
 import { formatBRL, formatDate } from "@/lib/format";
-import { Search, ArrowLeftRight } from "lucide-react";
+import { Search, ArrowLeftRight, Download } from "lucide-react";
 import { TxStatus, type Prisma } from "@/generated/prisma/client";
 import { PeriodPicker } from "@/components/period-picker";
 import { parsePeriod } from "@/lib/period";
@@ -44,12 +44,34 @@ export default async function TransactionsPage({ searchParams }: Props) {
   const totalSpend = txs.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
   const totalIncome = txs.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
 
+  const exportParams = new URLSearchParams();
+  if (sp.status) exportParams.set("status", sp.status);
+  if (sp.cat) exportParams.set("cat", sp.cat);
+  if (sp.q) exportParams.set("q", sp.q);
+  if (sp.from) exportParams.set("from", sp.from);
+  if (sp.to) exportParams.set("to", sp.to);
+  if (sp.month) exportParams.set("month", sp.month);
+  const exportUrl = `/api/transactions/export?${exportParams.toString()}`;
+
   return (
     <>
       <PageHeader
         title="Transações"
         subtitle={`${txs.length} resultado(s) · saída ${formatBRL(totalSpend)} · entrada ${formatBRL(totalIncome)}`}
-        actions={<PeriodPicker />}
+        actions={
+          <div className="flex items-center gap-2">
+            <a
+              href={exportUrl}
+              download
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg hover:border-fg-muted transition-colors"
+              title="Exportar CSV"
+            >
+              <Download className="size-3.5" />
+              CSV
+            </a>
+            <PeriodPicker />
+          </div>
+        }
       />
 
       <Card className="mb-6 p-4">

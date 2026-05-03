@@ -352,6 +352,8 @@ export async function batchGetEffectiveBudgets(
   return result;
 }
 
+/**
+ * Calculates the effective budget for a single category in a given month,
  * including rollovers (surplus/deficit) from previous months if enabled.
  * Recursion depth limited to 6 months.
  */

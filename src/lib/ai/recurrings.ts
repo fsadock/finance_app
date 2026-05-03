@@ -8,6 +8,7 @@ import {
   RECURRING_MIN_OCCURRENCES,
 } from "../constants";
 import { withRetry } from "../retry";
+import { logger } from "../logger";
 
 type DetectedRecurring = {
   name: string;
@@ -152,13 +153,12 @@ export async function detectRecurrings() {
     saved++;
   }
 
-  return {
-    detected: saved,
-    candidates: parsed.detected,
-    usage: {
-      input: resp.usage.input_tokens,
-      output: resp.usage.output_tokens,
-      cacheRead: resp.usage.cache_read_input_tokens ?? 0,
-    },
+  const usage = {
+    input: resp.usage.input_tokens,
+    output: resp.usage.output_tokens,
+    cacheRead: resp.usage.cache_read_input_tokens ?? 0,
   };
+  logger.info("ai:recurrings", { detected: saved, candidates: parsed.detected.length, ...usage });
+
+  return { detected: saved, candidates: parsed.detected, usage };
 }
