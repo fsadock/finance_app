@@ -7,7 +7,7 @@ import { PeriodPicker } from "@/components/period-picker";
 import { parsePeriod, formatPeriodLabel } from "@/lib/period";
 import { CategoryCreateDialog } from "@/components/category-create-dialog";
 import { BudgetEditor } from "@/components/budget-editor";
-import { getEffectiveBudget, getRebalanceSuggestions } from "@/lib/queries";
+import { batchGetEffectiveBudgets, getRebalanceSuggestions } from "@/lib/queries";
 import { RebalanceSuggestions } from "@/components/rebalance-suggestions";
 import { cn } from "@/lib/utils";
 
@@ -46,13 +46,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
     getRebalanceSuggestions(anchor),
   ]);
 
-  const effectiveBudgets = await Promise.all(
-    categories.map(async (c) => ({
-      id: c.id,
-      effective: await getEffectiveBudget(c.id, anchor),
-    }))
-  );
-  const effectiveMap = new Map(effectiveBudgets.map((b) => [b.id, b.effective]));
+  const effectiveMap = await batchGetEffectiveBudgets(categories.map((c) => c.id), anchor);
 
   const spentMap = new Map(monthSpend.map((m) => [m.categoryId, Math.abs(m._sum.amount ?? 0)]));
   const budgetMap = new Map(budgets.map((b) => [b.categoryId, b.monthlyLimit]));

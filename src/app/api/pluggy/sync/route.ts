@@ -1,12 +1,17 @@
 import { syncItem, runPostSyncJobs } from "@/lib/pluggy/sync";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
+  if (!checkRateLimit("pluggy-sync", 5, 60_000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   try {
     const body = await req.json().catch(() => ({}));
     const itemId: string | undefined = body.itemId;
