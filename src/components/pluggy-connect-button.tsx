@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plug, Loader2, RefreshCw, Sparkles, RotateCcw } from "lucide-react";
+import { Plug, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { CategorizePendingButton } from "./categorize-pending-button";
 
 declare global {
@@ -48,7 +48,7 @@ async function readJson(res: Response) {
   return data;
 }
 
-type Busy = null | "connect" | "sync" | "reclassify";
+type Busy = null | "connect" | "sync";
 
 /** Opens the Pluggy widget (new connection, or update of `itemId`) and syncs the item on success. */
 function usePluggyConnect() {
@@ -145,24 +145,6 @@ export function PluggyConnectButton() {
     }
   }
 
-  async function reclassify() {
-    if (!confirm("Apagar as regras criadas pela IA e reclassificar com a IA o que elas decidiram? Suas regras, suas escolhas e as classificações automáticas (transferências, faturas, investimentos) ficam intactas. Usa créditos da API Anthropic.")) return;
-    setBusy("reclassify");
-    setMsg("Reclassificando…");
-    try {
-      const data = await readJson(await fetch("/api/admin/reset-ai", { method: "POST" }));
-      setMsg(
-        `✓ ${data.rulesDeleted} regras apagadas, ${data.txReset} tx resetadas, ${data.recategorized} recategorizadas` +
-          (data.error ? ` · ⚠ ${data.error}` : "")
-      );
-      startTransition(() => router.refresh());
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Erro");
-    } finally {
-      setBusy(null);
-    }
-  }
-
   const secondary =
     "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-elev border border-border hover:border-accent hover:text-accent text-sm disabled:opacity-50";
   return (
@@ -181,15 +163,6 @@ export function PluggyConnectButton() {
         Sincronizar
       </button>
       <CategorizePendingButton />
-      <button
-        onClick={reclassify}
-        disabled={busy !== null}
-        className={secondary}
-        title="Apaga regras da IA e reclassifica tudo (mantém suas escolhas)"
-      >
-        {busy === "reclassify" ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-        Reclassificar IA
-      </button>
     </div>
   );
 }

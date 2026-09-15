@@ -3,6 +3,8 @@ import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
 import { Search, Sparkles, User } from "lucide-react";
 import { RuleCategorySelect, DeleteRuleButton } from "@/components/rules/rule-row-actions";
+import { ReclassifyPanel } from "@/components/rules/reclassify-panel";
+import { getReclassifyBackupInfo } from "@/lib/reclassify";
 import Link from "next/link";
 
 type Props = { searchParams: Promise<{ q?: string; source?: string }> };
@@ -22,6 +24,7 @@ export default async function RulesPage({ searchParams }: Props) {
     prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.merchantRule.groupBy({ by: ["source"], _count: true }),
   ]);
+  const backup = await getReclassifyBackupInfo();
   const count = (s: string) => counts.find((c) => c.source === s)?._count ?? 0;
 
   return (
@@ -96,6 +99,7 @@ export default async function RulesPage({ searchParams }: Props) {
           </div>
         )}
       </Card>
+      <ReclassifyPanel backup={backup} />
     </>
   );
 }

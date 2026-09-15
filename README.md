@@ -160,7 +160,7 @@ authenticates you, e.g. `tailscale serve 3000` (reachable only inside your tailn
 | **Recorrentes** | Subscriptions, fixed bills and housing sorted by yearly cost, with price changes and "no recent charge" flags. Paused/ended items at the bottom. |
 | **Parcelas** | Card purchases in installments: remaining amount, when each ends, and how much of each upcoming bill is already committed. |
 | **Imposto de Renda** | Per calendar year: income by category and month, and deductible expenses (health, education, PGBL) grouped by payee with CNPJ/CPF. A helper for checking, not a substitute for official income statements and receipts. |
-| **Regras** | Every merchant rule, where it came from (*Você* or *IA*) and how often it was used. Change the category (this turns it into your rule) or delete it. |
+| **Regras** | Every merchant rule, where it came from (*Você* or *IA*) and how often it was used. Change the category (this turns it into your rule) or delete it. The *Zona de risco* at the bottom holds **Reclassificar com IA** and its undo. |
 
 ### Using the app without AI
 
@@ -204,10 +204,17 @@ dates (no AI), then uses AI (if configured) to detect new ones.
 Buttons:
 
 - **Categorizar pendentes** (Dashboard, Contas): runs steps 1–4 on *all* pending transactions. Keeps every rule.
-- **Reclassificar IA** (Contas): deletes all *IA* rules and sends the transactions those rules categorized back
-  through the AI. Your rules, categories you set directly, and built-in classifications (transfers, bill payments,
-  investments, yield) are never touched. It first checks that the AI is usable; without a key or credits it stops
-  and **changes nothing**. It spends API credits, so use it only after big changes to your category list.
+- **Reclassificar com IA** (bottom of **Regras**, in the *Zona de risco*): deletes all *IA* rules and sends the
+  transactions those rules categorized back through the AI. It is deliberately hard to trigger:
+  1. **Ver o que seria alterado…** shows a preview first: how many rules get deleted, how many transactions go back to
+     the AI (by category), and how many are protected. Your rules, categories you set directly, and built-in
+     classifications (transfers, bill payments, investments, yield) are never touched.
+  2. You must type `RECLASSIFICAR` (checked on the server too). Without an API key or credits the button stays
+     blocked and nothing changes.
+  3. A **restore point** is saved before any change. **Desfazer última reclassificação** restores the deleted rules
+     and previous categories, keeping any merchant you re-categorized yourself afterwards.
+
+  It spends API credits, so use it only after big changes to your category list.
 
 ---
 

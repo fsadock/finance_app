@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { merchantPattern } from "@/lib/ai/merchant";
-import { deterministicCategory } from "@/lib/brazil";
 import { unpairTransfer } from "@/lib/transfers";
 import { z } from "zod";
 
@@ -80,68 +79,6 @@ export async function setTransactionCategory(txId: string, categoryId: string | 
   revalidatePath("/");
   revalidatePath("/categories");
   return { ok: true };
-}
-
-/**
- * Re-decides what AI rules decided: deletes AI-source merchant rules and sends the transactions those rules
- * categorized back through the pipeline (built-in rules → user rules → AI).
- * Never touches user rules, built-in classifications (transfers, bill payments, investments, yield) or
- * categories set directly on a transaction. Aborts without changing anything when the AI is unavailable —
- * otherwise everything reset would just pile up in REVIEW.
- */
-export async function resetAiClassifications() {
-  const { categorizeAllPending } = await import("@/lib/ai/categorize");
-  const { checkAiAvailable } = await import("@/lib/ai/client");
-  const { applyDeterministicRules } = await import("@/lib/deterministic");
-
-  const unavailable = await checkAiAvailable();
-  if (unavailable) return { rulesDeleted: 0, txReset: 0, recategorized: 0, remaining: 0, error: `${unavailable} Nada foi alterado.` };
-
-  const [aiRules, userRules] = await Promise.all([
-    prisma.merchantRule.findMany({ where: { source: "AI" }, select: { pattern: true } }),
-    prisma.merchantRule.findMany({ where: { source: "USER" }, select: { pattern: true } }),
-  ]);
-  const aiPatterns = new Set(aiRules.map((r) => r.pattern));
-  const userPatterns = new Set(userRules.map((r) => r.pattern));
-
-  const candidates = await prisma.transaction.findMany({
-    where: { status: "POSTED", transferPairId: null, categoryId: { not: null } },
-    select: {
-      id: true,
-      description: true,
-      merchantRaw: true,
-      counterpartyName: true,
-      counterpartyType: true,
-      paymentMethod: true,
-      amount: true,
-      account: { select: { type: true } },
-    },
-  });
-  const toReset = candidates.filter((t) => {
-    const pattern = merchantPattern(t);
-    if (!pattern || !aiPatterns.has(pattern) || userPatterns.has(pattern)) return false;
-    return deterministicCategory({ ...t, accountType: t.account.type }) === null;
-  });
-
-  await prisma.$transaction([
-    prisma.merchantRule.deleteMany({ where: { source: "AI" } }),
-    prisma.transaction.updateMany({
-      where: { id: { in: toReset.map((t) => t.id) } },
-      data: { status: "REVIEW", categoryId: null, excludeFromBudget: false },
-    }),
-  ]);
-
-  await applyDeterministicRules();
-  const result = await categorizeAllPending();
-
-  revalidatePath("/", "layout");
-  return {
-    rulesDeleted: aiRules.length,
-    txReset: toReset.length,
-    recategorized: result.applied,
-    remaining: result.remaining,
-    error: result.error,
-  };
 }
 
 export async function setTransactionNotes(txId: string, notes: string) {
