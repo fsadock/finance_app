@@ -11,6 +11,9 @@ import {
   Target,
   LineChart,
   Repeat,
+  Layers,
+  Landmark,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,9 +26,12 @@ const nav = [
   { href: "/goals", label: "Metas", icon: Target },
   { href: "/investments", label: "Investimentos", icon: LineChart },
   { href: "/recurrings", label: "Recorrentes", icon: Repeat },
+  { href: "/installments", label: "Parcelas", icon: Layers },
+  { href: "/taxes", label: "Imposto de Renda", icon: Landmark },
+  { href: "/rules", label: "Regras", icon: ListChecks },
 ];
 
-export function Sidebar() {
+export function Sidebar({ lastSync }: { lastSync: string | null }) {
   const pathname = usePathname();
   return (
     <aside className="w-64 shrink-0 border-r border-border bg-bg-elev px-4 py-6 flex flex-col gap-2 sticky top-0 h-screen">
@@ -60,7 +66,11 @@ export function Sidebar() {
       </nav>
       <div className="mt-auto px-3 pt-4 border-t border-border text-xs text-fg-subtle">
         <div>BRL · pt-BR</div>
-        <div>Mock data (Pluggy off)</div>
+        <div>
+          {lastSync
+            ? `Sincronizado ${new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(lastSync))}`
+            : "Nenhuma sincronização ainda"}
+        </div>
       </div>
     </aside>
   );

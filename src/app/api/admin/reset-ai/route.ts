@@ -14,6 +14,10 @@ export async function POST() {
 
   try {
     const result = await resetAiClassifications();
+    // AI unavailable → nothing was changed; surface it as an error in the UI
+    if (result.error && result.txReset === 0 && result.rulesDeleted === 0) {
+      return NextResponse.json({ error: result.error }, { status: 409 });
+    }
     return NextResponse.json(result);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";

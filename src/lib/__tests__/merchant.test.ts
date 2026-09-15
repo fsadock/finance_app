@@ -68,3 +68,25 @@ describe("normalizeForGrouping", () => {
     expect(normalizeForGrouping("SPOTIFY*PREMIUM")).toBe("spotify premium");
   });
 });
+
+import { merchantPattern, groupingKey, isGenericDescription } from "../ai/merchant";
+
+describe("merchantPattern", () => {
+  it("never creates a rule for a bare payment rail", () => {
+    expect(merchantPattern({ description: "Pix", merchantRaw: "Pix" })).toBe("");
+    expect(merchantPattern({ description: "PIX CASH OUT EXTERNO", merchantRaw: "PIX CASH OUT EXTERNO TERC" })).toBe("");
+    expect(merchantPattern({ description: "Bankslip" })).toBe("");
+  });
+  it("uses the counterparty for generic descriptions", () => {
+    expect(merchantPattern({ description: "Pix", merchantRaw: "Pix", counterpartyName: "Padaria Pão Quente LTDA" })).toBe("pix padaria pao quente ltda");
+    expect(merchantPattern({ description: "Pix", counterpartyName: "Ana Souza" })).not.toBe(merchantPattern({ description: "Pix", counterpartyName: "Bruno Lima" }));
+  });
+  it("keeps descriptive merchants as before", () => {
+    expect(merchantPattern({ description: "NETFLIX.COM", counterpartyName: "ignored" })).toBe("netflixcom");
+    expect(isGenericDescription("netflix")).toBe(false);
+  });
+  it("groups recurrings by counterparty for generic descriptions", () => {
+    expect(groupingKey({ description: "Pix" })).toBe("");
+    expect(groupingKey({ description: "Pix", counterpartyName: "Condominio do Edificio" })).toBe("pix condominio do edificio");
+  });
+});

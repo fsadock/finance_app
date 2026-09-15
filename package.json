@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "postinstall": "prisma generate",
-    "build": "prisma db push && next build",
-    "dev": "next dev",
-    "start": "next start",
+    "build": "next build",
+    "dev": "next dev -H 127.0.0.1",
+    "start": "next start -H 127.0.0.1",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
     "db:wipe": "tsx prisma/wipe.ts",
@@ -14,7 +14,11 @@
     "db:studio": "prisma studio",
     "db:migrate": "prisma migrate dev",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit && eslint && vitest run",
+    "db:deploy": "prisma migrate deploy",
+    "db:setup": "prisma migrate deploy && tsx prisma/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",

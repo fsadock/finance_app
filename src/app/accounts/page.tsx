@@ -1,11 +1,16 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
-import { formatBRL, formatDate } from "@/lib/format";
-import { Wallet, CreditCard, PiggyBank, TrendingUp, Coins, Banknote, CalendarClock, Zap } from "lucide-react";
-import { PluggyConnectButton } from "@/components/pluggy-connect-button";
+import { formatBRL, formatDate, formatDateTime, startOfDay } from "@/lib/format";
+import { Wallet, CreditCard, PiggyBank, TrendingUp, Coins, Banknote, CalendarClock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { PluggyConnectButton, ReconnectButton } from "@/components/pluggy-connect-button";
+import { HideAccountToggle } from "@/components/accounts/hide-toggle";
 import { getNetWorthHistory } from "@/lib/queries";
+import { resolveBillingCycle } from "@/lib/billing";
+import { FLOW_SELECT, SPEND_WHERE, spendDelta } from "@/lib/flows";
 import { NetWorthChart } from "@/components/dashboard/net-worth-chart";
+import { differenceInCalendarDays } from "date-fns";
+import { cn } from "@/lib/utils";
 
 const ACCOUNT_ICON = {
   CHECKING: Wallet,
@@ -25,59 +30,61 @@ const ACCOUNT_LABEL = {
   LOAN: "Empréstimo",
 } as const;
 
+const ITEM_STATUS: Record<string, { label: string; ok: boolean }> = {
+  UPDATED: { label: "Atualizada", ok: true },
+  UPDATING: { label: "Atualizando", ok: true },
+  MERGING: { label: "Atualizando", ok: true },
+  OUTDATED: { label: "Falhou na última atualização", ok: false },
+  LOGIN_ERROR: { label: "Credenciais inválidas — reconecte", ok: false },
+  WAITING_USER_INPUT: { label: "Aguardando ação no banco", ok: false },
+  WAITING_USER_ACTION: { label: "Aguardando ação no banco", ok: false },
+};
+
 export default async function AccountsPage() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = startOfDay(new Date());
 
-  const [accounts, history, bills] = await Promise.all([
-    prisma.account.findMany({ orderBy: [{ type: "asc" }, { name: "asc" }] }),
+  const [accounts, history, items, closeDayConfig] = await Promise.all([
+    prisma.account.findMany({
+      orderBy: [{ type: "asc" }, { name: "asc" }],
+      include: { creditCardBills: { orderBy: { dueDate: "desc" }, take: 2 } },
+    }),
     getNetWorthHistory(12),
-    prisma.creditCardBill.findMany({ orderBy: { dueDate: "desc" } }),
+    prisma.pluggyItem.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.appConfig.findUnique({ where: { key: "cc_cycle_close_day" } }),
   ]);
+  const closeDay = closeDayConfig ? parseInt(closeDayConfig.value) : null;
 
-  // Pluggy never returns the current open bill. Derive it from transactions
-  // within the current billing cycle: billingStart ≈ lastClosedBill.dueDate - 7 days.
-  const openBillMap = new Map<string, number>();
-  const ccAccountIds = accounts.filter(a => a.type === "CREDIT_CARD").map(a => a.id);
-  if (ccAccountIds.length > 0) {
-    const latestBillPerAccount = await prisma.creditCardBill.findMany({
-      where: { accountId: { in: ccAccountIds } },
-      orderBy: { dueDate: "desc" },
-      distinct: ["accountId"],
+  // Open fatura per card = net spend inside the current billing cycle
+  const openBill = new Map<string, { total: number; start: Date; end: Date }>();
+  const cards = accounts.filter((a) => a.type === "CREDIT_CARD");
+  const cycles = cards
+    .map((a) => ({
+      id: a.id,
+      cycle: resolveBillingCycle({
+        today,
+        closeDay,
+        balanceCloseDate: a.balanceCloseDate,
+        lastBillDueDate: a.creditCardBills[0]?.dueDate,
+      }),
+    }))
+    .filter((c): c is { id: string; cycle: NonNullable<typeof c.cycle> } => c.cycle !== null);
+  if (cycles.length > 0) {
+    const earliest = cycles.reduce((min, c) => (c.cycle.start < min ? c.cycle.start : min), cycles[0]!.cycle.start);
+    const txs = await prisma.transaction.findMany({
+      where: { AND: [{ accountId: { in: cycles.map((c) => c.id) }, date: { gte: earliest } }, SPEND_WHERE] },
+      select: { ...FLOW_SELECT, accountId: true, date: true },
     });
-    if (latestBillPerAccount.length > 0) {
-      const billingStarts = latestBillPerAccount.map(b => {
-        const s = new Date(b.dueDate);
-        s.setDate(s.getDate() - 7);
-        s.setHours(0, 0, 0, 0);
-        return { id: b.accountId, billingStart: s };
-      });
-      const earliestStart = billingStarts.reduce((min, x) => x.billingStart < min ? x.billingStart : min, billingStarts[0].billingStart);
-      const ccTxs = await prisma.transaction.findMany({
-        where: {
-          accountId: { in: ccAccountIds },
-          date: { gte: earliestStart },
-          amount: { lt: 0 },
-          excludeFromBudget: false,
-        },
-        select: { accountId: true, amount: true, date: true },
-      });
-      for (const { id, billingStart } of billingStarts) {
-        const total = ccTxs
-          .filter(t => t.accountId === id && new Date(t.date) >= billingStart)
-          .reduce((s, t) => s + Math.abs(t.amount), 0);
-        openBillMap.set(id, total);
-      }
+    for (const { id, cycle } of cycles) {
+      const total = txs
+        .filter((t) => t.accountId === id && t.date >= cycle.start && t.date < cycle.end)
+        .reduce((s, t) => s + spendDelta(t), 0);
+      openBill.set(id, { total, ...cycle });
     }
   }
 
-  // Closed bills from DB (past only — Pluggy never returns open bills)
-  const closedBillMap = new Map<string, typeof bills>();
-  for (const b of bills) {
-    if (!closedBillMap.has(b.accountId)) closedBillMap.set(b.accountId, []);
-    const list = closedBillMap.get(b.accountId)!;
-    if (list.length < 2) list.push(b);
-  }
+  const visible = accounts.filter((a) => !a.hidden);
+  const totalAssets = visible.filter((a) => a.balance > 0).reduce((s, a) => s + a.balance, 0);
+  const totalDebts = visible.filter((a) => a.balance < 0).reduce((s, a) => s + Math.abs(a.balance), 0);
 
   const groups = new Map<string, typeof accounts>();
   for (const a of accounts) {
@@ -85,16 +92,64 @@ export default async function AccountsPage() {
     groups.get(a.type)!.push(a);
   }
 
-  const totalAssets = accounts.filter((a) => a.balance > 0).reduce((s, a) => s + a.balance, 0);
-  const totalDebts = accounts.filter((a) => a.balance < 0).reduce((s, a) => s + Math.abs(a.balance), 0);
+  const estimated = history.some((h) => h.estimated);
 
   return (
     <>
       <PageHeader title="Contas" subtitle="Todas as suas contas e cartões" actions={<PluggyConnectButton />} />
 
+      {items.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Conexões Open Finance</CardTitle>
+          </CardHeader>
+          <ul className="divide-y divide-border">
+            {items.map((it) => {
+              const status = ITEM_STATUS[it.status] ?? { label: it.status, ok: false };
+              const consentDays = it.consentExpiresAt ? differenceInCalendarDays(it.consentExpiresAt, today) : null;
+              const consentWarning = consentDays !== null && consentDays <= 30;
+              const needsAction = !status.ok || Boolean(it.lastError) || consentWarning;
+              return (
+                <li key={it.id} className="py-3 flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {needsAction ? (
+                      <AlertTriangle className="size-4 text-warn shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="size-4 text-accent shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-medium">{it.connector}</div>
+                      <div className="text-xs text-fg-muted">
+                        {status.label}
+                        {it.lastSyncedAt && ` · sincronizada ${formatDateTime(it.lastSyncedAt)}`}
+                        {consentDays !== null && (
+                          <span className={cn(consentWarning && "text-warn")}>
+                            {" · "}
+                            {consentDays < 0
+                              ? "consentimento expirado"
+                              : `consentimento expira em ${consentDays} dia(s) (${formatDate(it.consentExpiresAt!)})`}
+                          </span>
+                        )}
+                      </div>
+                      {it.lastError && <div className="text-xs text-danger mt-0.5 truncate">{it.lastError}</div>}
+                    </div>
+                  </div>
+                  {needsAction && <ReconnectButton itemId={it.pluggyId} />}
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
+
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Evolução do Patrimônio</CardTitle>
+          <CardTitle>Evolução do patrimônio</CardTitle>
+          {estimated && (
+            <span className="text-xs text-fg-muted" title="Meses antes do primeiro snapshot de saldo são estimados a partir do fluxo de caixa">
+              meses iniciais estimados
+            </span>
+          )}
         </CardHeader>
         <NetWorthChart data={history} />
       </Card>
@@ -111,13 +166,16 @@ export default async function AccountsPage() {
         <Card className="col-span-12 md:col-span-4">
           <CardHeader><CardTitle>Líquido</CardTitle></CardHeader>
           <CardValue>{formatBRL(totalAssets - totalDebts)}</CardValue>
+          {accounts.length !== visible.length && (
+            <div className="text-xs text-fg-muted mt-3">{accounts.length - visible.length} conta(s) oculta(s) fora dos totais</div>
+          )}
         </Card>
       </div>
 
       <div className="space-y-6">
         {Array.from(groups.entries()).map(([type, list]) => {
           const Icon = ACCOUNT_ICON[type as keyof typeof ACCOUNT_ICON] ?? Wallet;
-          const groupTotal = list.reduce((s, a) => s + a.balance, 0);
+          const groupTotal = list.filter((a) => !a.hidden).reduce((s, a) => s + a.balance, 0);
           return (
             <div key={type}>
               <div className="flex items-center justify-between mb-3 px-1">
@@ -131,100 +189,87 @@ export default async function AccountsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {list.map((a) => {
                   const isCC = a.type === "CREDIT_CARD";
-                  const openBillTotal = openBillMap.get(a.id);
-                  const closedBills = closedBillMap.get(a.id) ?? [];
-                  const hasOpenBill = openBillTotal !== undefined;
+                  const bill = openBill.get(a.id);
+                  const usedPct = a.creditLimit ? Math.min(100, (Math.abs(a.balance) / a.creditLimit) * 100) : null;
 
                   return (
-                    <Card key={a.id} className="p-5 flex flex-col justify-between">
+                    <Card key={a.id} className={cn("p-5 flex flex-col justify-between", a.hidden && "opacity-50")}>
                       <div>
                         <div className="flex items-start justify-between">
                           <div>
                             <div className="font-medium">{a.name}</div>
-                            <div className="text-xs text-fg-muted mt-0.5">{a.institution}</div>
+                            <div className="text-xs text-fg-muted mt-0.5">
+                              {a.institution}
+                              {a.hidden && " · oculta"}
+                            </div>
                           </div>
-                          <Icon className="size-5 text-fg-muted" strokeWidth={1.5} />
+                          <div className="flex items-center gap-1">
+                            <HideAccountToggle accountId={a.id} hidden={a.hidden} />
+                            <Icon className="size-5 text-fg-muted" strokeWidth={1.5} />
+                          </div>
                         </div>
                         <div className={`mt-5 text-2xl font-semibold ${a.balance < 0 ? "text-danger" : ""}`}>
                           {formatBRL(a.balance)}
                         </div>
                       </div>
 
-                      <div className="mt-6 pt-4 border-t border-border space-y-3">
-                        {/* Current open bill — computed from billing-cycle transactions */}
-                        {isCC && hasOpenBill && (
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between text-[10px] uppercase tracking-wider font-bold text-fg-muted">
-                              <span>Fatura aberta</span>
-                              <span className="text-fg font-semibold text-sm">{formatBRL(openBillTotal)}</span>
-                            </div>
-                            <div className="flex items-center gap-3 text-xs text-fg-muted">
-                              {a.balanceDueDate && (
-                                <span className="flex items-center gap-1">
-                                  <CalendarClock className="size-3" />
-                                  Vence {formatDate(a.balanceDueDate)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Fallback: last closed bill when no open bill data */}
-                        {isCC && !hasOpenBill && closedBills[0] && (
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between text-[10px] uppercase tracking-wider font-bold text-fg-muted">
-                              <span>Última fatura</span>
-                              <span className="text-fg font-semibold text-sm">{formatBRL(closedBills[0].totalAmount)}</span>
-                            </div>
-                            <div className="flex items-center gap-3 text-xs text-fg-muted">
-                              <span className="flex items-center gap-1">
-                                <CalendarClock className="size-3" />
-                                Venceu {formatDate(closedBills[0].dueDate)}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Available credit */}
-                        {isCC && a.availableCreditLimit != null && (
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-fg-muted">Limite disponível</span>
-                            <span className="text-accent font-medium">{formatBRL(a.availableCreditLimit)}</span>
-                          </div>
-                        )}
-
-                        {/* Credit utilization bar (fallback when no bill data at all) */}
-                        {a.creditLimit && !hasOpenBill && closedBills.length === 0 && (
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between text-[10px] text-fg-muted uppercase tracking-wider font-bold">
-                              <span>Limite utilizado</span>
-                              <span>{Math.round((Math.abs(a.balance) / a.creditLimit) * 100)}%</span>
-                            </div>
-                            <div className="h-1.5 rounded-full bg-bg-hover overflow-hidden">
-                              <div
-                                className="h-full rounded-full bg-fg-muted/30"
-                                style={{ width: `${Math.min(100, (Math.abs(a.balance) / a.creditLimit) * 100)}%` }}
-                              />
-                            </div>
-                            <div className="text-[10px] text-fg-muted italic">
-                              Limite: {formatBRL(a.creditLimit)}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Closed bills */}
-                        {isCC && closedBills.length > 0 && (
-                          <div className="space-y-1">
-                            <div className="text-[10px] uppercase tracking-wider font-bold text-fg-muted mb-1.5">Faturas fechadas</div>
-                            {closedBills.map((b) => (
-                              <div key={b.id} className="flex items-center justify-between text-xs text-fg-muted">
-                                <span>{formatDate(b.dueDate)}</span>
-                                <span>{formatBRL(b.totalAmount)}</span>
+                      {isCC && (
+                        <div className="mt-6 pt-4 border-t border-border space-y-3">
+                          {bill && (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-[10px] uppercase tracking-wider font-bold text-fg-muted">
+                                <span>Fatura aberta</span>
+                                <span className="text-fg font-semibold text-sm normal-case">{formatBRL(bill.total)}</span>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                              <div className="flex items-center gap-3 text-xs text-fg-muted">
+                                <span>fecha {formatDate(bill.end)}</span>
+                                {a.balanceDueDate && (
+                                  <span className="flex items-center gap-1">
+                                    <CalendarClock className="size-3" /> vence {formatDate(a.balanceDueDate)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {a.availableCreditLimit != null && (
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-fg-muted">Limite disponível</span>
+                              <span className="text-accent font-medium">{formatBRL(a.availableCreditLimit)}</span>
+                            </div>
+                          )}
+
+                          {usedPct !== null && (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between text-[10px] text-fg-muted uppercase tracking-wider font-bold">
+                                <span>Limite utilizado</span>
+                                <span>{Math.round(usedPct)}% de {formatBRL(a.creditLimit!)}</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-bg-hover overflow-hidden">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{
+                                    width: `${usedPct}%`,
+                                    background: usedPct > 80 ? "var(--color-danger)" : usedPct > 50 ? "var(--color-warn)" : "var(--color-accent)",
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {a.creditCardBills.length > 0 && (
+                            <div className="space-y-1">
+                              <div className="text-[10px] uppercase tracking-wider font-bold text-fg-muted mb-1.5">Faturas fechadas</div>
+                              {a.creditCardBills.map((b) => (
+                                <div key={b.id} className="flex items-center justify-between text-xs text-fg-muted">
+                                  <span>venc. {formatDate(b.dueDate)}</span>
+                                  <span>{formatBRL(b.totalAmount)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </Card>
                   );
                 })}
@@ -232,6 +277,11 @@ export default async function AccountsPage() {
             </div>
           );
         })}
+        {accounts.length === 0 && (
+          <Card className="text-center py-16 text-fg-muted">
+            Nenhuma conta ainda. Use <span className="text-fg">Conectar conta</span> para trazer seus bancos e cartões via Open Finance.
+          </Card>
+        )}
       </div>
     </>
   );

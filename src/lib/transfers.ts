@@ -54,26 +54,36 @@ export async function detectTransfers(daysBack = TRANSFER_DETECTION_DAYS_BACK) {
   const since = new Date();
   since.setDate(since.getDate() - daysBack);
 
-  const txs = await prisma.transaction.findMany({
-    where: { date: { gte: since }, transferPairId: null },
-    select: { id: true, accountId: true, amount: true, date: true, description: true },
-    orderBy: { date: "asc" },
-  });
+  const [txs, categories] = await Promise.all([
+    prisma.transaction.findMany({
+      where: {
+        date: { gte: since },
+        transferPairId: null,
+        // investment moves (Aplicação/Resgate) and yield are not transfers between accounts
+        NOT: { category: { name: { in: ["Investimentos", "Rendimentos"] } } },
+      },
+      select: { id: true, accountId: true, amount: true, date: true, account: { select: { type: true } } },
+      orderBy: { date: "asc" },
+    }),
+    prisma.category.findMany({ where: { name: { in: ["Transferências", "Pagamento de fatura"] } } }),
+  ]);
+  const catId = (name: string) => categories.find((c) => c.name === name)?.id ?? null;
+  const accountType = new Map(txs.map((t) => [t.id, t.account.type]));
 
-  const transferCat = await prisma.category.findUnique({ where: { name: "Transferências" } });
   const pairs = findTransferPairs(txs);
-
   for (const [out, inn] of pairs) {
     const pairId = genPairId();
+    // money landing on a credit card is a bill payment, not a transfer
+    const isBillPayment = accountType.get(inn.id) === "CREDIT_CARD";
+    const data = {
+      transferPairId: pairId,
+      categoryId: catId(isBillPayment ? "Pagamento de fatura" : "Transferências"),
+      excludeFromBudget: true,
+      status: "POSTED" as const,
+    };
     await prisma.$transaction([
-      prisma.transaction.update({
-        where: { id: out.id },
-        data: { transferPairId: pairId, categoryId: transferCat?.id ?? null, excludeFromBudget: true, status: "POSTED" },
-      }),
-      prisma.transaction.update({
-        where: { id: inn.id },
-        data: { transferPairId: pairId, categoryId: transferCat?.id ?? null, excludeFromBudget: true, status: "POSTED" },
-      }),
+      prisma.transaction.update({ where: { id: out.id }, data }),
+      prisma.transaction.update({ where: { id: inn.id }, data }),
     ]);
   }
 

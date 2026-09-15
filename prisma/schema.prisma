@@ -40,27 +40,41 @@ enum RecurringCadence {
 }
 
 model Account {
-  id                  String       @id @default(cuid())
-  name                String
-  type                AccountType
-  institution         String
-  currency            String       @default("BRL")
-  balance             Float        @default(0)
-  creditLimit         Float?
+  id                   String            @id @default(cuid())
+  name                 String
+  type                 AccountType
+  institution          String
+  currency             String            @default("BRL")
+  balance              Float             @default(0)
+  creditLimit          Float?
   availableCreditLimit Float?
-  balanceCloseDate    DateTime?
-  balanceDueDate      DateTime?
-  minimumPayment      Float?
-  personalLimit       Float?
-  hidden              Boolean      @default(false)
-  pluggyItemId        String?
-  pluggyAccountId     String?      @unique
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
-  transactions        Transaction[]
-  investments         Investment[]
-  recurrings          Recurring[]
-  creditCardBills     CreditCardBill[]
+  balanceCloseDate     DateTime?
+  balanceDueDate       DateTime?
+  minimumPayment       Float?
+  hidden               Boolean           @default(false)
+  pluggyItemId         String?
+  pluggyAccountId      String?           @unique
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  transactions         Transaction[]
+  investments          Investment[]
+  recurrings           Recurring[]
+  creditCardBills      CreditCardBill[]
+  snapshots            BalanceSnapshot[]
+  goals                Goal[]
+}
+
+/// One row per account per day, written on every sync / manual balance edit.
+/// Source of truth for the net worth history chart.
+model BalanceSnapshot {
+  id        String   @id @default(cuid())
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  date      DateTime
+  balance   Float
+
+  @@unique([accountId, date])
+  @@index([date])
 }
 
 model CreditCardBill {
@@ -78,57 +92,76 @@ model CreditCardBill {
 }
 
 model Category {
-  id            String        @id @default(cuid())
-  name          String        @unique
-  icon          String?
-  color         String?
-  parentId      String?
-  parent        Category?     @relation("CategoryParent", fields: [parentId], references: [id])
-  children      Category[]    @relation("CategoryParent")
-  group         String?
-  excludeFromBudget Boolean   @default(false)
-  rolloverEnabled   Boolean   @default(false)
-  budgets       Budget[]
-  transactions  Transaction[]
-  recurrings    Recurring[]
-  merchantRules MerchantRule[]
-  createdAt     DateTime      @default(now())
+  id                String         @id @default(cuid())
+  name              String         @unique
+  icon              String?
+  color             String?
+  parentId          String?
+  parent            Category?      @relation("CategoryParent", fields: [parentId], references: [id])
+  children          Category[]     @relation("CategoryParent")
+  group             String?
+  excludeFromBudget Boolean        @default(false)
+  rolloverEnabled   Boolean        @default(false)
+  /// Positive amounts here are income; positive amounts in other categories are refunds (estornos).
+  isIncome          Boolean        @default(false)
+  /// IRPF deduction bucket: MEDICAL | EDUCATION | PENSION (PGBL) | ALIMONY
+  irpfType          String?
+  budgets           Budget[]
+  transactions      Transaction[]
+  recurrings        Recurring[]
+  merchantRules     MerchantRule[]
+  createdAt         DateTime       @default(now())
 }
 
 model Budget {
-  id          String   @id @default(cuid())
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id])
+  id           String   @id @default(cuid())
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id])
   monthlyLimit Float
-  startMonth  String
-  createdAt   DateTime @default(now())
+  startMonth   String
+  createdAt    DateTime @default(now())
 
   @@unique([categoryId, startMonth])
 }
 
 model Transaction {
-  id            String     @id @default(cuid())
-  accountId     String
-  account       Account    @relation(fields: [accountId], references: [id])
-  date          DateTime
-  amount        Float
-  currency      String     @default("BRL")
-  description   String
-  merchantRaw   String?
-  categoryId    String?
-  category      Category?  @relation(fields: [categoryId], references: [id])
-  status        TxStatus   @default(POSTED)
-  notes         String?
-  isRecurring   Boolean    @default(false)
-  recurringId   String?
-  recurring     Recurring? @relation(fields: [recurringId], references: [id])
-  tags          Tag[]
-  pluggyTxId    String?    @unique
-  excludeFromBudget Boolean @default(false)
-  transferPairId String?
-  signFixed     Boolean    @default(false)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id                String     @id @default(cuid())
+  accountId         String
+  account           Account    @relation(fields: [accountId], references: [id])
+  date              DateTime
+  amount            Float
+  currency          String     @default("BRL")
+  description       String
+  merchantRaw       String?
+  categoryId        String?
+  category          Category?  @relation(fields: [categoryId], references: [id])
+  status            TxStatus   @default(POSTED)
+  notes             String?
+  isRecurring       Boolean    @default(false)
+  recurringId       String?
+  recurring         Recurring? @relation(fields: [recurringId], references: [id])
+  tags              Tag[]
+  pluggyTxId        String?    @unique
+  excludeFromBudget Boolean    @default(false)
+  transferPairId    String?
+  /// Pluggy structured data (Brazil): PIX | TED | DOC | BOLETO | …
+  paymentMethod     String?
+  /// Other side of a Pix/TED: name + document type. SELF = the account owner's own CPF.
+  counterpartyName  String?
+  counterpartyType  String?
+  merchantName      String?
+  merchantCnpj      String?
+  merchantCnae      String?
+  mcc               Int?
+  /// Credit card "parcelado": installment n of total, original purchase
+  installmentNumber Int?
+  totalInstallments Int?
+  purchaseAmount    Float?
+  purchaseDate      DateTime?
+  pluggyBillId      String?
+  pluggyCategory    String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   @@index([accountId, date])
   @@index([date])
@@ -136,6 +169,8 @@ model Transaction {
   @@index([categoryId])
   @@index([status])
   @@index([transferPairId])
+  @@index([recurringId])
+  @@index([totalInstallments])
 }
 
 model Tag {
@@ -147,16 +182,17 @@ model Tag {
 }
 
 model Goal {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   name          String
   targetAmount  Float
-  currentAmount Float    @default(0)
+  currentAmount Float     @default(0)
   deadline      DateTime?
   icon          String?
   color         String?
   accountId     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  account       Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model Recurring {
@@ -165,6 +201,9 @@ model Recurring {
   amount       Float
   cadence      RecurringCadence
   nextDate     DateTime
+  lastDate     DateTime?
+  /// normalizeForGrouping() key of the merchant; links future transactions to this recurring
+  pattern      String?
   accountId    String?
   account      Account?         @relation(fields: [accountId], references: [id])
   categoryId   String?
@@ -206,12 +245,16 @@ model MerchantRule {
 }
 
 model PluggyItem {
-  id          String   @id @default(cuid())
-  pluggyId    String   @unique
-  connector   String
-  status      String
-  lastUpdated DateTime?
-  createdAt   DateTime @default(now())
+  id               String    @id @default(cuid())
+  pluggyId         String    @unique
+  connector        String
+  status           String
+  lastUpdated      DateTime?
+  lastSyncedAt     DateTime?
+  /// Open Finance consent expiry — sync stops silently after this
+  consentExpiresAt DateTime?
+  lastError        String?
+  createdAt        DateTime  @default(now())
 }
 
 model AppConfig {

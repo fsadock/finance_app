@@ -6,10 +6,8 @@ function emit(level: Level, message: string, fields?: LogFields) {
   if (isDev) {
     const prefix = level === "error" ? "✖" : level === "warn" ? "⚠" : "·";
     const extra = fields ? " " + JSON.stringify(fields) : "";
-    // eslint-disable-next-line no-console
     console[level === "info" ? "log" : level](`${prefix} ${message}${extra}`);
   } else {
-    // eslint-disable-next-line no-console
     console[level === "info" ? "log" : level](
       JSON.stringify({ ts: new Date().toISOString(), level, message, ...fields })
     );

@@ -4,6 +4,12 @@ import { prisma } from "@/lib/db";
 import { formatBRL, formatBRLCompact } from "@/lib/format";
 import { InvestmentDonut } from "@/components/investments/donut";
 import { ProjectionChart } from "@/components/investments/projection";
+import { futureValue, getBenchmarkRates, realRate } from "@/lib/rates";
+import { parseBRLInput } from "@/lib/brazil";
+
+/** Used only when the BCB API is unreachable. */
+const FALLBACK = { cdi: 0.1, ipca: 0.045 };
+const pct = (v: number) => `${(v * 100).toFixed(2).replace(".", ",")}%`;
 
 const TYPE_COLOR: Record<string, string> = {
   STOCK: "#06b6d4",
@@ -23,8 +29,14 @@ const TYPE_LABEL: Record<string, string> = {
   OTHER: "Outros",
 };
 
-export default async function InvestmentsPage() {
-  const investments = await prisma.investment.findMany({ include: { account: true } });
+type Props = { searchParams: Promise<{ aporte?: string }> };
+
+export default async function InvestmentsPage({ searchParams }: Props) {
+  const sp = await searchParams;
+  const [investments, rates] = await Promise.all([
+    prisma.investment.findMany({ include: { account: true }, where: { account: { hidden: false } } }),
+    getBenchmarkRates(),
+  ]);
 
   const total = investments.reduce((s, i) => s + i.currentPrice * i.quantity, 0);
   const totalCost = investments.reduce((s, i) => s + i.costBasis * i.quantity, 0);
@@ -42,19 +54,27 @@ export default async function InvestmentsPage() {
     color: TYPE_COLOR[type] ?? "#6b7280",
   }));
 
-  // Projection: monthly contribution + 0.8% mo (~10% yr) for 10 years
-  const monthlyContribution = 1000;
-  const monthlyRate = 0.008;
-  const projection: { month: number; conservative: number; expected: number; aggressive: number }[] = [];
-  for (let m = 0; m <= 120; m++) {
-    const fv = (rate: number) => total * Math.pow(1 + rate, m) + monthlyContribution * ((Math.pow(1 + rate, m) - 1) / rate);
-    projection.push({
-      month: m,
-      conservative: fv(0.005),
-      expected: fv(monthlyRate),
-      aggressive: fv(0.012),
-    });
-  }
+  // Projection with real Brazilian benchmarks
+  const monthlyContribution = Math.max(0, parseBRLInput(sp.aporte ?? "") ?? 1000);
+  const cdi = rates.cdi?.value ?? FALLBACK.cdi;
+  const ipca = rates.ipca12m?.value ?? FALLBACK.ipca;
+  const scenarios = {
+    conservative: cdi * 0.85, // 100% CDI net of 15% IR (long-term bracket)
+    expected: cdi, // 100% CDI gross — e.g. LCI/LCA-equivalent
+    aggressive: (1 + ipca) * 1.06 - 1, // IPCA + 6%
+  };
+  const labels = {
+    conservative: `CDI líquido de IR · ${pct(scenarios.conservative)} a.a.`,
+    expected: `100% CDI · ${pct(scenarios.expected)} a.a.`,
+    aggressive: `IPCA + 6% · ${pct(scenarios.aggressive)} a.a.`,
+  };
+  const projection = Array.from({ length: 121 }, (_, m) => ({
+    month: m,
+    conservative: futureValue(total, monthlyContribution, scenarios.conservative, m),
+    expected: futureValue(total, monthlyContribution, scenarios.expected, m),
+    aggressive: futureValue(total, monthlyContribution, scenarios.aggressive, m),
+  }));
+  const tenYearReal = futureValue(total, monthlyContribution, realRate(scenarios.conservative, ipca), 120);
 
   return (
     <>
@@ -86,6 +106,27 @@ export default async function InvestmentsPage() {
         </Card>
       </div>
 
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        {[
+          { label: "CDI", rate: rates.cdi, sub: "a.a." },
+          { label: "Selic meta", rate: rates.selic, sub: "a.a." },
+          { label: "IPCA", rate: rates.ipca12m, sub: "12 meses" },
+          {
+            label: "CDI real",
+            rate: rates.cdi && rates.ipca12m ? { value: realRate(rates.cdi.value, rates.ipca12m.value), date: rates.cdi.date } : null,
+            sub: "acima da inflação",
+          },
+        ].map((b) => (
+          <Card key={b.label} className="p-4">
+            <div className="text-xs text-fg-muted">{b.label}</div>
+            <div className="text-xl font-semibold mt-1">{b.rate ? pct(b.rate.value) : "—"}</div>
+            <div className="text-[10px] text-fg-subtle mt-1">
+              {b.rate ? `${b.sub} · BCB ${b.rate.date}` : "BCB indisponível"}
+            </div>
+          </Card>
+        ))}
+      </div>
+
       <div className="grid grid-cols-12 gap-4 mb-4">
         <Card className="col-span-12 lg:col-span-5">
           <CardHeader>
@@ -109,10 +150,24 @@ export default async function InvestmentsPage() {
 
         <Card className="col-span-12 lg:col-span-7">
           <CardHeader>
-            <CardTitle>Projeção 10 anos · aporte R$ 1.000/mês</CardTitle>
-            <span className="text-xs text-fg-muted">cenários: 6%, 10%, 15% a.a.</span>
+            <CardTitle>Projeção 10 anos</CardTitle>
+            <form className="flex items-center gap-2 text-xs text-fg-muted">
+              aporte/mês R$
+              <input
+                name="aporte"
+                defaultValue={String(monthlyContribution).replace(".", ",")}
+                inputMode="decimal"
+                className="w-24 bg-bg-elev border border-border rounded px-2 py-1 text-fg outline-none focus:border-accent"
+              />
+              <button className="px-2 py-1 rounded border border-border hover:text-fg">OK</button>
+            </form>
           </CardHeader>
-          <ProjectionChart data={projection} />
+          <ProjectionChart data={projection} labels={labels} />
+          <p className="text-xs text-fg-muted mt-3">
+            Em 10 anos no cenário CDI líquido: {formatBRLCompact(projection[120]!.conservative)} nominais ≈{" "}
+            {formatBRLCompact(tenYearReal)} em poder de compra de hoje (IPCA {pct(ipca)}).
+            {!rates.cdi && " Taxas do BCB indisponíveis — usando valores de referência."}
+          </p>
         </Card>
       </div>
 

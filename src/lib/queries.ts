@@ -1,661 +1,448 @@
 import { prisma } from "./db";
-import { monthBounds } from "./format";
-import { normalizeForGrouping } from "./ai/merchant";
+import { BUDGET_RELEVANT, FLOW_SELECT, INCOME_WHERE, SPEND_WHERE, classifyFlow, spendDelta } from "./flows";
+import { lastMonthKeys, monthBounds, monthKey, monthKeyToDate, localDayKey, startOfDay } from "./format";
+import { groupingKey, normalizeForGrouping } from "./ai/merchant";
+import { getBudgetsForMonth } from "./budgets";
+import { resolveBillingCycle } from "./billing";
+import { nextOccurrence, isLikelyInactive, CADENCE_TO_MONTHLY, type Cadence } from "./recurrence";
+
+const DAY_MS = 1000 * 60 * 60 * 24;
 
 export async function getNetWorth() {
-  const accounts = await prisma.account.findMany({ where: { hidden: false } });
+  const accounts = await prisma.account.findMany({ where: { hidden: false }, select: { balance: true } });
   let assets = 0;
   let debts = 0;
   for (const a of accounts) {
     if (a.balance >= 0) assets += a.balance;
     else debts += Math.abs(a.balance);
   }
-  return { assets: assets, debts, net: assets - debts };
+  return { assets, debts, net: assets - debts };
 }
 
+/** Spent = expenses − refunds (estornos); income = income categories / uncategorized deposits. */
 export async function getMonthSpend(month = new Date()) {
   const { start, end } = monthBounds(month);
-  const txs = await prisma.transaction.findMany({
-    where: {
-      date: { gte: start, lt: end },
-      excludeFromBudget: false,
-      OR: [{ categoryId: null }, { category: { excludeFromBudget: false } }],
-    },
-    select: { amount: true },
-  });
-  let spent = 0;
-  let income = 0;
-  for (const t of txs) {
-    if (t.amount < 0) spent += Math.abs(t.amount);
-    else income += t.amount;
-  }
-  return { spent, income };
+  const range = { date: { gte: start, lt: end } };
+  const [spend, inc] = await Promise.all([
+    prisma.transaction.findMany({ where: { AND: [range, SPEND_WHERE] }, select: FLOW_SELECT }),
+    prisma.transaction.aggregate({ where: { AND: [range, INCOME_WHERE] }, _sum: { amount: true } }),
+  ]);
+  const spent = spend.reduce((s, t) => s + spendDelta(t), 0);
+  return { spent: Math.max(0, spent), income: inc._sum.amount ?? 0 };
 }
 
-export async function getTopCategories(month = new Date(), limit = 6) {
+/** Net spend (expenses − refunds) per category for the month. */
+export async function getCategorySpend(month = new Date()) {
   const { start, end } = monthBounds(month);
   const grouped = await prisma.transaction.groupBy({
     by: ["categoryId"],
-    where: {
-      date: { gte: start, lt: end },
-      amount: { lt: 0 },
-      categoryId: { not: null },
-      category: { excludeFromBudget: false },
-    },
+    where: { AND: [{ date: { gte: start, lt: end } }, SPEND_WHERE] },
     _sum: { amount: true },
   });
-  const cats = await prisma.category.findMany({
-    where: { id: { in: grouped.map((g) => g.categoryId!).filter(Boolean) } },
-  });
-  const map = new Map(cats.map((c) => [c.id, c]));
-  return grouped
-    .map((g) => ({
-      category: map.get(g.categoryId!)!,
-      spent: Math.abs(g._sum.amount ?? 0),
-    }))
-    .filter((x) => x.category)
+  return new Map(grouped.map((g) => [g.categoryId, Math.max(0, -(g._sum.amount ?? 0))]));
+}
+
+export async function getTopCategories(month = new Date(), limit = 6) {
+  const [spend, cats] = await Promise.all([
+    getCategorySpend(month),
+    prisma.category.findMany({ where: { excludeFromBudget: false } }),
+  ]);
+  return cats
+    .map((category) => ({ category, spent: spend.get(category.id) ?? 0 }))
+    .filter((x) => x.spent > 0)
     .sort((a, b) => b.spent - a.spent)
     .slice(0, limit);
 }
 
 export async function getReviewTransactions(limit = 8) {
-  return prisma.transaction.findMany({
-    where: { status: "REVIEW" },
-    include: { account: true, category: true },
-    orderBy: { date: "desc" },
-    take: limit,
-  });
+  const [items, total] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { status: "REVIEW" },
+      include: { account: true, category: true },
+      orderBy: { date: "desc" },
+      take: limit,
+    }),
+    prisma.transaction.count({ where: { status: "REVIEW" } }),
+  ]);
+  return { items, total };
 }
 
-export async function getUpcomingRecurrings(limit = 6) {
-  return prisma.recurring.findMany({
+/**
+ * Active recurrings with `nextDate` rolled forward past stale dates, plus cost facts for deciding what to cut:
+ * monthly/yearly equivalent, what was actually paid in the last 12 months and the price change since the first charge.
+ */
+export async function getActiveRecurrings() {
+  const today = startOfDay(new Date());
+  const yearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+  const recurrings = await prisma.recurring.findMany({
     where: { active: true },
     include: { account: true, category: true },
-    orderBy: { nextDate: "asc" },
-    take: limit,
   });
+  const linked = await prisma.transaction.findMany({
+    where: { recurringId: { in: recurrings.map((r) => r.id) }, date: { lte: today } },
+    select: { recurringId: true, amount: true, date: true },
+    orderBy: { date: "asc" },
+  });
+  const byRecurring = new Map<string, { amount: number; date: Date }[]>();
+  for (const t of linked) byRecurring.set(t.recurringId!, [...(byRecurring.get(t.recurringId!) ?? []), t]);
+
+  return recurrings
+    .map((r) => {
+      const charges = byRecurring.get(r.id) ?? [];
+      const first = charges[0];
+      const last = charges[charges.length - 1];
+      const monthly = Math.abs(r.amount) * CADENCE_TO_MONTHLY[r.cadence as Cadence];
+      return {
+        ...r,
+        upcoming: nextOccurrence(r.nextDate, r.cadence as Cadence, today),
+        likelyInactive: isLikelyInactive(r.lastDate, r.cadence as Cadence, today),
+        monthly,
+        yearly: monthly * 12,
+        paidLast12m: charges.filter((c) => c.date >= yearAgo).reduce((s, c) => s + Math.abs(c.amount), 0),
+        firstCharge: first ? { amount: Math.abs(first.amount), date: first.date } : null,
+        // charge vs charge (an annual plan paid in installments must not read as +1100%)
+        priceChange: first && last && Math.abs(first.amount) > 0 ? Math.abs(last.amount) / Math.abs(first.amount) - 1 : 0,
+      };
+    })
+    .sort((a, b) => a.upcoming.getTime() - b.upcoming.getTime());
 }
 
-export async function getGoals() {
-  return prisma.goal.findMany({ orderBy: { createdAt: "asc" } });
-}
-
-export async function getMonthlyCashflow(monthsBack = 6) {
-  const start = new Date();
-  start.setMonth(start.getMonth() - monthsBack + 1);
-  start.setDate(1);
-  start.setHours(0, 0, 0, 0);
+export async function getMonthlyCashflow(monthsBack = 6, anchor = new Date()) {
+  const keys = lastMonthKeys(monthsBack, anchor);
+  const start = monthKeyToDate(keys[0]!);
+  const { end } = monthBounds(anchor);
   const txs = await prisma.transaction.findMany({
-    where: {
-      date: { gte: start },
-      excludeFromBudget: false,
-      OR: [{ categoryId: null }, { category: { excludeFromBudget: false } }],
-    },
-    select: { amount: true, date: true },
+    where: { AND: [{ date: { gte: start, lt: end } }, BUDGET_RELEVANT] },
+    select: { ...FLOW_SELECT, date: true },
   });
-  const buckets = new Map<string, { income: number; spend: number }>();
-  for (let i = 0; i < monthsBack; i++) {
-    const d = new Date(start);
-    d.setMonth(d.getMonth() + i);
-    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    buckets.set(k, { income: 0, spend: 0 });
-  }
+  const buckets = new Map(keys.map((k) => [k, { income: 0, spend: 0 }]));
   for (const t of txs) {
-    const d = new Date(t.date);
-    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const b = buckets.get(k);
+    const b = buckets.get(monthKey(t.date));
     if (!b) continue;
-    if (t.amount < 0) b.spend += Math.abs(t.amount);
-    else b.income += t.amount;
+    if (classifyFlow(t) === "income") b.income += t.amount;
+    else b.spend += spendDelta(t);
   }
   return Array.from(buckets.entries()).map(([month, v]) => ({ month, ...v, net: v.income - v.spend }));
 }
 
+/** Budgets in effect for the month (carry-forward + rollover) joined with actual spend. */
 export async function getMonthBudgetProgress(month = new Date()) {
-  const { start, end } = monthBounds(month);
-  const monthStr = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`;
-  const budgets = await prisma.budget.findMany({
-    where: { startMonth: monthStr },
-    include: { category: true },
-  });
-  const grouped = await prisma.transaction.groupBy({
-    by: ["categoryId"],
-    where: {
-      date: { gte: start, lt: end },
-      amount: { lt: 0 },
-      categoryId: { in: budgets.map((b) => b.categoryId) },
-    },
-    _sum: { amount: true },
-  });
-  const spentMap = new Map(grouped.map((g) => [g.categoryId, Math.abs(g._sum.amount ?? 0)]));
-  return budgets.map((b) => ({
-    budget: b,
-    spent: spentMap.get(b.categoryId) ?? 0,
-    pct: ((spentMap.get(b.categoryId) ?? 0) / b.monthlyLimit) * 100,
-  }));
+  const [budgets, spend] = await Promise.all([getBudgetsForMonth(month), getCategorySpend(month)]);
+  const categories = await prisma.category.findMany({ where: { id: { in: [...budgets.keys()] } } });
+  return categories
+    .map((category) => {
+      const b = budgets.get(category.id)!;
+      const spent = spend.get(category.id) ?? 0;
+      return {
+        category,
+        limit: b.limit,
+        effective: b.effective,
+        spent,
+        pct: b.effective > 0 ? (spent / b.effective) * 100 : 0,
+      };
+    })
+    .filter((b) => b.limit > 0);
 }
 
-export async function getSpendingPace(month = new Date(), chartStart?: Date, chartEnd?: Date) {
-  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
-  const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 1);
-
+export async function getSpendingPace(month: Date, totalBudget: number, chartStart?: Date, chartEnd?: Date) {
+  const { start: monthStart, end: monthEnd } = monthBounds(month);
   const from = chartStart ?? monthStart;
   const to = chartEnd ?? monthEnd;
 
   const txs = await prisma.transaction.findMany({
-    where: {
-      date: { gte: monthStart, lt: monthEnd },
-      amount: { lt: 0 },
-      excludeFromBudget: false,
-      OR: [{ categoryId: null }, { category: { excludeFromBudget: false } }],
-    },
-    select: { amount: true, date: true },
-    orderBy: { date: "asc" },
+    where: { AND: [{ date: { gte: monthStart, lt: monthEnd } }, SPEND_WHERE] },
+    select: { ...FLOW_SELECT, date: true },
   });
 
-  const budgets = await prisma.budget.findMany({
-    where: { startMonth: `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}` },
-  });
-  const totalBudget = budgets.reduce((s, b) => s + b.monthlyLimit, 0);
+  const monthDays = Math.round((monthEnd.getTime() - monthStart.getTime()) / DAY_MS);
+  const chartDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / DAY_MS));
 
-  const monthDays = Math.ceil((monthEnd.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24));
-  const chartDays = Math.max(1, Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)));
-
-  const dateMap = new Map<string, number>();
+  const byDay = new Map<string, number>();
   for (const t of txs) {
-    const key = new Date(t.date).toISOString().slice(0, 10);
-    dateMap.set(key, (dateMap.get(key) ?? 0) + Math.abs(t.amount));
+    const key = localDayKey(t.date);
+    byDay.set(key, (byDay.get(key) ?? 0) + spendDelta(t));
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
+  const today = startOfDay(new Date());
   const data: { day: number; label: string; actual: number | null; ideal: number | null }[] = [];
   let cumulative = 0;
   for (let i = 0; i < chartDays; i++) {
-    const d = new Date(from);
-    d.setDate(d.getDate() + i);
-    d.setHours(0, 0, 0, 0);
-
-    const inCalendarMonth = d >= monthStart && d < monthEnd;
-    if (inCalendarMonth && d <= today) {
-      cumulative += dateMap.get(d.toISOString().slice(0, 10)) ?? 0;
-    }
-
-    const monthDayOffset = inCalendarMonth
-      ? Math.floor((d.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
-      : 0;
-
+    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i);
+    const inMonth = d >= monthStart && d < monthEnd;
+    if (inMonth && d <= today) cumulative += byDay.get(localDayKey(d)) ?? 0;
     data.push({
       day: i + 1,
       label: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`,
-      actual: inCalendarMonth && d <= today ? cumulative : null,
-      ideal: inCalendarMonth && totalBudget > 0 ? (totalBudget / monthDays) * monthDayOffset : null,
+      actual: inMonth && d <= today ? cumulative : null,
+      ideal: inMonth && totalBudget > 0 ? (totalBudget / monthDays) * d.getDate() : null,
     });
   }
 
-  return { data, totalBudget, currentSpend: cumulative };
+  const currentSpend = Math.max(0, txs.reduce((s, t) => s + spendDelta(t), 0));
+  return { data, totalBudget, currentSpend };
 }
 
+/**
+ * Net worth at the end of each month. Uses daily balance snapshots when available; for months
+ * before the first snapshot it reconstructs backwards from cashflow (marked `estimated`).
+ */
 export async function getNetWorthHistory(monthsBack = 12) {
-  const current = await getNetWorth();
-  const cashflow = await getMonthlyCashflow(monthsBack);
-  
-  const history: { month: string; value: number }[] = [];
-  let runningValue = current.net;
+  const keys = lastMonthKeys(monthsBack);
+  const [accounts, snapshots, cashflow] = await Promise.all([
+    prisma.account.findMany({ where: { hidden: false }, select: { id: true, balance: true } }),
+    prisma.balanceSnapshot.findMany({
+      where: { account: { hidden: false } },
+      orderBy: { date: "asc" },
+      select: { accountId: true, date: true, balance: true },
+    }),
+    getMonthlyCashflow(monthsBack),
+  ]);
 
-  // Monthly cashflow is in ascending order (past to present)
-  // To reconstruct history:
-  // Current Month: runningValue
-  // Prev Month: runningValue - currentMonthNet
-  
-  // Actually, getMonthlyCashflow returns [oldest, ..., newest]
-  // So we should iterate backwards from current.
-  const reversed = [...cashflow].reverse();
-  
-  for (const month of reversed) {
-    history.push({ month: month.month, value: runningValue });
-    runningValue -= month.net;
+  const current = accounts.reduce((s, a) => s + a.balance, 0);
+  const byAccount = new Map<string, { date: Date; balance: number }[]>();
+  for (const s of snapshots) {
+    if (!byAccount.has(s.accountId)) byAccount.set(s.accountId, []);
+    byAccount.get(s.accountId)!.push(s);
+  }
+  const firstSnapshot = snapshots[0]?.date;
+
+  // Backwards reconstruction from current net worth (fallback)
+  const reconstructed = new Map<string, number>();
+  let running = current;
+  for (const m of [...cashflow].reverse()) {
+    reconstructed.set(m.month, running);
+    running -= m.net;
   }
 
-  return history.reverse();
+  const currentKey = monthKey(new Date());
+  return keys.map((key) => {
+    if (key === currentKey) return { month: key, value: current, estimated: false };
+    const monthEnd = monthBounds(monthKeyToDate(key)).end;
+    if (!firstSnapshot || firstSnapshot >= monthEnd) {
+      return { month: key, value: reconstructed.get(key) ?? current, estimated: true };
+    }
+    let value = 0;
+    let estimated = false;
+    for (const a of accounts) {
+      const list = byAccount.get(a.id);
+      if (!list || list.length === 0) {
+        value += a.balance;
+        estimated = true;
+        continue;
+      }
+      let last: number | null = null;
+      for (const s of list) {
+        if (s.date >= monthEnd) break;
+        last = s.balance;
+      }
+      if (last === null) {
+        // account's history starts later — assume flat before its first snapshot
+        last = list[0]!.balance;
+        estimated = true;
+      }
+      value += last;
+    }
+    return { month: key, value, estimated };
+  });
 }
 
 export async function getSankeyData(month = new Date()) {
   const { start, end } = monthBounds(month);
-  const txs = await prisma.transaction.findMany({
-    where: {
-      date: { gte: start, lt: end },
-      excludeFromBudget: false,
-      OR: [{ categoryId: null }, { category: { excludeFromBudget: false } }],
-    },
-    include: { category: true },
-  });
-
-  const recurrings = await prisma.recurring.findMany({ where: { active: true } });
-  const recurringPatterns = new Set(recurrings.map(r => normalizeForGrouping(r.name)));
+  const [txs, recurrings] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { AND: [{ date: { gte: start, lt: end } }, BUDGET_RELEVANT] },
+      select: {
+        ...FLOW_SELECT,
+        description: true,
+        counterpartyName: true,
+        recurringId: true,
+        category: { select: { isIncome: true, name: true } },
+      },
+    }),
+    prisma.recurring.findMany({ where: { active: true }, select: { pattern: true, name: true } }),
+  ]);
+  const recurringPatterns = new Set(recurrings.map((r) => r.pattern ?? normalizeForGrouping(r.name)).filter(Boolean));
 
   let income = 0;
   let fixed = 0;
   const categoriesMap = new Map<string, number>();
-
   for (const t of txs) {
-    if (t.amount > 0) {
+    if (classifyFlow(t) === "income") {
       income += t.amount;
-    } else {
-      const abs = Math.abs(t.amount);
-      const isFixed = recurringPatterns.has(normalizeForGrouping(t.description));
-      if (isFixed) {
-        fixed += abs;
-      } else {
-        const catName = t.category?.name ?? "Outros";
-        categoriesMap.set(catName, (categoriesMap.get(catName) ?? 0) + abs);
-      }
-    }
-  }
-
-  const variable = Array.from(categoriesMap.entries())
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
-
-  const totalSpent = fixed + variable.reduce((s, v) => s + v.value, 0);
-  const savings = Math.max(0, income - totalSpent);
-
-  return { income, fixed, variable, savings, totalSpent };
-}
-
-/**
- * Batch version of getEffectiveBudget — loads all data in 3 queries instead of
- * 2*(depth+1) queries per category, eliminating the N+1 on the categories page.
- */
-export async function batchGetEffectiveBudgets(
-  categoryIds: string[],
-  month: Date
-): Promise<Map<string, number>> {
-  if (categoryIds.length === 0) return new Map();
-
-  const DEPTH = 6;
-
-  // Build month strings [m-6, ..., m] oldest-first
-  const monthStrings: string[] = [];
-  for (let i = DEPTH; i >= 0; i--) {
-    const d = new Date(month);
-    d.setMonth(d.getMonth() - i);
-    monthStrings.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  }
-  const currentMonthStr = monthStrings[monthStrings.length - 1]!;
-
-  const startDate = new Date(month);
-  startDate.setMonth(startDate.getMonth() - DEPTH);
-  startDate.setDate(1);
-  startDate.setHours(0, 0, 0, 0);
-  const endDate = new Date(month);
-  endDate.setMonth(endDate.getMonth() + 1);
-  endDate.setDate(1);
-  endDate.setHours(0, 0, 0, 0);
-
-  const [budgets, categories, transactions] = await Promise.all([
-    prisma.budget.findMany({
-      where: { categoryId: { in: categoryIds }, startMonth: { in: monthStrings } },
-    }),
-    prisma.category.findMany({
-      where: { id: { in: categoryIds } },
-      select: { id: true, rolloverEnabled: true },
-    }),
-    prisma.transaction.findMany({
-      where: {
-        categoryId: { in: categoryIds },
-        date: { gte: startDate, lt: endDate },
-        excludeFromBudget: false,
-        amount: { lt: 0 },
-      },
-      select: { categoryId: true, amount: true, date: true },
-    }),
-  ]);
-
-  const budgetLookup = new Map<string, number>();
-  for (const b of budgets) budgetLookup.set(`${b.categoryId}:${b.startMonth}`, b.monthlyLimit);
-
-  const rolloverEnabled = new Map<string, boolean>();
-  for (const c of categories) rolloverEnabled.set(c.id, c.rolloverEnabled);
-
-  const spentLookup = new Map<string, Map<string, number>>();
-  for (const t of transactions) {
-    if (!t.categoryId) continue;
-    const ms = `${t.date.getFullYear()}-${String(t.date.getMonth() + 1).padStart(2, "0")}`;
-    if (!spentLookup.has(t.categoryId)) spentLookup.set(t.categoryId, new Map());
-    const bucket = spentLookup.get(t.categoryId)!;
-    bucket.set(ms, (bucket.get(ms) ?? 0) + Math.abs(t.amount));
-  }
-
-  const result = new Map<string, number>();
-
-  for (const catId of categoryIds) {
-    if (!rolloverEnabled.get(catId)) {
-      result.set(catId, budgetLookup.get(`${catId}:${currentMonthStr}`) ?? 0);
       continue;
     }
-
-    // Iterate oldest→newest, carrying forward rollover
-    let effective = budgetLookup.get(`${catId}:${monthStrings[0]!}`) ?? 0;
-    for (let i = 1; i < monthStrings.length; i++) {
-      const prevMs = monthStrings[i - 1]!;
-      const thisMs = monthStrings[i]!;
-      const thisLimit = budgetLookup.get(`${catId}:${thisMs}`) ?? 0;
-      const prevSpent = spentLookup.get(catId)?.get(prevMs) ?? 0;
-      effective = thisLimit + (effective - prevSpent);
+    const delta = spendDelta(t);
+    const key = groupingKey(t);
+    if (t.recurringId || (key && recurringPatterns.has(key))) {
+      fixed += delta;
+    } else {
+      const name = t.category?.name ?? "Sem categoria";
+      categoriesMap.set(name, (categoriesMap.get(name) ?? 0) + delta);
     }
-
-    result.set(catId, effective);
   }
 
-  return result;
+  // Totals include every bucket (a category can net negative from refunds); the chart only draws positive flows
+  const totalSpent = Math.max(0, fixed + [...categoriesMap.values()].reduce((s, v) => s + v, 0));
+  const variable = Array.from(categoriesMap.entries())
+    .map(([name, value]) => ({ name, value }))
+    .filter((v) => v.value > 0)
+    .sort((a, b) => b.value - a.value);
+  fixed = Math.max(0, fixed);
+  return { income, fixed, variable, savings: Math.max(0, income - totalSpent), totalSpent };
 }
 
-/**
- * Calculates the effective budget for a single category in a given month,
- * including rollovers (surplus/deficit) from previous months if enabled.
- * Recursion depth limited to 6 months.
- */
-export async function getEffectiveBudget(categoryId: string, month: Date, depth = 0): Promise<number> {
-  const monthStr = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`;
-  const [budget, category] = await Promise.all([
-    prisma.budget.findUnique({
-      where: { categoryId_startMonth: { categoryId, startMonth: monthStr } },
-    }),
-    prisma.category.findUnique({
-      where: { id: categoryId },
-      select: { rolloverEnabled: true },
-    }),
-  ]);
-
-  const limit = budget?.monthlyLimit ?? 0;
-  if (!category?.rolloverEnabled || depth >= 6) {
-    return limit;
-  }
-
-  const prevMonth = new Date(month);
-  prevMonth.setMonth(prevMonth.getMonth() - 1);
-  const { start, end } = monthBounds(prevMonth);
-
-  const [prevSpentResult, prevEffective] = await Promise.all([
-    prisma.transaction.aggregate({
-      where: {
-        categoryId,
-        date: { gte: start, lt: end },
-        excludeFromBudget: false,
-      },
-      _sum: { amount: true },
-    }),
-    getEffectiveBudget(categoryId, prevMonth, depth + 1),
-  ]);
-
-  const prevSpent = Math.abs(prevSpentResult._sum.amount ?? 0);
-  const rollover = prevEffective - prevSpent;
-
-  return limit + rollover;
-}
-
+/** Card spending pace against the monthly card goal, per-account billing cycles. */
 export async function getCCSpendingData(month = new Date()) {
   const { start: monthStart, end: monthEnd } = monthBounds(month);
-
-  const [limitConfig, closeDayConfig] = await Promise.all([
+  const [limitConfig, closeDayConfig, cards] = await Promise.all([
     prisma.appConfig.findUnique({ where: { key: "cc_monthly_limit" } }),
     prisma.appConfig.findUnique({ where: { key: "cc_cycle_close_day" } }),
+    prisma.account.findMany({
+      where: { type: "CREDIT_CARD", hidden: false },
+      select: {
+        id: true,
+        balanceCloseDate: true,
+        creditCardBills: { orderBy: { dueDate: "desc" }, take: 1, select: { dueDate: true } },
+      },
+    }),
   ]);
   const totalBudget = limitConfig ? parseFloat(limitConfig.value) : 0;
   const closeDay = closeDayConfig ? parseInt(closeDayConfig.value) : null;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = startOfDay(new Date());
+  const isCurrentMonth = monthKey(month) === monthKey(today);
 
-  const isCurrentMonth =
-    month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth();
+  const cycles = new Map<string, { start: Date; end: Date }>();
+  for (const c of cards) {
+    const cycle = isCurrentMonth
+      ? resolveBillingCycle({
+          today,
+          closeDay,
+          balanceCloseDate: c.balanceCloseDate,
+          lastBillDueDate: c.creditCardBills[0]?.dueDate,
+        })
+      : null;
+    cycles.set(c.id, cycle ?? { start: monthStart, end: monthEnd });
+  }
 
-  // Chart always starts at the first of the selected month
   const chartStart = monthStart;
-
-  const ccAccountIds = (await prisma.account.findMany({
-    where: { type: "CREDIT_CARD", hidden: false },
-    select: { id: true },
-  })).map(a => a.id);
-
-  // Per-account billing starts and ends (only meaningful for current month)
-  const accountBillingStarts = new Map<string, Date>();
-  const accountBillingEnds = new Map<string, Date>();
-
-  if (!isCurrentMonth) {
-    // Past/future month: constrain everything to calendar month, no cycle extension
-    for (const id of ccAccountIds) {
-      accountBillingStarts.set(id, monthStart);
-      accountBillingEnds.set(id, monthEnd);
-    }
-  } else if (closeDay) {
-    let billingStartDate = new Date(today.getFullYear(), today.getMonth(), closeDay);
-    billingStartDate.setHours(0, 0, 0, 0);
-    if (billingStartDate > today) {
-      billingStartDate = new Date(today.getFullYear(), today.getMonth() - 1, closeDay);
-      billingStartDate.setHours(0, 0, 0, 0);
-    }
-    let nextClose = new Date(today.getFullYear(), today.getMonth(), closeDay);
-    nextClose.setHours(0, 0, 0, 0);
-    if (nextClose <= today) {
-      nextClose = new Date(today.getFullYear(), today.getMonth() + 1, closeDay);
-      nextClose.setHours(0, 0, 0, 0);
-    }
-    for (const id of ccAccountIds) {
-      accountBillingStarts.set(id, billingStartDate);
-      accountBillingEnds.set(id, nextClose);
-    }
-  } else {
-    // Heuristic: billing start = last closed bill dueDate - 7 days per account
-    const recentBills = await prisma.creditCardBill.findMany({
-      where: { accountId: { in: ccAccountIds } },
-      orderBy: { dueDate: "desc" },
-      distinct: ["accountId"],
-    });
-    for (const bill of recentBills) {
-      const s = new Date(bill.dueDate);
-      s.setDate(s.getDate() - 7);
-      s.setHours(0, 0, 0, 0);
-      accountBillingStarts.set(bill.accountId, s);
-      const e = new Date(bill.dueDate);
-      e.setDate(e.getDate() + 23);
-      e.setHours(0, 0, 0, 0);
-      accountBillingEnds.set(bill.accountId, e);
-    }
-    for (const id of ccAccountIds) {
-      if (!accountBillingStarts.has(id)) accountBillingStarts.set(id, monthStart);
-      if (!accountBillingEnds.has(id)) accountBillingEnds.set(id, monthEnd);
-    }
-  }
-
-  // chartEnd = latest billing end; nextCloseDate = earliest billing end (for daily allowance)
   let chartEnd = monthEnd;
-  let nextCloseDate = monthEnd;
-  let firstEnd = true;
-  for (const e of accountBillingEnds.values()) {
-    if (firstEnd || e > chartEnd) chartEnd = e;
-    if (firstEnd || e < nextCloseDate) nextCloseDate = e;
-    firstEnd = false;
+  let nextCloseDate: Date | null = null;
+  let billingStart: Date | null = null;
+  for (const c of cycles.values()) {
+    if (c.end > chartEnd) chartEnd = c.end;
+    if (!nextCloseDate || c.end < nextCloseDate) nextCloseDate = c.end;
+    if (!billingStart || c.start < billingStart) billingStart = c.start;
   }
+  nextCloseDate ??= monthEnd;
+  billingStart ??= chartStart;
 
-  // Earliest billing start = where the orange CC line begins
-  let earliestBillingStart = chartEnd;
-  for (const s of accountBillingStarts.values()) {
-    if (s < earliestBillingStart) earliestBillingStart = s;
-  }
-  if (accountBillingStarts.size === 0) earliestBillingStart = chartStart;
+  const txs =
+    cards.length > 0
+      ? await prisma.transaction.findMany({
+          where: {
+            AND: [
+              {
+                accountId: { in: cards.map((c) => c.id) },
+                date: { gte: billingStart < chartStart ? billingStart : chartStart, lt: chartEnd },
+              },
+              SPEND_WHERE,
+            ],
+          },
+          select: { ...FLOW_SELECT, date: true, accountId: true },
+        })
+      : [];
 
-  const totalCCDays = Math.max(1, Math.ceil((chartEnd.getTime() - earliestBillingStart.getTime()) / (1000 * 60 * 60 * 24)));
-
-  const txs = ccAccountIds.length > 0 ? await prisma.transaction.findMany({
-    where: {
-      accountId: { in: ccAccountIds },
-      date: { gte: earliestBillingStart, lt: chartEnd },
-      amount: { lt: 0 },
-      excludeFromBudget: false,
-    },
-    select: { amount: true, date: true, accountId: true },
-    orderBy: { date: "asc" },
-  }) : [];
-
-  const accountDayMap = new Map<string, Map<string, number>>();
-  for (const id of ccAccountIds) accountDayMap.set(id, new Map());
+  // Spend before the chart window (cycle started last month) is folded into day one.
+  const byDay = new Map<string, number>();
+  let carriedIn = 0;
   for (const t of txs) {
-    const key = new Date(t.date).toISOString().slice(0, 10);
-    const m = accountDayMap.get(t.accountId);
-    if (m) m.set(key, (m.get(key) ?? 0) + Math.abs(t.amount));
+    const cycle = cycles.get(t.accountId)!;
+    if (t.date < cycle.start || t.date >= cycle.end) continue;
+    if (t.date < chartStart) {
+      carriedIn += spendDelta(t);
+      continue;
+    }
+    const key = localDayKey(t.date);
+    byDay.set(key, (byDay.get(key) ?? 0) + spendDelta(t));
   }
 
-  const chartDays = Math.max(1, Math.ceil((chartEnd.getTime() - chartStart.getTime()) / (1000 * 60 * 60 * 24)));
+  const cycleDays = Math.max(1, Math.round((chartEnd.getTime() - billingStart.getTime()) / DAY_MS));
+  const chartDays = Math.max(1, Math.round((chartEnd.getTime() - chartStart.getTime()) / DAY_MS));
   const data: { day: number; label: string; ccActual: number | null; ccIdeal: number | null }[] = [];
-  let ccCumulative = 0;
-
+  let cumulative = carriedIn;
   for (let i = 0; i < chartDays; i++) {
-    const d = new Date(chartStart);
-    d.setDate(d.getDate() + i);
-    d.setHours(0, 0, 0, 0);
-    const dateKey = d.toISOString().slice(0, 10);
-
-    if (d <= today) {
-      for (const [accountId, acctStart] of accountBillingStarts) {
-        if (d >= acctStart) {
-          ccCumulative += accountDayMap.get(accountId)?.get(dateKey) ?? 0;
-        }
-      }
-    }
-
-    const inCCRange = d >= earliestBillingStart;
-    const ccDayOffset = inCCRange
-      ? Math.floor((d.getTime() - earliestBillingStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
-      : 0;
-
+    const d = new Date(chartStart.getFullYear(), chartStart.getMonth(), chartStart.getDate() + i);
+    const inCycle = d >= billingStart;
+    if (inCycle && d <= today) cumulative += byDay.get(localDayKey(d)) ?? 0;
+    const offset = Math.round((d.getTime() - billingStart.getTime()) / DAY_MS) + 1;
     data.push({
       day: i + 1,
       label: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`,
-      ccActual: inCCRange && d <= today ? ccCumulative : null,
-      ccIdeal: inCCRange && totalBudget > 0 ? (totalBudget / totalCCDays) * ccDayOffset : null,
+      ccActual: inCycle && d <= today ? cumulative : null,
+      ccIdeal: inCycle && totalBudget > 0 ? (totalBudget / cycleDays) * offset : null,
     });
   }
 
-  const currentSpend = ccCumulative;
-  const daysLeft = Math.max(1, Math.ceil((nextCloseDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-  const daysElapsed = Math.max(1, Math.ceil((today.getTime() - earliestBillingStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-  const dailyAvg = currentSpend / daysElapsed;
-  const projected = dailyAvg * totalCCDays;
+  const currentSpend = isCurrentMonth ? cumulative : [...byDay.values()].reduce((s, v) => s + v, carriedIn);
+  const daysLeft = Math.max(1, Math.ceil((nextCloseDate.getTime() - today.getTime()) / DAY_MS));
+  const daysElapsed = Math.max(1, Math.round((today.getTime() - billingStart.getTime()) / DAY_MS) + 1);
+  const projected = (currentSpend / daysElapsed) * cycleDays;
   const remaining = Math.max(0, totalBudget - currentSpend);
-  const dailyAllowance = isCurrentMonth && totalBudget > 0 && remaining > 0 ? remaining / daysLeft : 0;
 
   return {
     data,
     totalBudget,
     currentSpend,
     remaining,
-    dailyAllowance,
+    dailyAllowance: isCurrentMonth && totalBudget > 0 && remaining > 0 ? remaining / daysLeft : 0,
     projected,
     closeDay,
-    billingStart: earliestBillingStart,
+    billingStart,
     billingEnd: chartEnd,
     chartStart,
     chartEnd,
-    isOverBudget: isCurrentMonth && totalBudget > 0 && currentSpend > totalBudget,
+    isOverBudget: totalBudget > 0 && currentSpend > totalBudget,
     isOverPace: isCurrentMonth && totalBudget > 0 && projected > totalBudget,
   };
 }
 
-export async function getAccountPacing(accountId: string, month = new Date()) {
-  const { start, end } = monthBounds(month);
-  
-  const account = await prisma.account.findUnique({
-    where: { id: accountId },
-    select: { personalLimit: true },
-  });
+export type RebalanceSuggestion = { fromId: string; fromName: string; toId: string; toName: string; amount: number };
 
-  const txs = await prisma.transaction.findMany({
-    where: {
-      accountId,
-      date: { gte: start, lt: end },
-      amount: { lt: 0 },
-      excludeFromBudget: false,
-    },
-    select: { amount: true, date: true },
-  });
+export async function getRebalanceSuggestions(month = new Date()): Promise<RebalanceSuggestion[]> {
+  const budgets = await getMonthBudgetProgress(month);
+  const surplus = budgets
+    .filter((b) => b.spent < b.limit)
+    .map((b) => ({ id: b.category.id, name: b.category.name, available: b.limit - b.spent }))
+    .sort((a, b) => b.available - a.available);
+  const deficits = budgets
+    .filter((b) => b.spent > b.limit)
+    .map((b) => ({ id: b.category.id, name: b.category.name, needed: b.spent - b.limit }))
+    .sort((a, b) => b.needed - a.needed);
 
-  const spent = txs.reduce((s, t) => s + Math.abs(t.amount), 0);
-  const limit = account?.personalLimit ?? 0;
-
-  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const today = new Date();
-  const isCurrentMonth = today.getFullYear() === month.getFullYear() && today.getMonth() === month.getMonth();
-  const currentDay = isCurrentMonth ? today.getDate() : daysInMonth;
-  const daysLeft = Math.max(1, daysInMonth - currentDay + 1);
-
-  const dailyAvg = currentDay > 0 ? spent / currentDay : 0;
-  const projected = dailyAvg * daysInMonth;
-  const dailyAllowance = limit > spent ? (limit - spent) / daysLeft : 0;
-
-  return {
-    spent,
-    limit,
-    projected,
-    dailyAllowance,
-    isOverPace: projected > limit,
-    daysLeft,
-  };
+  const suggestions: RebalanceSuggestion[] = [];
+  let s = 0;
+  let d = 0;
+  while (s < surplus.length && d < deficits.length) {
+    const from = surplus[s]!;
+    const to = deficits[d]!;
+    const move = Math.min(from.available, to.needed);
+    if (move > 1) {
+      suggestions.push({ fromId: from.id, fromName: from.name, toId: to.id, toName: to.name, amount: Math.round(move * 100) / 100 });
+    }
+    from.available -= move;
+    to.needed -= move;
+    if (from.available <= 0) s++;
+    if (to.needed <= 0) d++;
+  }
+  return suggestions;
 }
 
-export async function getRebalanceSuggestions(month = new Date()) {
-  const budgets = await getMonthBudgetProgress(month);
-
-  const surplus = budgets
-    .filter((b) => b.spent < b.budget.monthlyLimit)
-    .map((s) => ({
-      id: s.budget.categoryId,
-      name: s.budget.category.name,
-      available: s.budget.monthlyLimit - s.spent,
-    }));
-
-  const deficits = budgets
-    .filter((b) => b.spent > b.budget.monthlyLimit)
-    .map((d) => ({
-      id: d.budget.categoryId,
-      name: d.budget.category.name,
-      needed: d.spent - d.budget.monthlyLimit,
-    }));
-
-  const suggestions: {
-    fromId: string;
-    fromName: string;
-    toId: string;
-    toName: string;
-    amount: number;
-  }[] = [];
-
-  let sIdx = 0;
-  let dIdx = 0;
-
-  while (sIdx < surplus.length && dIdx < deficits.length) {
-    const s = surplus[sIdx]!;
-    const d = deficits[dIdx]!;
-
-    const move = Math.min(s.available, d.needed);
-    if (move > 1) {
-      suggestions.push({
-        fromId: s.id,
-        fromName: s.name,
-        toId: d.id,
-        toName: d.name,
-        amount: move,
-      });
-    }
-
-    s.available -= move;
-    d.needed -= move;
-
-    if (s.available <= 0) sIdx++;
-    if (d.needed <= 0) dIdx++;
-  }
-
-  return suggestions;
+export async function getLastSync() {
+  const item = await prisma.pluggyItem.findFirst({
+    where: { lastSyncedAt: { not: null } },
+    orderBy: { lastSyncedAt: "desc" },
+    select: { lastSyncedAt: true },
+  });
+  return item?.lastSyncedAt ?? null;
 }
