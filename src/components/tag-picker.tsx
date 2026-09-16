@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { Plus, X, Hash } from "lucide-react";
 import { addTransactionTag, removeTransactionTag } from "@/app/actions/transactions";
-import { cn } from "@/lib/utils";
 
 type Tag = { id: string; name: string; color: string | null };
 
@@ -66,8 +65,16 @@ export function TagPicker({
               if (e.key === "Escape") setIsAdding(false);
             }}
             placeholder="Nova tag…"
+            list={`tags-${txId}`}
             className="text-[10px] px-2 py-0.5 rounded-full bg-bg-elev border border-accent outline-none w-24"
           />
+          <datalist id={`tags-${txId}`}>
+            {allTags
+              .filter((t) => !currentTags.some((c) => c.id === t.id))
+              .map((t) => (
+                <option key={t.id} value={t.name} />
+              ))}
+          </datalist>
           <button
             onClick={() => handleAdd(value)}
             className="text-accent p-0.5 hover:bg-bg-hover rounded-full"

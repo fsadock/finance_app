@@ -4,27 +4,32 @@ import { CashflowChart } from "@/components/dashboard/cashflow-chart";
 import { CashflowAreaChart } from "@/components/cashflow/area-chart";
 import { CashflowSankey } from "@/components/cashflow/sankey";
 import { getMonthlyCashflow, getSankeyData } from "@/lib/queries";
-import { formatBRL, formatBRLCompact } from "@/lib/format";
+import { formatBRL, formatBRLCompact, formatMonthKeyLong } from "@/lib/format";
+import { PeriodPicker } from "@/components/period-picker";
+import { formatPeriodLabel, parsePeriod } from "@/lib/period";
 
-export default async function CashflowPage() {
-  const [data, sankey] = await Promise.all([
-    getMonthlyCashflow(12),
-    getSankeyData(),
-  ]);
+type Props = { searchParams: Promise<{ month?: string }> };
+
+export default async function CashflowPage({ searchParams }: Props) {
+  const period = parsePeriod((await searchParams).month);
+  const [data, sankey] = await Promise.all([getMonthlyCashflow(12, period.date), getSankeyData(period.date)]);
   const totalIncome = data.reduce((s, d) => s + d.income, 0);
   const totalSpend = data.reduce((s, d) => s + d.spend, 0);
   const avgNet = data.length > 0 ? (totalIncome - totalSpend) / data.length : 0;
   const monthsPositive = data.filter((d) => d.net > 0).length;
 
-  let cumulative = 0;
-  const cumData = data.map((d) => {
-    cumulative += d.net;
-    return { month: d.month, cumulative };
-  });
+  const cumData = data.map((d, i) => ({
+    month: d.month,
+    cumulative: data.slice(0, i + 1).reduce((sum, x) => sum + x.net, 0),
+  }));
 
   return (
     <>
-      <PageHeader title="Fluxo de Caixa" subtitle="Receitas vs despesas · 12 meses" />
+      <PageHeader
+        title="Fluxo de Caixa"
+        subtitle={`Receitas vs despesas · 12 meses até ${formatPeriodLabel(period)} · estornos abatidos das despesas`}
+        actions={<PeriodPicker />}
+      />
 
       <div className="grid grid-cols-12 gap-4 mb-4">
         <Card className="col-span-12 md:col-span-4">
@@ -54,7 +59,7 @@ export default async function CashflowPage() {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Diagrama de Fluxo (Mês Atual)</CardTitle>
+          <CardTitle>Para onde foi o dinheiro · {formatPeriodLabel(period)}</CardTitle>
         </CardHeader>
         <CashflowSankey data={sankey} />
       </Card>
@@ -87,7 +92,7 @@ export default async function CashflowPage() {
             {[...data].reverse().map((d) => (
               <tr key={d.month} className="border-b border-border last:border-b-0 hover:bg-bg-hover/40">
                 <td className="px-6 py-3 capitalize">
-                  {new Date(`${d.month}-01`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+                  {formatMonthKeyLong(d.month)}
                 </td>
                 <td className="px-6 py-3 text-right text-accent">{formatBRL(d.income)}</td>
                 <td className="px-6 py-3 text-right text-danger">{formatBRL(d.spend)}</td>

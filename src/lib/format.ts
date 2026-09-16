@@ -22,17 +22,74 @@ export function formatDate(d: Date | string) {
   }).format(date);
 }
 
+export function formatDateTime(d: Date | string) {
+  const date = typeof d === "string" ? new Date(d) : d;
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export function formatMonthLong(d: Date | string) {
   const date = typeof d === "string" ? new Date(d) : d;
   return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date);
+}
+
+/** "YYYY-MM" key → short label like "set/26". Parses in local time (never via `new Date("YYYY-MM-01")`, which is UTC). */
+export function formatMonthKeyShort(key: string) {
+  return new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" }).format(monthKeyToDate(key));
+}
+
+/** "YYYY-MM" key → long label like "setembro de 2026". */
+export function formatMonthKeyLong(key: string) {
+  return formatMonthLong(monthKeyToDate(key));
 }
 
 export function monthKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+export function monthKeyToDate(key: string) {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(y!, (m ?? 1) - 1, 1);
+}
+
 export function monthBounds(d = new Date()) {
   const start = new Date(d.getFullYear(), d.getMonth(), 1);
   const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
   return { start, end };
+}
+
+/** Month keys oldest→newest, ending at `anchor`'s month. */
+export function lastMonthKeys(count: number, anchor = new Date()) {
+  const keys: string[] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    keys.push(monthKey(new Date(anchor.getFullYear(), anchor.getMonth() - i, 1)));
+  }
+  return keys;
+}
+
+export function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+export function localDayKey(d: Date) {
+  return `${monthKey(d)}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Parses an `<input type="date">` value ("YYYY-MM-DD") as local midnight.
+ * `new Date("YYYY-MM-DD")` is UTC midnight, which is the previous day in Brazil.
+ */
+export function parseDateInput(value: string | null | undefined): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(y!, m! - 1, d!);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function toDateInput(d: Date) {
+  return localDayKey(d);
 }

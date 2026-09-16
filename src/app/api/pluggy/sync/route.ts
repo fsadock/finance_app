@@ -1,4 +1,5 @@
-import { syncItem, runPostSyncJobs } from "@/lib/pluggy/sync";
+import { PluggyConfigError, pluggyErrorMessage } from "@/lib/pluggy/client";
+import { syncItem, runPostSyncJobs, markSyncFailed } from "@/lib/pluggy/sync";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -17,9 +18,14 @@ export async function POST(req: Request) {
     const itemId: string | undefined = body.itemId;
 
     if (itemId) {
-      const result = await syncItem(itemId);
-      const post = await runPostSyncJobs();
-      return NextResponse.json({ stats: { ...result.stats, ...post } });
+      try {
+        const result = await syncItem(itemId);
+        const post = await runPostSyncJobs({ fullHistory: result.isNew });
+        return NextResponse.json({ stats: { ...result.stats, ...post } });
+      } catch (e) {
+        await markSyncFailed(itemId, e);
+        throw e;
+      }
     }
 
     // No itemId → sync all known items
@@ -30,13 +36,14 @@ export async function POST(req: Request) {
         const r = await syncItem(it.pluggyId);
         results.push({ itemId: it.pluggyId, ok: true, stats: r.stats });
       } catch (e) {
-        results.push({ itemId: it.pluggyId, ok: false, error: e instanceof Error ? e.message : "err" });
+        await markSyncFailed(it.pluggyId, e);
+        results.push({ itemId: it.pluggyId, ok: false, error: pluggyErrorMessage(e) });
       }
     }
     const post = await runPostSyncJobs();
     return NextResponse.json({ items: results, post });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const status = e instanceof PluggyConfigError ? 400 : 502;
+    return NextResponse.json({ error: pluggyErrorMessage(e) }, { status });
   }
 }

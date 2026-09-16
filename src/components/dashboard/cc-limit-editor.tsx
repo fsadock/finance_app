@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Pencil, Check, X, Loader2, CreditCard } from "lucide-react";
 import { setCCMonthlyLimit, setCCCycleCloseDay } from "@/app/actions/accounts";
 import { formatBRL } from "@/lib/format";
+import { parseBRLInput } from "@/lib/brazil";
 
 export function CCLimitEditor({
   current,
@@ -33,8 +34,8 @@ export function CCLimitEditor({
 
   function save() {
     setError(null);
-    const num = parseFloat(limitValue.replace(",", "."));
-    if (!Number.isFinite(num) || num <= 0) {
+    const num = parseBRLInput(limitValue);
+    if (num === null || num <= 0) {
       setError("Valor inválido");
       return;
     }
@@ -68,7 +69,7 @@ export function CCLimitEditor({
           onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
           disabled={pending}
           className="w-24 bg-bg-elev border border-border rounded px-2 py-0.5 text-xs outline-none focus:border-accent"
-          placeholder="4000"
+          placeholder="4.000"
         />
         <span className="text-xs text-fg-muted">Fechamento dia:</span>
         <input

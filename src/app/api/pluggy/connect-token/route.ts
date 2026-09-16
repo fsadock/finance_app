@@ -1,4 +1,4 @@
-import { getPluggy } from "@/lib/pluggy/client";
+import { getPluggy, PluggyConfigError, pluggyErrorMessage } from "@/lib/pluggy/client";
 import { NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -12,11 +12,11 @@ export async function POST(req: Request) {
 
   try {
     const { itemId } = await req.json().catch(() => ({}));
-    const pluggy = getPluggy();
+    const pluggy = await getPluggy();
     const token = await pluggy.createConnectToken(itemId);
     return NextResponse.json(token);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const status = e instanceof PluggyConfigError ? 400 : 502;
+    return NextResponse.json({ error: pluggyErrorMessage(e) }, { status });
   }
 }

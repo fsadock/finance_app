@@ -8,6 +8,9 @@ const prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url }) });
 async function main() {
   console.log("Wiping all data except categories…");
   await prisma.transaction.deleteMany();
+  await prisma.tag.deleteMany();
+  await prisma.creditCardBill.deleteMany(); // FK restricts account deletion
+  await prisma.balanceSnapshot.deleteMany();
   await prisma.merchantRule.deleteMany();
   await prisma.recurring.deleteMany();
   await prisma.budget.deleteMany();
@@ -15,6 +18,7 @@ async function main() {
   await prisma.goal.deleteMany();
   await prisma.account.deleteMany();
   await prisma.pluggyItem.deleteMany();
+  await prisma.appConfig.deleteMany({ where: { key: "owner_documents" } });
   console.log("Done. Categories preserved as taxonomy for AI classification.");
 }
 

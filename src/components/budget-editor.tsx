@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Pencil, Check, X, Loader2, Trash2, RefreshCcw } from "lucide-react";
 import { setBudget, deleteBudget, toggleRollover } from "@/app/actions/budgets";
 import { formatBRL } from "@/lib/format";
+import { parseBRLInput } from "@/lib/brazil";
 import { cn } from "@/lib/utils";
 
 export function BudgetEditor({
@@ -23,9 +24,11 @@ export function BudgetEditor({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (editing) setValue(current > 0 ? String(current) : "");
-  }, [editing, current]);
+  function startEditing() {
+    setValue(current > 0 ? String(current).replace(".", ",") : "");
+    setError(null);
+    setEditing(true);
+  }
 
   useEffect(() => {
     if (editing) inputRef.current?.focus();
@@ -33,8 +36,8 @@ export function BudgetEditor({
 
   function save() {
     setError(null);
-    const num = parseFloat(value.replace(",", "."));
-    if (!Number.isFinite(num) || num < 0) {
+    const num = parseBRLInput(value);
+    if (num === null || num < 0) {
       setError("Valor inválido");
       return;
     }
@@ -59,7 +62,7 @@ export function BudgetEditor({
   }
 
   function remove() {
-    if (!confirm("Remover orçamento desta categoria?")) return;
+    if (!confirm("Remover o orçamento desta categoria a partir deste mês? Meses anteriores não mudam.")) return;
     startTransition(async () => {
       try {
         await deleteBudget({ categoryId, startMonth });
@@ -85,11 +88,11 @@ export function BudgetEditor({
           <RefreshCcw className={cn("size-3.5", pending && "animate-spin")} />
         </button>
         <button
-          onClick={() => setEditing(true)}
+          onClick={startEditing}
           className="inline-flex items-center gap-1.5 text-sm text-fg-muted hover:text-fg group"
         >
           {current > 0 ? (
-            <>de {formatBRL(current)}</>
+            <span title="Vale a partir deste mês até ser alterado">de {formatBRL(current)}</span>
           ) : (
             <span className="italic">Definir orçamento</span>
           )}

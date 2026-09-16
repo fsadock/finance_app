@@ -14,6 +14,7 @@ export function CategoryCreateDialog() {
   const [name, setName] = useState("");
   const [group, setGroup] = useState("");
   const [color, setColor] = useState(COLORS[0]!);
+  const [isIncome, setIsIncome] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
@@ -32,9 +33,10 @@ export function CategoryCreateDialog() {
     setError(null);
     startTransition(async () => {
       try {
-        await createCategory({ name, group, color });
+        await createCategory({ name, group: group.trim() || undefined, color, isIncome });
         setName("");
         setGroup("");
+        setIsIncome(false);
         setOpen(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erro");
@@ -77,6 +79,10 @@ export function CategoryCreateDialog() {
             placeholder="ex: Personalizadas"
             className="w-full mb-3 bg-bg-elev border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
           />
+          <label className="flex items-center gap-2 text-xs text-fg-muted mb-3 cursor-pointer">
+            <input type="checkbox" checked={isIncome} onChange={(e) => setIsIncome(e.target.checked)} className="accent-accent" />
+            É receita (entradas contam como renda, não como estorno)
+          </label>
           <label className="block text-xs text-fg-muted mb-2">Cor</label>
           <div className="flex flex-wrap gap-1.5 mb-4">
             {COLORS.map((c) => (

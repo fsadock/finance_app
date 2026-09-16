@@ -13,7 +13,9 @@ import { formatBRLCompact } from "@/lib/format";
 
 type Row = { month: number; conservative: number; expected: number; aggressive: number };
 
-export function ProjectionChart({ data }: { data: Row[] }) {
+export type ProjectionLabels = { conservative: string; expected: string; aggressive: string };
+
+export function ProjectionChart({ data, labels }: { data: Row[]; labels: ProjectionLabels }) {
   const yearTick = (m: number) => (m % 12 === 0 ? `${m / 12}a` : "");
   return (
     <div className="h-[280px]">
@@ -39,7 +41,7 @@ export function ProjectionChart({ data }: { data: Row[] }) {
           <Tooltip
             contentStyle={{ background: "#15181d", border: "1px solid #232831", borderRadius: 12, fontSize: 12 }}
             labelFormatter={(l) => `Mês ${l}`}
-            formatter={(v, n) => [formatBRLCompact(Number(v)), n === "conservative" ? "6% a.a." : n === "expected" ? "10% a.a." : "15% a.a."]}
+            formatter={(v, n) => [formatBRLCompact(Number(v)), labels[n as keyof ProjectionLabels] ?? String(n)]}
           />
           <Area type="monotone" dataKey="aggressive" stroke="#00d28d" strokeWidth={2} fill="url(#agg)" />
           <Area type="monotone" dataKey="expected" stroke="#4d8bf5" strokeWidth={2} fill="url(#exp)" />

@@ -38,3 +38,10 @@ export async function setCCCycleCloseDay(day: number | null) {
   revalidatePath("/accounts");
   return { ok: true };
 }
+
+export async function setAccountHidden(accountId: string, hidden: boolean) {
+  const id = z.string().min(1).parse(accountId);
+  await prisma.account.update({ where: { id }, data: { hidden: z.boolean().parse(hidden) } });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}

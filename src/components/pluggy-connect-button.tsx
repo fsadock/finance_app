@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plug, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { Plug, Loader2, RefreshCw, RotateCcw } from "lucide-react";
+import { CategorizePendingButton } from "./categorize-pending-button";
 
 declare global {
   interface Window {
@@ -13,6 +14,8 @@ declare global {
 type PluggyConnectOptions = {
   connectToken: string;
   includeSandbox?: boolean;
+  /** Existing item to update (renew consent / fix credentials) instead of creating a new connection */
+  updateItem?: string;
   onSuccess?: (data: { item: { id: string } }) => void;
   onError?: (err: unknown) => void;
   onClose?: () => void;
@@ -27,62 +30,80 @@ function loadScript(): Promise<void> {
     const existing = document.querySelector(`script[src="${SCRIPT_SRC}"]`);
     if (existing) {
       existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("Failed to load Pluggy Connect")));
+      existing.addEventListener("error", () => reject(new Error("Falha ao carregar o Pluggy Connect")));
       return;
     }
     const s = document.createElement("script");
     s.src = SCRIPT_SRC;
     s.async = true;
     s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Failed to load Pluggy Connect"));
+    s.onerror = () => reject(new Error("Falha ao carregar o Pluggy Connect"));
     document.body.appendChild(s);
   });
 }
 
-export function PluggyConnectButton() {
+async function readJson(res: Response) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? `Erro ${res.status}`);
+  return data;
+}
+
+type Busy = null | "connect" | "sync";
+
+/** Opens the Pluggy widget (new connection, or update of `itemId`) and syncs the item on success. */
+function usePluggyConnect() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [busy, setBusy] = useState<null | "connect" | "sync" | "reclassify">(null);
+  const [busy, setBusy] = useState<Busy>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadScript().catch((e) => setMsg(e.message));
-  }, []);
-
-  async function connect() {
+  async function open(itemId?: string) {
     setBusy("connect");
     setMsg(null);
     try {
       await loadScript();
-      const tokenRes = await fetch("/api/pluggy/connect-token", { method: "POST" });
-      const tokenData = await tokenRes.json();
-      if (!tokenRes.ok) throw new Error(tokenData.error ?? "Token error");
-      if (!window.PluggyConnect) throw new Error("Pluggy Connect not loaded");
+      const tokenData = await readJson(
+        await fetch("/api/pluggy/connect-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(itemId ? { itemId } : {}),
+        })
+      );
+      if (!window.PluggyConnect) throw new Error("Pluggy Connect não carregou");
 
       const widget = new window.PluggyConnect({
         connectToken: tokenData.accessToken,
-        includeSandbox: true,
+        includeSandbox: process.env.NODE_ENV !== "production",
+        updateItem: itemId,
         onSuccess: async ({ item }) => {
           setBusy("sync");
           setMsg("Sincronizando…");
-          const res = await fetch("/api/pluggy/sync", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ itemId: item.id }),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error ?? "Sync error");
-          setMsg(`✓ ${data.stats.accounts} contas, ${data.stats.transactions} transações.`);
-          startTransition(() => router.refresh());
-          setBusy(null);
+          try {
+            const data = await readJson(
+              await fetch("/api/pluggy/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ itemId: item.id }),
+              })
+            );
+            const s = data.stats;
+            setMsg(
+              `✓ ${s.accounts} contas, ${s.transactions} transações novas, ${s.deterministic + s.categorized} categorizadas` +
+                (s.aiError ? ` · ⚠ ${s.aiError}` : ` · ${s.pendingReview} para revisar`)
+            );
+            startTransition(() => router.refresh());
+          } catch (e) {
+            setMsg(e instanceof Error ? e.message : "Erro na sincronização");
+          } finally {
+            setBusy(null);
+          }
         },
         onError: (err) => {
           setMsg(typeof err === "string" ? err : "Erro na conexão.");
           setBusy(null);
         },
-        onClose: () => {
-          if (busy === "connect") setBusy(null);
-        },
+        // functional update: the closure's `busy` would be stale here
+        onClose: () => setBusy((b) => (b === "connect" ? null : b)),
       });
       widget.init();
     } catch (e) {
@@ -91,18 +112,31 @@ export function PluggyConnectButton() {
     }
   }
 
+  return { open, busy, setBusy, msg, setMsg, isPending, startTransition, router };
+}
+
+export function PluggyConnectButton() {
+  const { open, busy, setBusy, msg, setMsg, isPending, startTransition, router } = usePluggyConnect();
+
+  useEffect(() => {
+    loadScript().catch(() => {});
+  }, []);
+
   async function syncAll() {
     setBusy("sync");
     setMsg("Sincronizando todas as contas…");
     try {
-      const res = await fetch("/api/pluggy/sync", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Sync error");
-      const total = data.items?.reduce(
+      const data = await readJson(await fetch("/api/pluggy/sync", { method: "POST" }));
+      const failed = (data.items ?? []).filter((it: { ok: boolean }) => !it.ok).length;
+      const total = (data.items ?? []).reduce(
         (s: number, it: { stats?: { transactions?: number } }) => s + (it.stats?.transactions ?? 0),
-        0,
-      ) ?? 0;
-      setMsg(`✓ ${total} transações sincronizadas.`);
+        0
+      );
+      const post = data.post ?? {};
+      setMsg(
+        `✓ ${total} transações novas${failed ? ` · ${failed} conexão(ões) com erro` : ""}` +
+          (post.aiError ? ` · ⚠ ${post.aiError}` : ` · ${post.pendingReview ?? 0} para revisar`)
+      );
       startTransition(() => router.refresh());
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Erro");
@@ -111,51 +145,42 @@ export function PluggyConnectButton() {
     }
   }
 
-  async function reclassify() {
-    if (!confirm("Apagar regras da IA e reclassificar tudo? (Suas escolhas manuais ficam intactas)")) return;
-    setBusy("reclassify");
-    setMsg("Reclassificando…");
-    try {
-      const res = await fetch("/api/admin/reset-ai", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Erro");
-      setMsg(`✓ ${data.rulesDeleted} regras apagadas, ${data.txReset} tx resetadas, ${data.recategorized} recategorizadas.`);
-      startTransition(() => router.refresh());
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Erro");
-    } finally {
-      setBusy(null);
-    }
-  }
-
+  const secondary =
+    "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-elev border border-border hover:border-accent hover:text-accent text-sm disabled:opacity-50";
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap justify-end">
+      {(msg || isPending) && <span className="text-xs text-fg-muted max-w-md">{isPending ? "Atualizando…" : msg}</span>}
       <button
-        onClick={connect}
+        onClick={() => open()}
         disabled={busy !== null}
         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent text-bg text-sm font-medium hover:bg-accent-hover disabled:opacity-50"
       >
         {busy === "connect" ? <Loader2 className="size-3.5 animate-spin" /> : <Plug className="size-3.5" />}
         Conectar conta
       </button>
-      <button
-        onClick={syncAll}
-        disabled={busy !== null}
-        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-elev border border-border hover:border-accent hover:text-accent text-sm disabled:opacity-50"
-      >
+      <button onClick={syncAll} disabled={busy !== null} className={secondary}>
         {busy === "sync" ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
         Sincronizar
       </button>
-      <button
-        onClick={reclassify}
-        disabled={busy !== null}
-        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-elev border border-border hover:border-accent hover:text-accent text-sm disabled:opacity-50"
-        title="Apaga regras da IA e reclassifica tudo (mantém suas escolhas)"
-      >
-        {busy === "reclassify" ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-        Reclassificar IA
-      </button>
-      {(msg || isPending) && <span className="text-xs text-fg-muted">{isPending ? "Atualizando…" : msg}</span>}
+      <CategorizePendingButton />
     </div>
+  );
+}
+
+/** Renews an expired Open Finance consent / fixes a LOGIN_ERROR by updating the existing item. */
+export function ReconnectButton({ itemId }: { itemId: string }) {
+  const { open, busy, msg } = usePluggyConnect();
+  return (
+    <span className="inline-flex items-center gap-2">
+      <button
+        onClick={() => open(itemId)}
+        disabled={busy !== null}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border text-xs hover:border-accent hover:text-accent disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="size-3 animate-spin" /> : <RotateCcw className="size-3" />}
+        Reconectar
+      </button>
+      {msg && <span className="text-xs text-fg-muted">{msg}</span>}
+    </span>
   );
 }

@@ -1,10 +1,14 @@
-import { getPluggy } from "./client";
+import { getPluggy, pluggyErrorMessage } from "./client";
 import { prisma } from "../db";
 import { detectTransfers } from "../transfers";
-import { categorizeReviewTransactions } from "../ai/categorize";
-import { detectRecurrings } from "../ai/recurrings";
+import { categorizeAllPending } from "../ai/categorize";
+import { detectRecurrings, refreshRecurrings } from "../ai/recurrings";
+import { aiErrorMessage } from "../ai/client";
+import { snapshotBalances } from "../snapshots";
+import { deterministicCategory, onlyDigits, parseInstallmentFromDescription, resolveCounterparty } from "../brazil";
+import { applyDeterministicRules } from "../deterministic";
 import { withRetry } from "../retry";
-import { POST_SYNC_CATEGORIZE_PASSES, TRANSFER_DETECTION_DAYS_BACK } from "../constants";
+import { TRANSFER_DETECTION_DAYS_BACK } from "../constants";
 import { logger } from "../logger";
 import type { AccountType as PrismaAccountType, InvestmentType as PrismaInvestmentType } from "@/generated/prisma/client";
 
@@ -15,6 +19,13 @@ function mapAccountType(pluggyType: string, subtype: string | undefined | null):
   if (pluggyType === "INVESTMENT") return "INVESTMENT";
   if (pluggyType === "LOAN") return "LOAN";
   return "CHECKING";
+}
+
+/** Pluggy's `type` is the direction (DEBIT = money out); the raw amount sign varies by account type. */
+export function signedAmount(type: string | null | undefined, amount: number) {
+  if (type === "DEBIT") return -Math.abs(amount);
+  if (type === "CREDIT") return Math.abs(amount);
+  return amount;
 }
 
 function mapInvestmentType(pluggyType: string): PrismaInvestmentType {
@@ -36,8 +47,17 @@ function mapInvestmentType(pluggyType: string): PrismaInvestmentType {
 }
 
 export async function registerItem(itemId: string) {
-  const pluggy = getPluggy();
+  const pluggy = await getPluggy();
   const item = await withRetry(() => pluggy.fetchItem(itemId));
+  const isNew = !(await prisma.pluggyItem.findUnique({ where: { pluggyId: item.id }, select: { id: true } }));
+  let consentExpiresAt: Date | null = null;
+  try {
+    const consents = await pluggy.fetchConsents(itemId);
+    const active = consents.results.filter((c) => !c.revokedAt && c.expiresAt).map((c) => new Date(c.expiresAt!));
+    consentExpiresAt = active.length > 0 ? new Date(Math.max(...active.map((d) => d.getTime()))) : null;
+  } catch {
+    // non Open Finance connectors have no consents
+  }
   await prisma.pluggyItem.upsert({
     where: { pluggyId: item.id },
     create: {
@@ -45,23 +65,34 @@ export async function registerItem(itemId: string) {
       connector: String(item.connector?.name ?? item.connector?.id ?? "unknown"),
       status: item.status,
       lastUpdated: item.lastUpdatedAt ? new Date(item.lastUpdatedAt) : null,
+      consentExpiresAt,
     },
     update: {
       status: item.status,
       lastUpdated: item.lastUpdatedAt ? new Date(item.lastUpdatedAt) : null,
+      consentExpiresAt,
     },
   });
-  return item;
+  return { item, isNew };
 }
 
 export async function syncItem(itemId: string) {
-  const pluggy = getPluggy();
-  const item = await registerItem(itemId);
+  const pluggy = await getPluggy();
+  const { item, isNew } = await registerItem(itemId);
   const institutionName = String(item.connector?.name ?? "Open Finance");
   logger.info("sync:start", { itemId, institution: institutionName });
 
-  const accountsPage = await withRetry(() => pluggy.fetchAccounts(itemId));
-  const stats = { accounts: 0, transactions: 0, investments: 0 };
+  const [accountsPage, ownerDocuments, fixedCategories] = await Promise.all([
+    withRetry(() => pluggy.fetchAccounts(itemId)),
+    getOwnerDocuments(itemId),
+    prisma.category.findMany({
+      where: { name: { in: ["Transferências", "Pagamento de fatura", "Investimentos", "Rendimentos"] } },
+      select: { id: true, name: true, excludeFromBudget: true },
+    }),
+  ]);
+  const fixedCategoryByName = new Map(fixedCategories.map((c) => [c.name, c]));
+  const stats = { accounts: 0, transactions: 0, updated: 0, investments: 0 };
+  const syncedAccountIds: string[] = [];
 
   for (const a of accountsPage.results) {
     const mapped = mapAccountType(a.type, a.subtype);
@@ -143,27 +174,85 @@ export async function syncItem(itemId: string) {
     from.setFullYear(from.getFullYear() - 5);
     let page = 1;
     while (true) {
-      const txs = await withRetry(() => pluggy.fetchTransactions(a.id, { from: from.toISOString().slice(0, 10), pageSize: 200, page }));
+      const txs = await withRetry(() =>
+        pluggy.fetchTransactions(a.id, { from: from.toISOString().slice(0, 10), pageSize: 500, page })
+      );
+      const existing = await prisma.transaction.findMany({
+        where: { pluggyTxId: { in: txs.results.map((t) => t.id) } },
+        select: { id: true, pluggyTxId: true, amount: true, date: true },
+      });
+      const byPluggyId = new Map(existing.map((e) => [e.pluggyTxId, e]));
+
+      const toCreate = [];
       for (const t of txs.results) {
-        const exists = await prisma.transaction.findFirst({ where: { pluggyTxId: t.id }, select: { id: true } });
-        if (exists) continue;
-        await prisma.transaction.create({
-          data: {
-            accountId: acct.id,
-            date: new Date(t.date),
-            amount: t.amount,
-            currency: t.currencyCode ?? "BRL",
-            description: t.description || t.descriptionRaw || "Sem descrição",
-            merchantRaw: t.descriptionRaw ?? null,
-            status: "REVIEW",
-            pluggyTxId: t.id,
-          },
+        const amount = signedAmount(t.type, t.amount);
+        const card = t.creditCardMetadata;
+        const purchaseDate = card?.purchaseDate ? new Date(card.purchaseDate) : null;
+        const date = new Date(t.date);
+        const isInstallment = (card?.totalInstallments ?? 0) > 1;
+        const prev = byPluggyId.get(t.id);
+        if (prev) {
+          // pending charges often settle with a different amount/date. Installment dates are owned by
+          // planInstallmentRedates (post-sync) — comparing with Pluggy's raw date would undo that fix.
+          const dateChanged = !isInstallment && prev.date.getTime() !== date.getTime();
+          if (prev.amount !== amount || dateChanged) {
+            await prisma.transaction.update({ where: { id: prev.id }, data: dateChanged ? { amount, date } : { amount } });
+            stats.updated++;
+          }
+          continue;
+        }
+        const counterparty = resolveCounterparty(amount, t.paymentData, ownerDocuments);
+        const installment =
+          card?.totalInstallments && card.totalInstallments > 1
+            ? { number: card.installmentNumber ?? null, total: card.totalInstallments }
+            : mapped === "CREDIT_CARD"
+              ? parseInstallmentFromDescription(t.description ?? "")
+              : null;
+        const paymentMethod = t.paymentData?.paymentMethod?.toUpperCase() ?? null;
+        // No-AI classifications: own-account Pix, card bill payments, investment moves, balance yield
+        const fixedName = deterministicCategory({
+          description: t.description ?? "",
+          amount,
+          accountType: mapped,
+          counterpartyType: counterparty.type,
+          paymentMethod,
         });
-        stats.transactions++;
+        const fixed = fixedName ? fixedCategoryByName.get(fixedName) : undefined;
+
+        toCreate.push({
+          accountId: acct.id,
+          date,
+          amount,
+          currency: t.currencyCode ?? "BRL",
+          description: t.description || t.descriptionRaw || "Sem descrição",
+          merchantRaw: t.descriptionRaw ?? null,
+          status: fixed ? ("POSTED" as const) : ("REVIEW" as const),
+          categoryId: fixed?.id ?? null,
+          excludeFromBudget: fixed?.excludeFromBudget ?? false,
+          pluggyTxId: t.id,
+          paymentMethod,
+          counterpartyName: counterparty.name,
+          counterpartyType: counterparty.type,
+          merchantName: t.merchant?.name || t.merchant?.businessName || null,
+          merchantCnpj: onlyDigits(t.merchant?.cnpj) || null,
+          merchantCnae: t.merchant?.cnae ?? null,
+          mcc: card?.payeeMCC ?? null,
+          installmentNumber: installment?.number ?? null,
+          totalInstallments: installment?.total ?? null,
+          purchaseAmount: card?.totalAmount ?? null,
+          purchaseDate,
+          pluggyBillId: card?.billId ?? null,
+          pluggyCategory: t.category ?? null,
+        });
+      }
+      if (toCreate.length > 0) {
+        await prisma.transaction.createMany({ data: toCreate });
+        stats.transactions += toCreate.length;
       }
       if (page >= txs.totalPages || txs.results.length === 0) break;
       page++;
     }
+    syncedAccountIds.push(acct.id);
   }
 
   // Investments: snapshot pattern (delete-and-replace) per item.
@@ -202,6 +291,7 @@ export async function syncItem(itemId: string) {
       await prisma.investment.createMany({ data: rows });
       stats.investments = rows.length;
       await prisma.account.update({ where: { id: invAccount.id }, data: { balance: totalValue } });
+      syncedAccountIds.push(invAccount.id);
     } else {
       // Item has no investments — clean up any stale snapshot
       await prisma.investment.deleteMany({ where: { accountId: invAccountId } });
@@ -210,44 +300,97 @@ export async function syncItem(itemId: string) {
     logger.warn("sync:investments_skipped", { itemId, error: e instanceof Error ? e.message : String(e) });
   }
 
-  logger.info("sync:done", { itemId, ...stats });
-  return { item, stats };
+  await snapshotBalances(syncedAccountIds);
+  await prisma.pluggyItem.update({
+    where: { pluggyId: item.id },
+    data: { lastSyncedAt: new Date(), lastError: null },
+  });
+  logger.info("sync:done", { itemId, isNew, ...stats });
+  return { item, stats, isNew };
 }
 
-export async function runPostSyncJobs() {
-  const out = { transfersPaired: 0, categorized: 0, fromRules: 0, fromAI: 0, recurringsDetected: 0 };
+/**
+ * The account owner's CPF/CNPJ (digits), used to recognize Pix/TED between own accounts.
+ * Cached in AppConfig and merged across items (e.g. a personal CPF plus a MEI CNPJ).
+ */
+async function getOwnerDocuments(itemId: string): Promise<string[]> {
+  const config = await prisma.appConfig.findUnique({ where: { key: "owner_documents" } });
+  const known = new Set<string>(config ? (JSON.parse(config.value) as string[]) : []);
+  try {
+    const identity = await (await getPluggy()).fetchIdentityByItemId(itemId);
+    for (const doc of [identity.document, identity.taxNumber]) {
+      const digits = onlyDigits(doc);
+      if (digits.length === 11 || digits.length === 14) known.add(digits);
+    }
+    const value = JSON.stringify([...known]);
+    await prisma.appConfig.upsert({
+      where: { key: "owner_documents" },
+      create: { key: "owner_documents", value },
+      update: { value },
+    });
+  } catch (e) {
+    logger.warn("sync:identity_unavailable", { itemId, error: e instanceof Error ? e.message : String(e) });
+  }
+  return [...known];
+}
+
+/** Records a failed sync on the item so the UI can surface it. */
+export async function markSyncFailed(itemId: string, error: unknown) {
+  const message = pluggyErrorMessage(error);
+  await prisma.pluggyItem.updateMany({ where: { pluggyId: itemId }, data: { lastError: message.slice(0, 500) } });
+  logger.error("sync:failed", { itemId, error: message });
+}
+
+/**
+ * @param fullHistory scan all history for transfer pairs — used on the first sync of a newly connected
+ * bank, whose outflows can pair with older inflows (e.g. salary moved from that bank, already categorized).
+ */
+export async function runPostSyncJobs({ fullHistory = false } = {}) {
+  const out = {
+    deterministic: 0,
+    redated: 0,
+    transfersPaired: 0,
+    categorized: 0,
+    fromRules: 0,
+    fromAI: 0,
+    pendingReview: 0,
+    recurringsLinked: 0,
+    recurringsDetected: 0,
+    aiError: null as string | null,
+  };
   logger.info("post-sync:start");
 
   try {
-    const t = await detectTransfers(TRANSFER_DETECTION_DAYS_BACK);
-    out.transfersPaired = t.paired;
-    logger.info("post-sync:transfers", { paired: t.paired });
+    const d = await applyDeterministicRules();
+    out.deterministic = d.categorized;
+    out.redated = d.redated;
   } catch (e) {
-    logger.error("post-sync:transfers_failed", { error: e instanceof Error ? e.message : String(e) });
-  }
-
-  for (let i = 0; i < POST_SYNC_CATEGORIZE_PASSES; i++) {
-    try {
-      const c = await categorizeReviewTransactions();
-      if (!c.applied) break;
-      out.categorized += c.applied;
-      out.fromRules += c.fromRules ?? 0;
-      out.fromAI += c.fromAI ?? 0;
-      logger.info("post-sync:categorize_pass", { pass: i + 1, applied: c.applied, fromRules: c.fromRules, fromAI: c.fromAI });
-    } catch (e) {
-      logger.error("post-sync:categorize_failed", { pass: i + 1, error: e instanceof Error ? e.message : String(e) });
-      break;
-    }
+    logger.error("post-sync:deterministic_failed", { error: errorMessage(e) });
   }
 
   try {
-    const r = await detectRecurrings();
-    out.recurringsDetected = r.detected;
-    logger.info("post-sync:recurrings", { detected: r.detected });
+    out.transfersPaired = (await detectTransfers(fullHistory ? 365 * 5 : TRANSFER_DETECTION_DAYS_BACK)).paired;
   } catch (e) {
-    logger.error("post-sync:recurrings_failed", { error: e instanceof Error ? e.message : String(e) });
+    logger.error("post-sync:transfers_failed", { error: errorMessage(e) });
+  }
+
+  const c = await categorizeAllPending();
+  out.categorized = c.applied;
+  out.fromRules = c.fromRules;
+  out.fromAI = c.fromAI;
+  out.pendingReview = c.remaining;
+  out.aiError = c.error;
+
+  try {
+    out.recurringsLinked = (await refreshRecurrings()).linked;
+    if (!out.aiError && c.aiConfigured) out.recurringsDetected = (await detectRecurrings()).detected;
+  } catch (e) {
+    out.aiError ??= aiErrorMessage(e);
+    logger.error("post-sync:recurrings_failed", { error: errorMessage(e) });
   }
 
   logger.info("post-sync:done", out);
   return out;
 }
+
+const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));

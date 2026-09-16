@@ -11,6 +11,10 @@ import {
   Target,
   LineChart,
   Repeat,
+  Layers,
+  Landmark,
+  ListChecks,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,9 +27,12 @@ const nav = [
   { href: "/goals", label: "Metas", icon: Target },
   { href: "/investments", label: "Investimentos", icon: LineChart },
   { href: "/recurrings", label: "Recorrentes", icon: Repeat },
+  { href: "/installments", label: "Parcelas", icon: Layers },
+  { href: "/taxes", label: "Imposto de Renda", icon: Landmark },
+  { href: "/rules", label: "Regras", icon: ListChecks },
 ];
 
-export function Sidebar() {
+export function Sidebar({ lastSync, setupPending }: { lastSync: string | null; setupPending: boolean }) {
   const pathname = usePathname();
   return (
     <aside className="w-64 shrink-0 border-r border-border bg-bg-elev px-4 py-6 flex flex-col gap-2 sticky top-0 h-screen">
@@ -58,9 +65,26 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="mt-auto px-3 pt-4 border-t border-border text-xs text-fg-subtle">
+      <Link
+        href="/settings"
+        className={cn(
+          "mt-auto flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+          pathname.startsWith("/settings") || pathname.startsWith("/setup")
+            ? "bg-bg-hover text-fg"
+            : "text-fg-muted hover:text-fg hover:bg-bg-hover/60"
+        )}
+      >
+        <Settings className="size-[18px]" strokeWidth={1.75} />
+        <span>Configurações</span>
+        {setupPending && <span className="ml-auto size-2 rounded-full bg-warn" title="Configuração pendente" />}
+      </Link>
+      <div className="px-3 pt-4 border-t border-border text-xs text-fg-subtle">
         <div>BRL · pt-BR</div>
-        <div>Mock data (Pluggy off)</div>
+        <div>
+          {lastSync
+            ? `Sincronizado ${new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(lastSync))}`
+            : "Nenhuma sincronização ainda"}
+        </div>
       </div>
     </aside>
   );

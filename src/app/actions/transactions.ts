@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { normalizeMerchant } from "@/lib/ai/merchant";
-import { CATEGORIZE_MAX_RETRY_PASSES } from "@/lib/constants";
+import { merchantPattern } from "@/lib/ai/merchant";
+import { unpairTransfer } from "@/lib/transfers";
 import { z } from "zod";
 
 const txIdSchema = z.string().min(1);
@@ -11,9 +11,10 @@ const categoryIdSchema = z.string().min(1).nullable();
 const tagNameSchema = z.string().min(1).max(50).trim();
 
 const createCategorySchema = z.object({
-  name: z.string().min(1).max(100).trim(),
-  group: z.string().min(1).max(100).trim().optional(),
+  name: z.string().trim().min(1).max(100),
+  group: z.string().trim().max(100).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  isIncome: z.boolean().optional(),
 });
 
 /**
@@ -30,11 +31,11 @@ export async function setTransactionCategory(txId: string, categoryId: string | 
 
   const tx = await prisma.transaction.findUnique({
     where: { id },
-    select: { id: true, description: true, merchantRaw: true },
+    select: { id: true, description: true, merchantRaw: true, counterpartyName: true },
   });
   if (!tx) throw new Error("Transação não encontrada");
 
-  const pattern = normalizeMerchant(tx.merchantRaw ?? tx.description);
+  const pattern = merchantPattern(tx);
 
   if (catId) {
     // 1. USER rule (overrides AI rules forever)
@@ -48,10 +49,10 @@ export async function setTransactionCategory(txId: string, categoryId: string | 
     // 2. Update target tx + propagate to all matching tx (same pattern)
     if (pattern) {
       const allTx = await prisma.transaction.findMany({
-        select: { id: true, description: true, merchantRaw: true },
+        select: { id: true, description: true, merchantRaw: true, counterpartyName: true },
       });
       const matchingIds = allTx
-        .filter((t) => normalizeMerchant(t.merchantRaw ?? t.description) === pattern)
+        .filter((t) => merchantPattern(t) === pattern)
         .map((t) => t.id);
       if (matchingIds.length > 0) {
         await prisma.transaction.updateMany({
@@ -80,84 +81,31 @@ export async function setTransactionCategory(txId: string, categoryId: string | 
   return { ok: true };
 }
 
-/**
- * Wipe all AI-source rules and reset AI-classified transactions back to REVIEW.
- * Keeps USER rules and user-classified tx untouched. Runs the categorize loop
- * so the new prompt + category taxonomy can re-examine everything.
- *
- * Safe to run multiple times.
- */
-export async function resetAiClassifications() {
-  const { categorizeReviewTransactions } = await import("@/lib/ai/categorize");
-
-  // Drop AI rules
-  const ruleResult = await prisma.merchantRule.deleteMany({ where: { source: "AI" } });
-
-  // Reset tx that were classified by AI (not by user, not transfer-paired)
-  const userRules = await prisma.merchantRule.findMany({
-    where: { source: "USER" },
-    select: { categoryId: true },
-  });
-  const userCategoryIds = new Set(userRules.map((r) => r.categoryId));
-
-  const candidates = await prisma.transaction.findMany({
-    where: {
-      status: "POSTED",
-      transferPairId: null,
-      excludeFromBudget: false,
-      categoryId: { not: null },
-    },
-    select: { id: true, categoryId: true, description: true, merchantRaw: true },
-  });
-
-  const { normalizeMerchant: normalize } = await import("@/lib/ai/merchant");
-
-  // Build set of patterns covered by USER rules (so we don't reset those tx)
-  const userRulesByPattern = await prisma.merchantRule.findMany({
-    where: { source: "USER" },
-    select: { pattern: true },
-  });
-  const userPatterns = new Set(userRulesByPattern.map((r) => r.pattern));
-
-  const toReset = candidates.filter((t) => {
-    const pattern = normalize(t.merchantRaw ?? t.description);
-    return !userPatterns.has(pattern) && !userCategoryIds.has(t.categoryId!);
-  });
-
-  if (toReset.length > 0) {
-    await prisma.transaction.updateMany({
-      where: { id: { in: toReset.map((t) => t.id) } },
-      data: { status: "REVIEW", categoryId: null },
-    });
-  }
-
-  // Re-categorize with new prompt + taxonomy
-  let totalApplied = 0;
-  for (let i = 0; i < CATEGORIZE_MAX_RETRY_PASSES; i++) {
-    const r = await categorizeReviewTransactions();
-    if (!r.applied) break;
-    totalApplied += r.applied;
-  }
-
+export async function setTransactionNotes(txId: string, notes: string) {
+  const id = txIdSchema.parse(txId);
+  const value = z.string().max(500).parse(notes).trim();
+  await prisma.transaction.update({ where: { id }, data: { notes: value || null } });
   revalidatePath("/transactions");
-  revalidatePath("/");
-  revalidatePath("/categories");
-  return { rulesDeleted: ruleResult.count, txReset: toReset.length, recategorized: totalApplied };
+  return { ok: true };
 }
 
-export async function createCategory(input: {
-  name: string;
-  group?: string;
-  color?: string;
-}) {
-  const { name, group, color } = createCategorySchema.parse(input);
+/** Undo an automatic transfer pairing: both sides go back to REVIEW and count in budgets again. */
+export async function unpairTransferAction(txId: string) {
+  const result = await unpairTransfer(txIdSchema.parse(txId));
+  revalidatePath("/", "layout");
+  return result;
+}
+
+export async function createCategory(input: z.input<typeof createCategorySchema>) {
+  const { name, group, color, isIncome } = createCategorySchema.parse(input);
   const existing = await prisma.category.findUnique({ where: { name } });
   if (existing) throw new Error("Categoria já existe");
   const c = await prisma.category.create({
     data: {
       name,
-      group: group ?? "Personalizadas",
+      group: group || (isIncome ? "Income" : "Personalizadas"),
       color: color ?? "#6b7280",
+      isIncome: isIncome ?? false,
     },
   });
   revalidatePath("/categories");
