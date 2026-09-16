@@ -23,10 +23,16 @@ import { parsePeriod, formatPeriodLabel } from "@/lib/period";
 import { CategoryPicker } from "@/components/category-picker";
 import { CategorizePendingButton } from "@/components/categorize-pending-button";
 import { prisma } from "@/lib/db";
+import { getPluggyCredentials } from "@/lib/settings";
+import { redirect } from "next/navigation";
 
 type Props = { searchParams: Promise<{ month?: string }> };
 
 export default async function DashboardPage({ searchParams }: Props) {
+  // First run: nothing configured and no data yet → go straight to the setup wizard
+  const [pluggy, accounts] = await Promise.all([getPluggyCredentials(), prisma.account.count()]);
+  if (!pluggy.configured && accounts === 0) redirect("/setup");
+
   const sp = await searchParams;
   const period = parsePeriod(sp.month);
   const periodDate = period.date;

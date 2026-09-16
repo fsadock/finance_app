@@ -1,23 +1,36 @@
 import { PluggyClient } from "pluggy-sdk";
+import { getPluggyCredentials, isValidPluggyClientId } from "../settings";
 
-let _client: PluggyClient | null = null;
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+let cached: { key: string; client: PluggyClient } | null = null;
 
 export class PluggyConfigError extends Error {}
 
-export function getPluggy() {
-  if (!_client) {
-    const clientId = process.env.PLUGGY_CLIENT_ID?.trim();
-    const clientSecret = process.env.PLUGGY_CLIENT_SECRET?.trim();
-    if (!clientId || !clientSecret || !UUID.test(clientId) || clientSecret.startsWith("your-")) {
-      throw new PluggyConfigError(
-        "Credenciais da Pluggy não configuradas: defina PLUGGY_CLIENT_ID (UUID) e PLUGGY_CLIENT_SECRET no .env (dashboard.pluggy.ai → Applications) e reinicie o servidor."
-      );
-    }
-    _client = new PluggyClient({ clientId, clientSecret });
+/**
+ * Pluggy client built from the credentials saved on the setup screen (or .env). Rebuilt when the
+ * credentials change, so saving new ones takes effect without restarting the server.
+ */
+export async function getPluggy() {
+  const { clientId, clientSecret, configured } = await getPluggyCredentials();
+  if (!configured) {
+    throw new PluggyConfigError(
+      "Credenciais da Pluggy não configuradas. Abra Configurações (ou /setup) e informe o Client ID e o Client Secret da sua aplicação em dashboard.pluggy.ai."
+    );
   }
-  return _client;
+  const key = `${clientId}:${clientSecret}`;
+  if (cached?.key !== key) cached = { key, client: new PluggyClient({ clientId: clientId!, clientSecret: clientSecret! }) };
+  return cached.client;
+}
+
+/** Tests credentials by creating a real connect token. Returns an error message, or null when they work. */
+export async function testPluggyCredentials(clientId: string, clientSecret: string): Promise<string | null> {
+  if (!isValidPluggyClientId(clientId)) return "O Client ID deve ser um UUID (ex.: 3f8e2a1c-1234-4abc-9def-0123456789ab).";
+  if (!clientSecret.trim()) return "Informe o Client Secret.";
+  try {
+    await new PluggyClient({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }).createConnectToken();
+    return null;
+  } catch (e) {
+    return pluggyErrorMessage(e);
+  }
 }
 
 /** Pluggy SDK errors carry the useful message in the response body ("clientId must be a UUID", "Invalid credentials"…). */

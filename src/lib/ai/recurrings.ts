@@ -107,8 +107,9 @@ export async function detectRecurrings() {
     ),
   });
 
+  const anthropic = await getAnthropic();
   const resp = await withRetry(() =>
-    getAnthropic().messages.parse({
+    anthropic.messages.parse({
       model: MODEL_FAST,
       max_tokens: 4000,
       system: [

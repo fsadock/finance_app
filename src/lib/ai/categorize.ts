@@ -1,4 +1,4 @@
-import { aiErrorMessage, getAnthropic, MODEL_FAST } from "./client";
+import { aiErrorMessage, getAnthropic, getAnthropicOrNull, MODEL_FAST } from "./client";
 import { prisma } from "../db";
 import { merchantPattern } from "./merchant";
 import {
@@ -43,7 +43,7 @@ export function matchRulesToTransactions<T extends TxInput>(
  * Pass the ids returned in `attemptedIds` from previous passes as `skipIds` — otherwise transactions the
  * AI can't classify confidently are re-fetched on every pass and block everything behind them.
  */
-export async function categorizeReviewTransactions(skipIds: string[] = []) {
+export async function categorizeReviewTransactions(skipIds: string[] = [], { useAI = true } = {}) {
   const [txs, categories, rules] = await Promise.all([
     prisma.transaction.findMany({
       where: { status: "REVIEW", ...(skipIds.length > 0 ? { id: { notIn: skipIds } } : {}) },
@@ -95,7 +95,7 @@ export async function categorizeReviewTransactions(skipIds: string[] = []) {
     fromRules++;
   }
 
-  if (remaining.length === 0) {
+  if (remaining.length === 0 || !useAI) {
     return { applied: fromRules, fromRules, fromAI: 0, attemptedIds, suggestions: [] as Suggestion[] };
   }
 
@@ -137,7 +137,7 @@ export async function categorizeReviewTransactions(skipIds: string[] = []) {
     ),
   });
 
-  const client = getAnthropic();
+  const client = await getAnthropic();
   const resp = await withRetry(() =>
     client.messages.parse({
       model: MODEL_FAST,
@@ -249,11 +249,13 @@ export async function categorizeReviewTransactions(skipIds: string[] = []) {
  * Returns the AI error (if any) instead of throwing, so callers can show it.
  */
 export async function categorizeAllPending(maxPasses = 150) {
-  const out = { applied: 0, fromRules: 0, fromAI: 0, remaining: 0, error: null as string | null };
+  // Without a key the AI is simply skipped: merchant rules still apply, the rest waits in REVIEW.
+  const useAI = Boolean(await getAnthropicOrNull());
+  const out = { applied: 0, fromRules: 0, fromAI: 0, remaining: 0, error: null as string | null, aiConfigured: useAI };
   const attempted: string[] = [];
   for (let i = 0; i < maxPasses; i++) {
     try {
-      const r = await categorizeReviewTransactions(attempted);
+      const r = await categorizeReviewTransactions(attempted, { useAI });
       if (r.attemptedIds.length === 0) break;
       attempted.push(...r.attemptedIds);
       out.applied += r.applied;

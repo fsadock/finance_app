@@ -47,7 +47,7 @@ function mapInvestmentType(pluggyType: string): PrismaInvestmentType {
 }
 
 export async function registerItem(itemId: string) {
-  const pluggy = getPluggy();
+  const pluggy = await getPluggy();
   const item = await withRetry(() => pluggy.fetchItem(itemId));
   const isNew = !(await prisma.pluggyItem.findUnique({ where: { pluggyId: item.id }, select: { id: true } }));
   let consentExpiresAt: Date | null = null;
@@ -77,7 +77,7 @@ export async function registerItem(itemId: string) {
 }
 
 export async function syncItem(itemId: string) {
-  const pluggy = getPluggy();
+  const pluggy = await getPluggy();
   const { item, isNew } = await registerItem(itemId);
   const institutionName = String(item.connector?.name ?? "Open Finance");
   logger.info("sync:start", { itemId, institution: institutionName });
@@ -317,7 +317,7 @@ async function getOwnerDocuments(itemId: string): Promise<string[]> {
   const config = await prisma.appConfig.findUnique({ where: { key: "owner_documents" } });
   const known = new Set<string>(config ? (JSON.parse(config.value) as string[]) : []);
   try {
-    const identity = await getPluggy().fetchIdentityByItemId(itemId);
+    const identity = await (await getPluggy()).fetchIdentityByItemId(itemId);
     for (const doc of [identity.document, identity.taxNumber]) {
       const digits = onlyDigits(doc);
       if (digits.length === 11 || digits.length === 14) known.add(digits);
@@ -383,7 +383,7 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
 
   try {
     out.recurringsLinked = (await refreshRecurrings()).linked;
-    if (!out.aiError) out.recurringsDetected = (await detectRecurrings()).detected;
+    if (!out.aiError && c.aiConfigured) out.recurringsDetected = (await detectRecurrings()).detected;
   } catch (e) {
     out.aiError ??= aiErrorMessage(e);
     logger.error("post-sync:recurrings_failed", { error: errorMessage(e) });

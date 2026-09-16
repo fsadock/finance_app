@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
   try {
     const { itemId } = await req.json().catch(() => ({}));
-    const pluggy = getPluggy();
+    const pluggy = await getPluggy();
     const token = await pluggy.createConnectToken(itemId);
     return NextResponse.json(token);
   } catch (e) {

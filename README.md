@@ -26,7 +26,7 @@ It is a **single-user app that runs on your machine**: one SQLite file, no login
 | --- | --- |
 | **Node.js 24 (LTS)** and **pnpm 10** | `better-sqlite3` is a native module compiled for one Node major version. Use exactly Node 24. |
 | **[mise](https://mise.jdx.dev)** (recommended) | Installs the pinned Node/pnpm versions from `mise.toml` automatically. |
-| A **Pluggy** account | Bank/card sync (Open Finance Brasil). Required. |
+| A **Pluggy** account | Bank/card sync (Open Finance Brasil). Required; created during setup (step 6). |
 | An **Anthropic API key with credits** | AI categorization and recurring detection. **Optional**: a Claude.ai subscription does *not* include API credits. |
 | git | To clone and update the project. |
 
@@ -43,46 +43,34 @@ pnpm install     # also generates the Prisma client
 > Without mise, check `node -v` prints `v24.x` before `pnpm install`. If you install with another Node
 > version and switch later, run `pnpm rebuild better-sqlite3`.
 
-### 3. Create your Pluggy credentials
-
-1. Create an account at [dashboard.pluggy.ai](https://dashboard.pluggy.ai).
-2. Go to **Applications** and create an application.
-3. Copy the **Client ID** (a UUID like `3f8e…-…`) and the **Client Secret**.
-
-Check Pluggy's current plans and terms for how many connections your account allows.
-
-### 4. (Optional) Create an Anthropic API key
-
-1. Go to [console.anthropic.com](https://console.anthropic.com) → **API Keys** and create a key.
-2. Add credits under **Plans & Billing**. Categorization uses Claude Haiku, which is inexpensive, but the API does
-   not work at all with a zero balance.
-
-You can skip this: the app works without AI (see [Using the app without AI](#using-the-app-without-ai)).
-
-### 5. Configure the environment
+### 3. Create the environment file
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
+The only value you need here is the database location (the default is fine). Credentials are entered in the app's
+**setup screen** (step 6). `.env` and `*.db` are git-ignored; never commit them.
+
+<details>
+<summary>Prefer configuring credentials in <code>.env</code>?</summary>
 
 ```dotenv
-DATABASE_URL="file:./prisma/dev.db"      # where the SQLite database lives
 PLUGGY_CLIENT_ID="your-client-id-uuid"
 PLUGGY_CLIENT_SECRET="your-client-secret"
-ANTHROPIC_API_KEY="sk-ant-..."           # optional — leave the placeholder to run without AI
+ANTHROPIC_API_KEY="sk-ant-..."           # optional
 ```
 
-`.env` and `*.db` are git-ignored. Never commit them.
+Values saved on the setup screen take priority over `.env`; placeholders are ignored.
+</details>
 
-### 6. Create the database
+### 4. Create the database
 
 ```bash
 pnpm db:setup    # applies all migrations and seeds the category list
 ```
 
-### 7. Run
+### 5. Run
 
 ```bash
 pnpm dev                      # development, http://127.0.0.1:3000
@@ -94,6 +82,22 @@ or, for day-to-day use (faster pages):
 pnpm build && pnpm start      # production, http://127.0.0.1:3000
 ```
 
+### 6. Finish on the setup screen
+
+Open http://127.0.0.1:3000. On first run the app opens **/setup**, a three-step wizard:
+
+1. **Pluggy** — create an account at [dashboard.pluggy.ai](https://dashboard.pluggy.ai), create an application under
+   **Applications**, and paste its **Client ID** (a UUID) and **Client Secret**. The app tests them against Pluggy
+   before saving. Personal use through Meu Pluggy is free; check Pluggy's current plans.
+2. **AI (optional)** — paste an Anthropic API key from [console.anthropic.com](https://console.anthropic.com), or skip.
+   The key is tested with a one-token call, so a missing credit balance shows up right away. A Claude.ai subscription
+   does *not* include API credits. See [Using the app without AI](#using-the-app-without-ai).
+3. **Connect your banks** — connect them at [meu.pluggy.ai](https://meu.pluggy.ai), then click **Conectar conta** and
+   choose **MeuPluggy**.
+
+Change or re-test credentials anytime in **Configurações** (sidebar). They are stored in the local database, so a
+**database backup also contains your keys** — keep backups private.
+
 Both bind to `127.0.0.1` on purpose: the app has **no authentication**, and its server actions are plain POST
 endpoints. Don't expose it to your network or the internet. To use it from your phone, put it behind something that
 authenticates you, e.g. `tailscale serve 3000` (reachable only inside your tailnet).
@@ -104,7 +108,7 @@ authenticates you, e.g. `tailscale serve 3000` (reachable only inside your tailn
 
 ### First-time setup (about 15 minutes)
 
-1. **Connect your banks.** Open **Contas** → **Conectar conta**. Pluggy's widget opens; pick your bank, or
+1. **Connect your banks.** Finish the [setup screen](#6-finish-on-the-setup-screen), or open **Contas** → **Conectar conta**. Pluggy's widget opens; pick your bank, or
    **MeuPluggy** if you already connected your banks at meu.pluggy.ai, and authorize. When it closes, the app syncs
    automatically: accounts, card bills, up to 5 years of transactions and investments. Repeat for each bank.
    In development the widget also lists Pluggy's **sandbox** banks, handy for testing.
@@ -169,8 +173,8 @@ recurring detection:
 
 - Built-in rules still classify own-account Pix, card bill payments, investment moves and balance yield.
 - Your merchant rules still apply on every sync, so after you categorize a merchant once, it's automatic.
-- New merchants stay in *Revisar* until you pick a category. The sync message shows *IA indisponível* when AI was
-  skipped or failed.
+- New merchants stay in *Revisar* until you pick a category. Without a key, AI steps are skipped silently; with a key
+  that fails (e.g. no credits), the sync message shows *IA indisponível*.
 
 ---
 
@@ -278,9 +282,9 @@ Keep copies outside the project folder. To restore, stop the app and put the bac
 | Symptom | Cause and fix |
 | --- | --- |
 | `better_sqlite3.node was compiled against a different Node.js version (NODE_MODULE_VERSION …)` | Wrong Node version. Use Node 24 (`mise install`), then `pnpm rebuild better-sqlite3`. |
-| *Credenciais da Pluggy não configuradas* / `clientId must be a UUID` | `.env` still has placeholder Pluggy values. Fill them in and restart the server. |
-| *IA indisponível: sem créditos na conta Anthropic* | The API key has no credits. Add credits, or keep using the app without AI. |
-| *IA indisponível: ANTHROPIC_API_KEY inválida* | Wrong or revoked key. Create a new one. |
+| *Credenciais da Pluggy não configuradas* / *client keys are invalid* | Open **Configurações** and enter valid Pluggy credentials (they are tested before saving). |
+| *IA indisponível: sem créditos na conta Anthropic* | The API key has no credits. Add credits, or remove the key in **Configurações** and use the app without AI. |
+| *IA indisponível: chave da Anthropic inválida ou revogada* | Create a new key and save it in **Configurações**. |
 | `PrismaClientValidationError` about an unknown field after updating | Restart the server; if it persists, run `pnpm install && pnpm db:deploy`. |
 | A connection shows *Credenciais inválidas*, *Aguardando ação* or an expired consent | **Contas** → **Reconectar** on that connection. |
 | A card's current bill differs from the bank app | Pluggy can take days to deliver a newly closed bill. The app estimates from dates meanwhile. Setting the closing day on the Dashboard improves the estimate. |
