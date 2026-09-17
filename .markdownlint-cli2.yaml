@@ -1,0 +1,7 @@
+# Lint rules for Markdown in this repo (used by editors such as LazyVim and by markdownlint-cli2).
+config:
+  # One paragraph per line: editors soft-wrap to the window, and tables/URLs can't fit 80 columns anyway.
+  MD013: false
+  # Collapsible sections in the README.
+  MD033:
+    allowed_elements: [details, summary, code]

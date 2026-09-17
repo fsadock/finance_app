@@ -1,9 +1,6 @@
 # Finanças
 
-Personal finance app for Brazil. It syncs bank accounts, credit cards and investments through **Open Finance
-(Pluggy)**, categorizes transactions (deterministic Brazilian rules → your merchant rules → optional AI with
-Claude), and gives you budgets, cash flow, card installments ("parcelas"), recurring bills and subscriptions,
-goals, investments vs CDI/IPCA and an IRPF helper.
+Personal finance app for Brazil. It syncs bank accounts, credit cards and investments through **Open Finance (Pluggy)**, categorizes transactions (deterministic Brazilian rules → your merchant rules → optional AI with Claude), and gives you budgets, cash flow, card installments ("parcelas"), recurring bills and subscriptions, goals, investments vs CDI/IPCA and an IRPF helper.
 
 It is a **single-user app that runs on your machine**: one SQLite file, no login. The UI is in Portuguese (pt-BR, BRL).
 
@@ -19,6 +16,30 @@ It is a **single-user app that runs on your machine**: one SQLite file, no login
 ---
 
 ## Installation
+
+### Quick install (no Node.js needed)
+
+Download the project ([**Code → Download ZIP**](https://github.com/fsadock/finance_app/archive/refs/heads/main.zip) on GitHub), extract it, then:
+
+| System | Install | Open the app |
+| --- | --- | --- |
+| **Windows** | Double-click `install.bat` | Double-click `start.bat` |
+| **macOS / Linux** | In a terminal inside the folder: `bash install.sh` | `bash start.sh` |
+
+The installer downloads a private copy of Node.js 24 into `.runtime/` (no admin rights; it doesn't touch any Node.js you already have), installs dependencies with pnpm, creates `.env`, prepares the database and builds the app. It needs about 1.2 GB of disk and a few minutes. The app opens at <http://127.0.0.1:3000> on the setup screen ([step 6](#6-finish-on-the-setup-screen)); keep the window open while you use it.
+
+**Updating:** close the app, replace the files with the new version (keep `prisma/dev.db` and `.env`), and run the installer again. It backs up the database to `prisma/backups/` before applying migrations.
+
+<details>
+<summary>Security warnings on first run</summary>
+
+- **Windows:** SmartScreen may show *"O Windows protegeu o computador"*. Click **Mais informações → Executar assim mesmo**.
+- **macOS:** if the terminal refuses to run the file, run `xattr -dr com.apple.quarantine .` inside the folder once.
+
+The scripts aren't signed. Read them first if you like; they only touch this folder.
+</details>
+
+The steps below are the manual install, for development or if you manage Node.js yourself.
 
 ### 1. Prerequisites
 
@@ -49,8 +70,7 @@ pnpm install     # also generates the Prisma client
 cp .env.example .env
 ```
 
-The only value you need here is the database location (the default is fine). Credentials are entered in the app's
-**setup screen** (step 6). `.env` and `*.db` are git-ignored; never commit them.
+The only value you need here is the database location (the default is fine). Credentials are entered in the app's **setup screen** (step 6). `.env` and `*.db` are git-ignored; never commit them.
 
 <details>
 <summary>Prefer configuring credentials in <code>.env</code>?</summary>
@@ -84,23 +104,15 @@ pnpm build && pnpm start      # production, http://127.0.0.1:3000
 
 ### 6. Finish on the setup screen
 
-Open http://127.0.0.1:3000. On first run the app opens **/setup**, a three-step wizard:
+Open <http://127.0.0.1:3000>. On first run the app opens **/setup**, a three-step wizard:
 
-1. **Pluggy** — create an account at [dashboard.pluggy.ai](https://dashboard.pluggy.ai), create an application under
-   **Applications**, and paste its **Client ID** (a UUID) and **Client Secret**. The app tests them against Pluggy
-   before saving. Personal use through Meu Pluggy is free; check Pluggy's current plans.
-2. **AI (optional)** — paste an Anthropic API key from [console.anthropic.com](https://console.anthropic.com), or skip.
-   The key is tested with a one-token call, so a missing credit balance shows up right away. A Claude.ai subscription
-   does *not* include API credits. See [Using the app without AI](#using-the-app-without-ai).
-3. **Connect your banks** — connect them at [meu.pluggy.ai](https://meu.pluggy.ai), then click **Conectar conta** and
-   choose **MeuPluggy**.
+1. **Pluggy** — create an account at [dashboard.pluggy.ai](https://dashboard.pluggy.ai), create an application under **Applications**, and paste its **Client ID** (a UUID) and **Client Secret**. The app tests them against Pluggy before saving. Personal use through Meu Pluggy is free; check Pluggy's current plans.
+2. **AI (optional)** — paste an Anthropic API key from [console.anthropic.com](https://console.anthropic.com), or skip. The key is tested with a one-token call, so a missing credit balance shows up right away. A Claude.ai subscription does *not* include API credits. See [Using the app without AI](#using-the-app-without-ai).
+3. **Connect your banks** — connect them at [meu.pluggy.ai](https://meu.pluggy.ai), then click **Conectar conta** and choose **MeuPluggy**.
 
-Change or re-test credentials anytime in **Configurações** (sidebar). They are stored in the local database, so a
-**database backup also contains your keys** — keep backups private.
+Change or re-test credentials anytime in **Configurações** (sidebar). They are stored in the local database, so a **database backup also contains your keys** — keep backups private.
 
-Both bind to `127.0.0.1` on purpose: the app has **no authentication**, and its server actions are plain POST
-endpoints. Don't expose it to your network or the internet. To use it from your phone, put it behind something that
-authenticates you, e.g. `tailscale serve 3000` (reachable only inside your tailnet).
+Both bind to `127.0.0.1` on purpose: the app has **no authentication**, and its server actions are plain POST endpoints. Don't expose it to your network or the internet. To use it from your phone, put it behind something that authenticates you, e.g. `tailscale serve 3000` (reachable only inside your tailnet).
 
 ---
 
@@ -108,37 +120,21 @@ authenticates you, e.g. `tailscale serve 3000` (reachable only inside your tailn
 
 ### First-time setup (about 15 minutes)
 
-1. **Connect your banks.** Finish the [setup screen](#6-finish-on-the-setup-screen), or open **Contas** → **Conectar conta**. Pluggy's widget opens; pick your bank, or
-   **MeuPluggy** if you already connected your banks at meu.pluggy.ai, and authorize. When it closes, the app syncs
-   automatically: accounts, card bills, up to 5 years of transactions and investments. Repeat for each bank.
-   In development the widget also lists Pluggy's **sandbox** banks, handy for testing.
+1. **Connect your banks.** Finish the [setup screen](#6-finish-on-the-setup-screen), or open **Contas** → **Conectar conta**. Pluggy's widget opens; pick your bank, or **MeuPluggy** if you already connected your banks at meu.pluggy.ai, and authorize. When it closes, the app syncs automatically: accounts, card bills, up to 5 years of transactions and investments. Repeat for each bank. In development the widget also lists Pluggy's **sandbox** banks, handy for testing.
 
-   **Connect the bank where your salary lands.** If you receive your salary elsewhere and move it by Pix, the
-   app only sees a "Pix from your own CPF" and can't know it's income (see [limitations](#known-limitations)).
+   **Connect the bank where your salary lands.** If you receive your salary elsewhere and move it by Pix, the app only sees a "Pix from your own CPF" and can't know it's income (see [limitations](#known-limitations)).
 
-2. **Categorize what's pending.** On the **Dashboard**, the *Transações para revisar* card shows how many
-   transactions still need a category. Click **Categorizar pendentes**: it applies the built-in rules, your rules,
-   and then the AI (if configured) to everything pending. Without AI, categorize by hand (next step); every choice
-   teaches the app.
+2. **Categorize what's pending.** On the **Dashboard**, the *Transações para revisar* card shows how many transactions still need a category. Click **Categorizar pendentes**: it applies the built-in rules, your rules, and then the AI (if configured) to everything pending. Without AI, categorize by hand (next step); every choice teaches the app.
 
-3. **Review and correct.** Go to **Transações** → status *Revisar*, or scan the Dashboard list. Click a category
-   to change it. The choice applies to every transaction from the same merchant and becomes a rule for future
-   syncs (see [How categorization works](#how-categorization-works)). A Pix/TED that arrives with no counterparty
-   name only changes that one transaction.
+3. **Review and correct.** Go to **Transações** → status *Revisar*, or scan the Dashboard list. Click a category to change it. The choice applies to every transaction from the same merchant and becomes a rule for future syncs (see [How categorization works](#how-categorization-works)). A Pix/TED that arrives with no counterparty name only changes that one transaction.
 
-4. **Set budgets.** In **Categorias**, click *Definir orçamento* on a category and type the monthly limit
-   (`1.234,56` or `1234.56` both work). A budget **applies from that month onward** until you change it.
+4. **Set budgets.** In **Categorias**, click *Definir orçamento* on a category and type the monthly limit (`1.234,56` or `1234.56` both work). A budget **applies from that month onward** until you change it.
 
-5. **Set the card goal (optional).** On the **Dashboard**, under *Ritmo de Gastos*, click
-   **Definir meta mensal de cartões**. Set how much you want to spend per month across your cards and the
-   *Fechamento dia* (closing day, 1–28). The chart then shows card spending pace and a daily allowance.
+5. **Set the card goal (optional).** On the **Dashboard**, under *Ritmo de Gastos*, click **Definir meta mensal de cartões**. Set how much you want to spend per month across your cards and the *Fechamento dia* (closing day, 1–28). The chart then shows card spending pace and a daily allowance.
 
-6. **Check recurring items.** Open **Recorrentes**. Subscriptions, fixed bills and housing are listed with
-   **cost per year**, what you paid in the last 12 months, and price-increase badges. Hover a row to **pause** what
-   you cancelled or **delete** what isn't recurring.
+6. **Check recurring items.** Open **Recorrentes**. Subscriptions, fixed bills and housing are listed with **cost per year**, what you paid in the last 12 months, and price-increase badges. Hover a row to **pause** what you cancelled or **delete** what isn't recurring.
 
-7. **Create goals (optional).** **Metas** → **Nova meta**. Link a goal to an account (e.g. an emergency-fund
-   account) and its progress follows that account's balance automatically.
+7. **Create goals (optional).** **Metas** → **Nova meta**. Link a goal to an account (e.g. an emergency-fund account) and its progress follows that account's balance automatically.
 
 ### Routine
 
@@ -168,13 +164,11 @@ authenticates you, e.g. `tailscale serve 3000` (reachable only inside your tailn
 
 ### Using the app without AI
 
-Everything works without an Anthropic key except automatic categorization of *unknown* merchants and automatic
-recurring detection:
+Everything works without an Anthropic key except automatic categorization of *unknown* merchants and automatic recurring detection:
 
 - Built-in rules still classify own-account Pix, card bill payments, investment moves and balance yield.
 - Your merchant rules still apply on every sync, so after you categorize a merchant once, it's automatic.
-- New merchants stay in *Revisar* until you pick a category. Without a key, AI steps are skipped silently; with a key
-  that fails (e.g. no credits), the sync message shows *IA indisponível*.
+- New merchants stay in *Revisar* until you pick a category. Without a key, AI steps are skipped silently; with a key that fails (e.g. no credits), the sync message shows *IA indisponível*.
 
 ---
 
@@ -183,40 +177,24 @@ recurring detection:
 Each sync runs this pipeline on new transactions:
 
 1. **Built-in Brazilian rules** (no AI):
-   - Pix/TED **to your own CPF** → *Transferências* (your CPF comes from Pluggy's identity data). Money *arriving*
-     from your own CPF is not decided here: it only becomes a transfer if it pairs with an outflow from one of your
-     connected accounts.
-   - Card credits like *PAGAMENTO RECEBIDO* / *PAGAMENTO*, and bank debits like *Pagamento de fatura* /
-     *CardBankslip* → *Pagamento de fatura*.
+   - Pix/TED **to your own CPF** → *Transferências* (your CPF comes from Pluggy's identity data). Money *arriving* from your own CPF is not decided here: it only becomes a transfer if it pairs with an outflow from one of your connected accounts.
+   - Card credits like *PAGAMENTO RECEBIDO* / *PAGAMENTO*, and bank debits like *Pagamento de fatura* / *CardBankslip* → *Pagamento de fatura*.
    - *Aplicação/Resgate RDB/CDB*, *caixinha*, *Compra de criptomoedas / Renda Variável* → *Investimentos*.
    - Balance yield (*ValorRendimentoSaldoRemunerado*, *Valor de rendimento*) → *Rendimentos*.
-   - Card installments are detected from Pluggy's card data (or *PARC 03/12* in the description) and re-dated so
-     each installment lands in its own month.
-2. **Transfer pairing:** an outflow and an inflow of the same amount (±0.5%) between two of your accounts within
-   5 days become a transfer pair; money arriving on a card becomes *Pagamento de fatura*.
-3. **Merchant rules** (the **Regras** page): each rule maps a merchant to a category. For generic descriptions
-   like *Pix*, *TED* or *Bankslip*, the rule is keyed by the **counterparty's name**, so "Pix to the bakery" and
-   "Pix to a friend" never share a rule. **Your** rules always win; AI never overwrites them.
-4. **AI** (if configured): Claude Haiku classifies what's left using the description plus structured data (payment
-   method, CPF/CNPJ counterparty, merchant, MCC, installment, the bank's own category). Answers with confidence
-   ≥ 0.6 are applied; ≥ 0.8 are also saved as *IA* rules so that merchant never needs the AI again. Anything
-   below 0.6 stays in *Revisar*.
+   - Card installments are detected from Pluggy's card data (or *PARC 03/12* in the description) and re-dated so each installment lands in its own month.
+2. **Transfer pairing:** an outflow and an inflow of the same amount (±0.5%) between two of your accounts within 5 days become a transfer pair; money arriving on a card becomes *Pagamento de fatura*.
+3. **Merchant rules** (the **Regras** page): each rule maps a merchant to a category. For generic descriptions like *Pix*, *TED* or *Bankslip*, the rule is keyed by the **counterparty's name**, so "Pix to the bakery" and "Pix to a friend" never share a rule. **Your** rules always win; AI never overwrites them.
+4. **AI** (if configured): Claude Haiku classifies what's left using the description plus structured data (payment method, CPF/CNPJ counterparty, merchant, MCC, installment, the bank's own category). Answers with confidence ≥ 0.6 are applied; ≥ 0.8 are also saved as *IA* rules so that merchant never needs the AI again. Anything below 0.6 stays in *Revisar*.
 
-After categorization, **recurring detection** links new charges to known recurring items and updates their next
-dates (no AI), then uses AI (if configured) to detect new ones.
+After categorization, **recurring detection** links new charges to known recurring items and updates their next dates (no AI), then uses AI (if configured) to detect new ones.
 
 Buttons:
 
 - **Categorizar pendentes** (Dashboard, Contas): runs steps 1–4 on *all* pending transactions. Keeps every rule.
-- **Reclassificar com IA** (bottom of **Regras**, in the *Zona de risco*): deletes all *IA* rules and sends the
-  transactions those rules categorized back through the AI. It is deliberately hard to trigger:
-  1. **Ver o que seria alterado…** shows a preview first: how many rules get deleted, how many transactions go back to
-     the AI (by category), and how many are protected. Your rules, categories you set directly, and built-in
-     classifications (transfers, bill payments, investments, yield) are never touched.
-  2. You must type `RECLASSIFICAR` (checked on the server too). Without an API key or credits the button stays
-     blocked and nothing changes.
-  3. A **restore point** is saved before any change. **Desfazer última reclassificação** restores the deleted rules
-     and previous categories, keeping any merchant you re-categorized yourself afterwards.
+- **Reclassificar com IA** (bottom of **Regras**, in the *Zona de risco*): deletes all *IA* rules and sends the transactions those rules categorized back through the AI. It is deliberately hard to trigger:
+  1. **Ver o que seria alterado…** shows a preview first: how many rules get deleted, how many transactions go back to the AI (by category), and how many are protected. Your rules, categories you set directly, and built-in classifications (transfers, bill payments, investments, yield) are never touched.
+  2. You must type `RECLASSIFICAR` (checked on the server too). Without an API key or credits the button stays blocked and nothing changes.
+  3. A **restore point** is saved before any change. **Desfazer última reclassificação** restores the deleted rules and previous categories, keeping any merchant you re-categorized yourself afterwards.
 
   It spends API credits, so use it only after big changes to your category list.
 
@@ -224,20 +202,12 @@ Buttons:
 
 ## How the numbers work
 
-- **Expense, refund, income.** Negative amounts are expenses. A positive amount in an **income category** (e.g.
-  Salário, Rendimentos, Doações recebidas), or an uncategorized deposit into a bank account, is **income**. Any
-  other positive amount (card *estornos*, a refund in an expense category) **reduces spending** instead of
-  counting as income.
-- **Excluded from spending:** transfers, card bill payments and investment moves (categories marked
-  *excludeFromBudget*), so paying a card bill never counts your purchases twice.
-- **Budgets carry forward** from the month you set them until changed. **Rollover** carries each month's leftover
-  or overspend into the next (up to 6 months of history). **Ajuste inteligente** only changes the selected month.
-- **Credit card cycle:** uses the closing day set on the Dashboard; otherwise Pluggy's close date; otherwise the
-  last bill's due date minus 7 days.
-- **Net worth history** comes from daily balance snapshots taken on every sync. Months before your first sync are
-  estimated from cash flow (the chart says so).
-- **Investment rates:** fetched from the Banco Central's public SGS API and cached for a day; reference values
-  are used if it's unreachable.
+- **Expense, refund, income.** Negative amounts are expenses. A positive amount in an **income category** (e.g. Salário, Rendimentos, Doações recebidas), or an uncategorized deposit into a bank account, is **income**. Any other positive amount (card *estornos*, a refund in an expense category) **reduces spending** instead of counting as income.
+- **Excluded from spending:** transfers, card bill payments and investment moves (categories marked *excludeFromBudget*), so paying a card bill never counts your purchases twice.
+- **Budgets carry forward** from the month you set them until changed. **Rollover** carries each month's leftover or overspend into the next (up to 6 months of history). **Ajuste inteligente** only changes the selected month.
+- **Credit card cycle:** uses the closing day set on the Dashboard; otherwise Pluggy's close date; otherwise the last bill's due date minus 7 days.
+- **Net worth history** comes from daily balance snapshots taken on every sync. Months before your first sync are estimated from cash flow (the chart says so).
+- **Investment rates:** fetched from the Banco Central's public SGS API and cached for a day; reference values are used if it's unreachable.
 
 ---
 
@@ -295,14 +265,11 @@ Keep copies outside the project folder. To restore, stop the app and put the bac
 
 ## Known limitations
 
-- **Single user, no login.** Don't share one running instance: whoever opens it sees everything. Each person
-  should run their own copy with their own Pluggy credentials and database.
-- **Salary received in an unconnected bank** arrives as a Pix from your own CPF, indistinguishable from moving
-  your own money. It goes to *Revisar* unless it pairs with an outflow. Connecting that bank fixes it.
+- **Single user, no login.** Don't share one running instance: whoever opens it sees everything. Each person should run their own copy with their own Pluggy credentials and database.
+- **Salary received in an unconnected bank** arrives as a Pix from your own CPF, indistinguishable from moving your own money. It goes to *Revisar* unless it pairs with an outflow. Connecting that bank fixes it.
 - **One card closing day** is shared by all cards.
 - **Duplicate transactions** can appear when a bank recreates a pending transaction with a new ID.
-- **Deterministic rules** were written against real Nubank and BTG descriptions. Other banks may word things
-  differently; those transactions fall back to your rules or AI.
+- **Deterministic rules** were written against real Nubank and BTG descriptions. Other banks may word things differently; those transactions fall back to your rules or AI.
 - IRPF limits and categories are reference values. Always confirm against the Receita Federal rules for the year.
 
 ---
@@ -316,12 +283,10 @@ pnpm test:watch   # tests in watch mode
 pnpm db:migrate   # create a migration after editing prisma/schema.prisma
 ```
 
-- Stack: Next.js 16 (App Router, server actions), React 19, Prisma 7 + SQLite (better-sqlite3 adapter),
-  Tailwind CSS 4, Recharts, Pluggy SDK, Anthropic SDK (structured outputs), Vitest.
-- This Next.js version has breaking changes from older ones. Read `node_modules/next/dist/docs/` before changing
-  framework-level code (see `AGENTS.md`).
+- Stack: Next.js 16 (App Router, server actions), React 19, Prisma 7 + SQLite (better-sqlite3 adapter), Tailwind CSS 4, Recharts, Pluggy SDK, Anthropic SDK (structured outputs), Vitest.
+- This Next.js version has breaking changes from older ones. Read `node_modules/next/dist/docs/` before changing framework-level code (see `AGENTS.md`).
 
-```
+```text
 prisma/              schema, migrations, seed / wipe / dedupe scripts
 src/app/             pages (App Router), API routes, server actions (src/app/actions)
 src/components/      UI components

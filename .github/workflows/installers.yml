@@ -1,0 +1,48 @@
+# Runs the one-click installers on real Windows, macOS and Linux machines and checks the app starts.
+name: Installers
+
+on:
+  push:
+    paths: [install.sh, install.ps1, install.bat, start.sh, start.bat, package.json, pnpm-lock.yaml, .github/workflows/installers.yml]
+  pull_request:
+    paths: [install.sh, install.ps1, install.bat, start.sh, start.bat, package.json, pnpm-lock.yaml, .github/workflows/installers.yml]
+  workflow_dispatch:
+
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: bash install.sh
+
+      - name: Install (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: install.bat
+
+      - name: Install again (update path keeps working)
+        if: runner.os != 'Windows'
+        run: bash install.sh
+
+      - name: Start and check the setup screen
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cmd //c start.bat > server.log 2>&1 &
+          else
+            ./start.sh > server.log 2>&1 &
+          fi
+          for i in $(seq 90); do
+            if curl -s -o /dev/null http://127.0.0.1:3000; then break; fi
+            sleep 2
+          done
+          curl -s -o page.html -w '%{http_code} %{url_effective}\n' -L http://127.0.0.1:3000 | tee result.txt
+          grep -q '^200 .*/setup' result.txt || { cat server.log; exit 1; }

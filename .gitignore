@@ -49,3 +49,6 @@ PROGRESS.md
 ROADMAP_COPILOT.md
 issues.md
 instructions.md
+
+# portable Node.js downloaded by install.sh / install.ps1
+.runtime/
