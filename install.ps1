@@ -78,6 +78,7 @@ $env:Path = "$NodeDir;$env:Path"
 $env:COREPACK_HOME = Join-Path $Runtime 'corepack'
 $env:COREPACK_ENABLE_DOWNLOAD_PROMPT = '0'
 $env:NEXT_TELEMETRY_DISABLED = '1'
+$env:PRISMA_HIDE_UPDATE_MESSAGE = '1'
 $Corepack = Join-Path $NodeDir 'corepack.cmd'
 function Pnpm { Invoke-Checked $Corepack (@('pnpm') + $args) }
 

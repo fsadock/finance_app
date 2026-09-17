@@ -17,7 +17,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install (macOS/Linux)
         if: runner.os != 'Windows'
@@ -30,7 +30,12 @@ jobs:
 
       - name: Install again (update path keeps working)
         if: runner.os != 'Windows'
-        run: bash install.sh
+        run: bash install.sh && ls prisma/backups/*.db
+
+      - name: Install again (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: install.bat && dir prisma\backups\*.db
 
       - name: Start and check the setup screen
         shell: bash
