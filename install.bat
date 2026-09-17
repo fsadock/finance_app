@@ -1,5 +1,6 @@
 @echo off
 rem Double-click to install or update Financas on Windows. The work is done by install.ps1.
+rem Optional: install.bat --port 3000 (used when opening the app at the end)
 chcp 65001 >nul
 cd /d "%~dp0"
 
@@ -15,4 +16,4 @@ if defined CI exit /b 0
 echo.
 choice /c SN /m "Abrir o app agora"
 if errorlevel 2 exit /b 0
-call "%~dp0start.bat"
+call "%~dp0start.bat" %*

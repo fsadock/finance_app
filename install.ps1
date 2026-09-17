@@ -8,7 +8,6 @@ $ProgressPreference = 'SilentlyContinue' # the progress bar makes Invoke-WebRequ
 
 # Keep in sync with install.sh and the pnpm version in package.json's "packageManager".
 $NodeVersion = '24.21.0'
-$Port = if ($env:PORT) { [int]$env:PORT } else { 3000 }
 
 Set-Location $PSScriptRoot
 $Root = $PSScriptRoot
@@ -34,13 +33,13 @@ switch ($archName) {
 }
 Write-Host "Sistema: win-$Arch"
 
-# Updating while the app runs fails halfway (files in use), so stop early.
-$probe = New-Object Net.Sockets.TcpClient
-try {
-  if ($probe.ConnectAsync('127.0.0.1', $Port).Wait(1000)) {
-    Fail "o app parece estar rodando (porta $Port). Feche a janela do app e rode a instalação de novo."
-  }
-} catch [AggregateException] { } finally { $probe.Dispose() }
+# Updating while this app runs fails halfway (files in use), so stop early. Only this folder's app
+# counts: other programs using port 3000 don't matter.
+$appModules = (Join-Path $Root 'node_modules') + '\'
+$running = Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object {
+  $_.CommandLine -and $_.CommandLine.IndexOf($appModules, [StringComparison]::OrdinalIgnoreCase) -ge 0
+}
+if ($running) { Fail 'o app desta pasta está aberto. Feche a janela dele e rode a instalação de novo.' }
 
 # ── 2. Node.js ───────────────────────────────────────────────────────────────
 $NodeExe = Join-Path $NodeDir 'node.exe'
@@ -110,4 +109,4 @@ Remove-Item -Recurse -Force '.next\cache' -ErrorAction SilentlyContinue # only s
 
 Step 'Pronto!'
 Write-Host 'Para abrir o app, dê dois cliques em start.bat.'
-Write-Host "Ele abre em http://127.0.0.1:$Port. Deixe a janela aberta enquanto usa o app."
+Write-Host 'Ele usa a porta 3000 (ou a próxima livre). Deixe a janela aberta enquanto usa o app.'

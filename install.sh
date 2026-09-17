@@ -5,17 +5,29 @@
 # already have), installs dependencies with pnpm, prepares the database and builds the app.
 # Running it again updates an existing install and keeps your data.
 #
-# Usage: bash install.sh
+# Usage: bash install.sh [--port 3000]   (the port is only used to open the app at the end)
 set -euo pipefail
 
 # Keep in sync with install.ps1 and the pnpm version in package.json's "packageManager".
 NODE_VERSION="24.21.0"
-PORT="${PORT:-3000}"
 
 cd "$(dirname "$0")"
 ROOT="$PWD"
 RUNTIME="$ROOT/.runtime"
 NODE_DIR="$RUNTIME/node"
+
+START_ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --port | -p) START_ARGS=(--port "${2:-?}"); shift 2 || shift ;;
+    --port=*) START_ARGS=(--port "${1#--port=}"); shift ;;
+    *) printf 'Opção desconhecida: %s\nUso: bash install.sh [--port 3000]\n' "$1" >&2; exit 2 ;;
+  esac
+done
+if [ ${#START_ARGS[@]} -gt 0 ] && ! [[ "${START_ARGS[1]}" =~ ^[0-9]+$ ]]; then
+  echo "Porta inválida: ${START_ARGS[1]}" >&2
+  exit 2
+fi
 
 bold() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 fail() { printf '\n\033[31mErro: %s\033[0m\n' "$*" >&2; exit 1; }
@@ -45,9 +57,10 @@ else
 fi
 echo "Sistema: $OS-$ARCH"
 
-# Updating while the app runs fails halfway (files in use), so stop early.
-if curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$PORT"; then
-  fail "o app parece estar rodando (porta $PORT). Feche-o e rode a instalação de novo."
+# Updating while this app runs fails halfway (files in use), so stop early. Only this folder's app
+# counts: other programs using port 3000 don't matter.
+if ps -eo args= | APP_MODULES="$ROOT/node_modules/" awk 'index($0, ENVIRON["APP_MODULES"]) { found = 1 } END { exit !found }'; then
+  fail "o app desta pasta está aberto. Feche-o (Ctrl+C na janela dele) e rode a instalação de novo."
 fi
 
 # ── 2. Node.js ───────────────────────────────────────────────────────────────
@@ -105,14 +118,14 @@ rm -rf .next/cache # only speeds up future builds; saves disk space
 
 chmod +x start.sh
 bold "Pronto!"
-echo "Para abrir o app: bash start.sh  (ou ./start.sh)"
-echo "Ele abre em http://127.0.0.1:$PORT. Deixe o terminal aberto enquanto usa o app."
+echo "Para abrir o app: bash start.sh"
+echo "Ele usa a porta 3000 (ou a próxima livre). Deixe o terminal aberto enquanto usa o app."
 
 if [ -t 0 ] && [ -z "${CI:-}" ]; then
   printf '\nAbrir o app agora? [S/n] '
   read -r answer
   case "$answer" in
     [nN]*) ;;
-    *) exec ./start.sh ;;
+    *) exec ./start.sh ${START_ARGS[@]+"${START_ARGS[@]}"} ;;
   esac
 fi
