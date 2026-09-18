@@ -57,20 +57,14 @@ export function nextOccurrence(anchor: Date, cadence: Cadence, onOrAfter: Date):
   return d;
 }
 
-/** Infers cadence from occurrence dates using the median gap. Returns null when gaps don't look periodic. */
+/** Infers cadence from occurrence dates: the cadence of the median gap (see cadenceForGap). */
 export function inferCadence(dates: Date[]): Cadence | null {
   if (dates.length < 2) return null;
   const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
   const gaps: number[] = [];
   for (let i = 1; i < sorted.length; i++) gaps.push(differenceInCalendarDays(sorted[i]!, sorted[i - 1]!));
   gaps.sort((a, b) => a - b);
-  const median = gaps[Math.floor(gaps.length / 2)]!;
-  if (median >= 5 && median <= 9) return "WEEKLY";
-  if (median >= 12 && median <= 17) return "BIWEEKLY";
-  if (median >= 25 && median <= 35) return "MONTHLY";
-  if (median >= 80 && median <= 100) return "QUARTERLY";
-  if (median >= 350 && median <= 380) return "YEARLY";
-  return null;
+  return cadenceForGap(gaps[Math.floor(gaps.length / 2)]!);
 }
 
 /** True when the last charge is more than ~2 periods old — the subscription was probably cancelled. */

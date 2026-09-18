@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/infra/db";
 import { BUDGET_RELEVANT, FLOW_SELECT, classifyFlow, spendDelta } from "@/lib/domain/flows";
 import { lastMonthKeys, monthBounds, monthKey, monthKeyToDate } from "@/lib/domain/format";
-import { groupingKey, normalizeForGrouping } from "@/lib/domain/merchant";
 
 export async function getMonthlyCashflow(monthsBack = 6, anchor = new Date()) {
   const keys = lastMonthKeys(monthsBack, anchor);
@@ -23,20 +22,10 @@ export async function getMonthlyCashflow(monthsBack = 6, anchor = new Date()) {
 
 export async function getSankeyData(month = new Date()) {
   const { start, end } = monthBounds(month);
-  const [txs, recurrings] = await Promise.all([
-    prisma.transaction.findMany({
-      where: { AND: [{ date: { gte: start, lt: end } }, BUDGET_RELEVANT] },
-      select: {
-        ...FLOW_SELECT,
-        description: true,
-        counterpartyName: true,
-        recurringId: true,
-        category: { select: { isIncome: true, name: true } },
-      },
-    }),
-    prisma.recurring.findMany({ where: { active: true }, select: { pattern: true, name: true } }),
-  ]);
-  const recurringPatterns = new Set(recurrings.map((r) => r.pattern ?? normalizeForGrouping(r.name)).filter(Boolean));
+  const txs = await prisma.transaction.findMany({
+    where: { AND: [{ date: { gte: start, lt: end } }, BUDGET_RELEVANT] },
+    select: { ...FLOW_SELECT, recurringId: true, category: { select: { isIncome: true, name: true } } },
+  });
 
   let income = 0;
   let fixed = 0;
@@ -47,8 +36,9 @@ export async function getSankeyData(month = new Date()) {
       continue;
     }
     const delta = spendDelta(t);
-    const key = groupingKey(t);
-    if (t.recurringId || (key && recurringPatterns.has(key))) {
+    // Fixed = linked to a recurring bill, the same definition as the Recorrentes page. Matching by
+    // merchant name alone counted one-off purchases (an app on apple.com/bill) as fixed.
+    if (t.recurringId) {
       fixed += delta;
     } else {
       const name = t.category?.name ?? "Sem categoria";
