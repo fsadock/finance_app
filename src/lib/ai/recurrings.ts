@@ -1,14 +1,14 @@
-import { getAnthropic, MODEL_FAST } from "./client";
-import { prisma } from "../db";
-import { groupingKey, isUnnamedBillPayment, normalizeForGrouping } from "./merchant";
+import { getAnthropic, MODEL_FAST } from "@/lib/ai/client";
+import { prisma } from "@/lib/infra/db";
+import { groupingKey, isUnnamedBillPayment, normalizeForGrouping } from "@/lib/domain/merchant";
 import {
   RECURRING_LOOKBACK_MONTHS,
   RECURRING_CV_THRESHOLD,
   RECURRING_MIN_CONFIDENCE,
   RECURRING_MIN_OCCURRENCES,
-} from "../constants";
-import { withRetry } from "../retry";
-import { logger } from "../logger";
+} from "@/lib/domain/constants";
+import { withRetry } from "@/lib/infra/retry";
+import { logger } from "@/lib/infra/logger";
 import {
   CADENCES,
   CADENCE_TO_MONTHLY,
@@ -19,7 +19,7 @@ import {
   nextOccurrence,
   type Cadence,
   type AutoChangeRecord,
-} from "../recurrence";
+} from "@/lib/domain/recurrence";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 

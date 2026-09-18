@@ -1,6 +1,6 @@
-import { prisma } from "./db";
-import { lastMonthKeys, monthKey, monthKeyToDate } from "./format";
-import { FLOW_SELECT, SPEND_WHERE, spendDelta } from "./flows";
+import { prisma } from "@/lib/infra/db";
+import { lastMonthKeys, monthKey, monthKeyToDate } from "@/lib/domain/format";
+import { FLOW_SELECT, SPEND_WHERE, spendDelta } from "@/lib/domain/flows";
 
 /** How many months of history rollover looks back over. */
 const ROLLOVER_WINDOW_MONTHS = 6;

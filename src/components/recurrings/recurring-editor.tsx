@@ -3,9 +3,9 @@
 import { useState, useTransition } from "react";
 import { Loader2, X } from "lucide-react";
 import { updateRecurring } from "@/app/actions/recurrings";
-import { parseBRLInput } from "@/lib/brazil";
-import { formatBRL, toDateInput } from "@/lib/format";
-import { CADENCES, CADENCE_LABEL, CADENCE_TO_MONTHLY, type Cadence } from "@/lib/recurrence";
+import { parseBRLInput } from "@/lib/domain/brazil";
+import { formatBRL, toDateInput } from "@/lib/domain/format";
+import { CADENCES, CADENCE_LABEL, CADENCE_TO_MONTHLY, type Cadence } from "@/lib/domain/recurrence";
 import { Card } from "@/components/ui/card";
 
 export type RecurringFormValue = {

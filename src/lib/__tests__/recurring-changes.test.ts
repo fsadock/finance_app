@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cadenceForGap, chargeEvents, detectRecurringChange, nextDueDate, priceTrend, type Charge } from "../recurrence";
+import { cadenceForGap, chargeEvents, detectRecurringChange, nextDueDate, priceTrend, type Charge } from "@/lib/domain/recurrence";
 
 const d = (y: number, m: number, day: number) => new Date(y, m - 1, day);
 const c = (y: number, m: number, day: number, amount: number): Charge => ({ date: d(y, m, day), amount });

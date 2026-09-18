@@ -4,10 +4,10 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Loader2, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
 import { previewReclassifyAction, runReclassifyAction, undoReclassifyAction } from "@/app/actions/reclassify";
-import type { ReclassifyPreview } from "@/lib/reclassify";
+import type { ReclassifyPreview } from "@/lib/jobs/reclassify";
 import { Card } from "@/components/ui/card";
-import { formatDateTime } from "@/lib/format";
-import { RECLASSIFY_CONFIRMATION } from "@/lib/constants";
+import { formatDateTime } from "@/lib/domain/format";
+import { RECLASSIFY_CONFIRMATION } from "@/lib/domain/constants";
 
 
 export function ReclassifyPanel({ backup }: { backup: { createdAt: string; rules: number; transactions: number } | null }) {

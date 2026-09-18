@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Pencil, Check, X, Loader2, CreditCard } from "lucide-react";
 import { setCCMonthlyLimit, setCCCycleCloseDay } from "@/app/actions/accounts";
-import { formatBRL } from "@/lib/format";
-import { parseBRLInput } from "@/lib/brazil";
+import { formatBRL } from "@/lib/domain/format";
+import { parseBRLInput } from "@/lib/domain/brazil";
 
 export function CCLimitEditor({
   current,

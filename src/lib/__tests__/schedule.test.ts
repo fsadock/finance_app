@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("@/lib/db", () => ({ prisma: {} }));
+vi.mock("@/lib/infra/db", () => ({ prisma: {} }));
 
-import { nextOccurrence, inferCadence, isLikelyInactive, shiftByCadence } from "../recurrence";
-import { resolveBillingCycle, cycleContaining } from "../billing";
-import { limitInEffect, effectiveWithRollover } from "../budgets";
-import { parseDateInput, lastMonthKeys, formatMonthKeyLong } from "../format";
-import { buildTransactionWhere } from "../transaction-filters";
+import { nextOccurrence, inferCadence, isLikelyInactive, shiftByCadence } from "@/lib/domain/recurrence";
+import { resolveBillingCycle, cycleContaining } from "@/lib/domain/billing";
+import { limitInEffect, effectiveWithRollover } from "@/lib/data/budgets";
+import { parseDateInput, lastMonthKeys, formatMonthKeyLong } from "@/lib/domain/format";
+import { buildTransactionWhere } from "@/lib/data/transaction-filters";
 
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d);
 

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("@/lib/db", () => ({ prisma: {} }));
+vi.mock("@/lib/infra/db", () => ({ prisma: {} }));
 
-import { amountTolerance, findTransferPairs } from "../transfers";
+import { amountTolerance, findTransferPairs } from "@/lib/jobs/transfers";
 
 const d = (offset: number) => {
   const date = new Date("2024-06-15T12:00:00Z");

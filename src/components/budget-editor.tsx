@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Pencil, Check, X, Loader2, Trash2, RefreshCcw } from "lucide-react";
 import { setBudget, deleteBudget, toggleRollover } from "@/app/actions/budgets";
-import { formatBRL } from "@/lib/format";
-import { parseBRLInput } from "@/lib/brazil";
+import { formatBRL } from "@/lib/domain/format";
+import { parseBRLInput } from "@/lib/domain/brazil";
 import { cn } from "@/lib/utils";
 
 export function BudgetEditor({

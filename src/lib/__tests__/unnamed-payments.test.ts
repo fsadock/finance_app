@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { matchUnnamedPayments, type LinkCandidate } from "../recurrence";
-import { isUnnamedBillPayment } from "../ai/merchant";
+import { matchUnnamedPayments, type LinkCandidate } from "@/lib/domain/recurrence";
+import { isUnnamedBillPayment } from "@/lib/domain/merchant";
 
 const d = (y: number, m: number, day: number) => new Date(y, m - 1, day);
 const BTG = "btg";

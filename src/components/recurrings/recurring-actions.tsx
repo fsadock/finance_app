@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { Loader2, Pause, Pencil, Play, Trash2, Wand2 } from "lucide-react";
 import { deleteRecurring, setRecurringActive, undoRecurringAutoChange } from "@/app/actions/recurrings";
-import { CADENCE_LABEL, type AutoChangeRecord, type Cadence } from "@/lib/recurrence";
-import { formatBRL } from "@/lib/format";
+import { CADENCE_LABEL, type AutoChangeRecord, type Cadence } from "@/lib/domain/recurrence";
+import { formatBRL } from "@/lib/domain/format";
 import { RecurringEditor, type CategoryOption, type RecurringFormValue } from "./recurring-editor";
 
 export function RecurringActions({

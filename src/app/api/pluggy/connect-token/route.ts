@@ -1,6 +1,6 @@
 import { getPluggy, PluggyConfigError, pluggyErrorMessage } from "@/lib/pluggy/client";
 import { NextResponse } from "next/server";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { getSetting } from "../settings";
+import { getSetting } from "@/lib/infra/settings";
 
 let cached: { key: string; client: Anthropic } | null = null;
 

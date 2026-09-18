@@ -10,7 +10,7 @@ import {
   YAxis,
   Legend,
 } from "recharts";
-import { formatBRLCompact } from "@/lib/format";
+import { formatBRLCompact } from "@/lib/domain/format";
 
 const monthLabel = (m: string) => {
   const [y, mm] = m.split("-");

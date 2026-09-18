@@ -1,5 +1,5 @@
 import { addDays, addMonths } from "date-fns";
-import { startOfDay } from "./format";
+import { startOfDay } from "@/lib/domain/format";
 
 type BillingCycle = { start: Date; end: Date; source: "closeDay" | "pluggy" | "lastBill" };
 

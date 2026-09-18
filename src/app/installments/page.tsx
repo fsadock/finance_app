@@ -1,8 +1,8 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
-import { prisma } from "@/lib/db";
-import { formatBRL, formatMonthKeyLong, formatMonthKeyShort } from "@/lib/format";
-import { buildInstallmentPlans, committedByMonth } from "@/lib/installments";
+import { prisma } from "@/lib/infra/db";
+import { formatBRL, formatMonthKeyLong, formatMonthKeyShort } from "@/lib/domain/format";
+import { buildInstallmentPlans, committedByMonth } from "@/lib/domain/installments";
 import { Layers } from "lucide-react";
 
 export default async function InstallmentsPage() {

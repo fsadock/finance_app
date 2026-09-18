@@ -3,10 +3,10 @@ import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { CashflowChart } from "@/components/dashboard/cashflow-chart";
 import { CashflowAreaChart } from "@/components/cashflow/area-chart";
 import { CashflowSankey } from "@/components/cashflow/sankey";
-import { getMonthlyCashflow, getSankeyData } from "@/lib/queries";
-import { formatBRL, formatBRLCompact, formatMonthKeyLong } from "@/lib/format";
+import { getMonthlyCashflow, getSankeyData } from "@/lib/data/queries";
+import { formatBRL, formatBRLCompact, formatMonthKeyLong } from "@/lib/domain/format";
 import { PeriodPicker } from "@/components/period-picker";
-import { formatPeriodLabel, parsePeriod } from "@/lib/period";
+import { formatPeriodLabel, parsePeriod } from "@/lib/domain/period";
 
 type Props = { searchParams: Promise<{ month?: string }> };
 

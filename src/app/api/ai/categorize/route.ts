@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { applyDeterministicRules } from "@/lib/deterministic";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
+import { applyDeterministicRules } from "@/lib/jobs/deterministic";
 import { categorizeAllPending } from "@/lib/ai/categorize";
 
 export const runtime = "nodejs";

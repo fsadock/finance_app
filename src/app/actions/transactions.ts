@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/db";
-import { merchantPattern } from "@/lib/ai/merchant";
-import { unpairTransfer } from "@/lib/transfers";
+import { prisma } from "@/lib/infra/db";
+import { merchantPattern } from "@/lib/domain/merchant";
+import { unpairTransfer } from "@/lib/jobs/transfers";
 import { z } from "zod";
 
 const txIdSchema = z.string().min(1);

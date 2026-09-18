@@ -17,7 +17,7 @@ import {
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/domain/format";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },

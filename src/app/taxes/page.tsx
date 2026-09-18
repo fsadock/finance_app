@@ -1,9 +1,9 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
-import { prisma } from "@/lib/db";
-import { formatBRL, formatDate, lastMonthKeys, monthKey, formatMonthKeyShort } from "@/lib/format";
-import { INCOME_WHERE } from "@/lib/flows";
-import { IRPF_EDUCATION_CAP, IRPF_PENSION_CAP_RATE, IRPF_TYPES, isIrpfType, type IrpfType } from "@/lib/irpf";
+import { prisma } from "@/lib/infra/db";
+import { formatBRL, formatDate, lastMonthKeys, monthKey, formatMonthKeyShort } from "@/lib/domain/format";
+import { INCOME_WHERE } from "@/lib/domain/flows";
+import { IRPF_EDUCATION_CAP, IRPF_PENSION_CAP_RATE, IRPF_TYPES, isIrpfType, type IrpfType } from "@/lib/domain/irpf";
 import { Info } from "lucide-react";
 import Link from "next/link";
 

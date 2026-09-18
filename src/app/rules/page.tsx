@@ -1,10 +1,10 @@
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/infra/db";
 import { Search, Sparkles, User } from "lucide-react";
 import { RuleCategorySelect, DeleteRuleButton } from "@/components/rules/rule-row-actions";
 import { ReclassifyPanel } from "@/components/rules/reclassify-panel";
-import { getReclassifyBackupInfo } from "@/lib/reclassify";
+import { getReclassifyBackupInfo } from "@/lib/jobs/reclassify";
 import Link from "next/link";
 
 type Props = { searchParams: Promise<{ q?: string; source?: string }> };

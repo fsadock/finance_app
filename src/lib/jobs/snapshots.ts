@@ -1,5 +1,5 @@
-import { prisma } from "./db";
-import { startOfDay } from "./format";
+import { prisma } from "@/lib/infra/db";
+import { startOfDay } from "@/lib/domain/format";
 
 /** Upserts today's balance snapshot for the given accounts (or all accounts). Idempotent per day. */
 export async function snapshotBalances(accountIds?: string[]) {

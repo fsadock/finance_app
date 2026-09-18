@@ -1,8 +1,8 @@
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/infra/db";
 import { NextResponse } from "next/server";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { buildTransactionWhere, TX_FILTER_KEYS } from "@/lib/transaction-filters";
-import { localDayKey } from "@/lib/format";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
+import { buildTransactionWhere, TX_FILTER_KEYS } from "@/lib/data/transaction-filters";
+import { localDayKey } from "@/lib/domain/format";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

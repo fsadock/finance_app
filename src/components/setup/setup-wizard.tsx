@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Check, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PluggyConnectButton } from "@/components/pluggy-connect-button";
-import type { SetupStatus } from "@/lib/settings";
+import type { SetupStatus } from "@/lib/infra/settings";
 import { AiForm, PluggyForm, SourceBadge } from "./credential-forms";
 import { cn } from "@/lib/utils";
 

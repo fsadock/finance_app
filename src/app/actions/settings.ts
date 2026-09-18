@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { deleteSetting, getPluggyCredentials, getSetting, saveSetting } from "@/lib/settings";
+import { deleteSetting, getPluggyCredentials, getSetting, saveSetting } from "@/lib/infra/settings";
 import { testPluggyCredentials } from "@/lib/pluggy/client";
 import { testAnthropicKey } from "@/lib/ai/client";
 

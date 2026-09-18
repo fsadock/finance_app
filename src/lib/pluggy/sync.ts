@@ -1,16 +1,16 @@
-import { getPluggy, pluggyErrorMessage } from "./client";
-import { prisma } from "../db";
-import { getConfig, setConfig } from "../config";
-import { detectTransfers } from "../transfers";
-import { categorizeAllPending } from "../ai/categorize";
-import { detectRecurrings, refreshRecurrings } from "../ai/recurrings";
-import { aiErrorMessage } from "../ai/client";
-import { snapshotBalances } from "../snapshots";
-import { deterministicCategory, onlyDigits, parseInstallmentFromDescription, resolveCounterparty } from "../brazil";
-import { applyDeterministicRules } from "../deterministic";
-import { withRetry } from "../retry";
-import { TRANSFER_DETECTION_DAYS_BACK } from "../constants";
-import { logger } from "../logger";
+import { getPluggy, pluggyErrorMessage } from "@/lib/pluggy/client";
+import { prisma } from "@/lib/infra/db";
+import { getConfig, setConfig } from "@/lib/infra/config";
+import { detectTransfers } from "@/lib/jobs/transfers";
+import { categorizeAllPending } from "@/lib/ai/categorize";
+import { detectRecurrings, refreshRecurrings } from "@/lib/ai/recurrings";
+import { aiErrorMessage } from "@/lib/ai/client";
+import { snapshotBalances } from "@/lib/jobs/snapshots";
+import { deterministicCategory, onlyDigits, parseInstallmentFromDescription, resolveCounterparty } from "@/lib/domain/brazil";
+import { applyDeterministicRules } from "@/lib/jobs/deterministic";
+import { withRetry } from "@/lib/infra/retry";
+import { TRANSFER_DETECTION_DAYS_BACK } from "@/lib/domain/constants";
+import { logger } from "@/lib/infra/logger";
 import type { AccountType as PrismaAccountType, InvestmentType as PrismaInvestmentType } from "@/generated/prisma/client";
 
 function mapAccountType(pluggyType: string, subtype: string | undefined | null): PrismaAccountType {

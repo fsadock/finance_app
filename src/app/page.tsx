@@ -10,8 +10,8 @@ import {
   getReviewTransactions,
   getSpendingPace,
   getTopCategories,
-} from "@/lib/queries";
-import { formatBRL, formatBRLCompact, formatDate, monthKey, startOfDay } from "@/lib/format";
+} from "@/lib/data/queries";
+import { formatBRL, formatBRLCompact, formatDate, monthKey, startOfDay } from "@/lib/domain/format";
 import Link from "next/link";
 import { ArrowRight, Wallet } from "lucide-react";
 import { CashflowChart } from "@/components/dashboard/cashflow-chart";
@@ -19,11 +19,11 @@ import { SpendingPaceChart } from "@/components/dashboard/spending-pace-chart";
 import { CCLimitEditor } from "@/components/dashboard/cc-limit-editor";
 import { CategoryDonut } from "@/components/dashboard/category-donut";
 import { PeriodPicker } from "@/components/period-picker";
-import { parsePeriod, formatPeriodLabel } from "@/lib/period";
+import { parsePeriod, formatPeriodLabel } from "@/lib/domain/period";
 import { CategoryPicker } from "@/components/category-picker";
 import { CategorizePendingButton } from "@/components/categorize-pending-button";
-import { prisma } from "@/lib/db";
-import { getPluggyCredentials } from "@/lib/settings";
+import { prisma } from "@/lib/infra/db";
+import { getPluggyCredentials } from "@/lib/infra/settings";
 import { redirect } from "next/navigation";
 
 type Props = { searchParams: Promise<{ month?: string }> };

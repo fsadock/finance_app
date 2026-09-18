@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ExternalLink, Loader2, XCircle } from "lucide-react";
 import { removeAnthropicKey, saveAnthropicKey, savePluggyCredentials } from "@/app/actions/settings";
-import type { SetupStatus } from "@/lib/settings";
+import type { SetupStatus } from "@/lib/infra/settings";
 import { cn } from "@/lib/utils";
 
 const input =

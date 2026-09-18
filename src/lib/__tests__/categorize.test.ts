@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("@/lib/db", () => ({ prisma: {} }));
-vi.mock("../ai/client", () => ({ getAnthropic: vi.fn(), MODEL_FAST: "claude-haiku" }));
+vi.mock("@/lib/infra/db", () => ({ prisma: {} }));
+vi.mock("@/lib/ai/client", () => ({ getAnthropic: vi.fn(), MODEL_FAST: "claude-haiku" }));
 
-import { matchRulesToTransactions } from "../ai/categorize";
+import { matchRulesToTransactions } from "@/lib/ai/categorize";
 
 const tx = (id: string, description: string, merchantRaw?: string) => ({
   id,

@@ -1,4 +1,4 @@
-import { DAY_MS } from "./format";
+import { DAY_MS } from "@/lib/domain/format";
 
 /**
  * Brazil-specific parsing of bank data: Pix/TED counterparties (CPF vs CNPJ), card installments

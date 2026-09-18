@@ -1,10 +1,10 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
-import { prisma } from "@/lib/db";
-import { formatBRL, formatDate, formatDateNumeric, formatMonthShort } from "@/lib/format";
+import { prisma } from "@/lib/infra/db";
+import { formatBRL, formatDate, formatDateNumeric, formatMonthShort } from "@/lib/domain/format";
 import { Sparkles, Receipt, TrendingUp, TrendingDown, AlertTriangle, Home, type LucideIcon } from "lucide-react";
-import { getActiveRecurrings } from "@/lib/queries";
-import { CADENCE_LABEL, type Cadence } from "@/lib/recurrence";
+import { getActiveRecurrings } from "@/lib/data/queries";
+import { CADENCE_LABEL, type Cadence } from "@/lib/domain/recurrence";
 import { AutoChangeBadge, RecurringActions } from "@/components/recurrings/recurring-actions";
 import type { CategoryOption } from "@/components/recurrings/recurring-editor";
 import { cn } from "@/lib/utils";

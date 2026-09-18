@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
-import { prisma } from "@/lib/db";
-import { formatBRL, formatBRLCompact, startOfDay } from "@/lib/format";
+import { prisma } from "@/lib/infra/db";
+import { formatBRL, formatBRLCompact, startOfDay } from "@/lib/domain/format";
 import { Link2, Target } from "lucide-react";
 import { AddGoalButton, EditGoalButton } from "@/components/goal-editor";
 import { GoalDeleteButton } from "@/components/goal-delete-button";

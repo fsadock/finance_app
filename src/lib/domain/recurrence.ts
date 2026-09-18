@@ -1,5 +1,5 @@
 import { addDays, addMonths, differenceInCalendarDays } from "date-fns";
-import { localDayKey, startOfDay } from "./format";
+import { localDayKey, startOfDay } from "@/lib/domain/format";
 
 /** Same values as the RecurringCadence enum in schema.prisma (checked at compile time in actions/recurrings.ts). */
 export const CADENCES = ["WEEKLY", "BIWEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"] as const;

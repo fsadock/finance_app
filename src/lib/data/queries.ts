@@ -1,11 +1,11 @@
-import { prisma } from "./db";
-import { getConfigNumber } from "./config";
-import { BUDGET_RELEVANT, FLOW_SELECT, INCOME_WHERE, SPEND_WHERE, classifyFlow, spendDelta } from "./flows";
-import { DAY_MS, lastMonthKeys, monthBounds, monthKey, monthKeyToDate, localDayKey, startOfDay } from "./format";
-import { groupingKey, normalizeForGrouping } from "./ai/merchant";
-import { getBudgetsForMonth } from "./budgets";
-import { resolveBillingCycle } from "./billing";
-import { nextOccurrence, isLikelyInactive, priceTrend, CADENCE_TO_MONTHLY, type AutoChangeRecord, type Cadence } from "./recurrence";
+import { prisma } from "@/lib/infra/db";
+import { getConfigNumber } from "@/lib/infra/config";
+import { BUDGET_RELEVANT, FLOW_SELECT, INCOME_WHERE, SPEND_WHERE, classifyFlow, spendDelta } from "@/lib/domain/flows";
+import { DAY_MS, lastMonthKeys, monthBounds, monthKey, monthKeyToDate, localDayKey, startOfDay } from "@/lib/domain/format";
+import { groupingKey, normalizeForGrouping } from "@/lib/domain/merchant";
+import { getBudgetsForMonth } from "@/lib/data/budgets";
+import { resolveBillingCycle } from "@/lib/domain/billing";
+import { nextOccurrence, isLikelyInactive, priceTrend, CADENCE_TO_MONTHLY, type AutoChangeRecord, type Cadence } from "@/lib/domain/recurrence";
 
 export async function getNetWorth() {
   const accounts = await prisma.account.findMany({ where: { hidden: false }, select: { balance: true } });

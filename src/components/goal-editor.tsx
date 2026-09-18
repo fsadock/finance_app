@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { Plus, X, Loader2, Pencil } from "lucide-react";
 import { setGoal } from "@/app/actions/goals";
-import { parseBRLInput } from "@/lib/brazil";
-import { toDateInput, parseDateInput } from "@/lib/format";
+import { parseBRLInput } from "@/lib/domain/brazil";
+import { toDateInput, parseDateInput } from "@/lib/domain/format";
 import { Card } from "./ui/card";
 
 type GoalFormValue = {

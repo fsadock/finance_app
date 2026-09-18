@@ -1,11 +1,11 @@
-import { prisma } from "./db";
-import { RECLASSIFY_CONFIRMATION } from "./constants";
-import { deleteConfig, getConfig, setConfig } from "./config";
-import { merchantPattern } from "./ai/merchant";
-import { deterministicCategory } from "./brazil";
-import { applyDeterministicRules } from "./deterministic";
-import { categorizeAllPending } from "./ai/categorize";
-import { checkAiAvailable } from "./ai/client";
+import { prisma } from "@/lib/infra/db";
+import { RECLASSIFY_CONFIRMATION } from "@/lib/domain/constants";
+import { deleteConfig, getConfig, setConfig } from "@/lib/infra/config";
+import { merchantPattern } from "@/lib/domain/merchant";
+import { deterministicCategory } from "@/lib/domain/brazil";
+import { applyDeterministicRules } from "@/lib/jobs/deterministic";
+import { categorizeAllPending } from "@/lib/ai/categorize";
+import { checkAiAvailable } from "@/lib/ai/client";
 
 
 type Backup = {

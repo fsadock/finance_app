@@ -1,13 +1,13 @@
-import { aiErrorMessage, getAnthropic, getAnthropicOrNull, MODEL_FAST } from "./client";
-import { prisma } from "../db";
-import { merchantPattern } from "./merchant";
+import { aiErrorMessage, getAnthropic, getAnthropicOrNull, MODEL_FAST } from "@/lib/ai/client";
+import { prisma } from "@/lib/infra/db";
+import { merchantPattern } from "@/lib/domain/merchant";
 import {
   CATEGORIZE_BATCH_SIZE,
   CATEGORIZE_MIN_CONFIDENCE,
   CATEGORIZE_CACHE_RULE_MIN_CONFIDENCE,
-} from "../constants";
-import { withRetry } from "../retry";
-import { logger } from "../logger";
+} from "@/lib/domain/constants";
+import { withRetry } from "@/lib/infra/retry";
+import { logger } from "@/lib/infra/logger";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 

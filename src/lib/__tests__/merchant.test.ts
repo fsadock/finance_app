@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeMerchant, normalizeForGrouping } from "../ai/merchant";
+import { normalizeMerchant, normalizeForGrouping } from "@/lib/domain/merchant";
 
 describe("normalizeMerchant", () => {
   it("lowercases and strips accents", () => {
@@ -69,7 +69,7 @@ describe("normalizeForGrouping", () => {
   });
 });
 
-import { merchantPattern, groupingKey, isGenericDescription } from "../ai/merchant";
+import { merchantPattern, groupingKey, isGenericDescription } from "@/lib/domain/merchant";
 
 describe("merchantPattern", () => {
   it("never creates a rule for a bare payment rail", () => {

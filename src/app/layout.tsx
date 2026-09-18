@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
-import { getLastSync } from "@/lib/queries";
-import { getPluggyCredentials } from "@/lib/settings";
+import { getLastSync } from "@/lib/data/queries";
+import { getPluggyCredentials } from "@/lib/infra/settings";
 import { SetupBanner } from "@/components/setup/setup-banner";
 import { connection } from "next/server";
 

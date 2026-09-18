@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/db";
-import { deleteConfig, setConfig } from "@/lib/config";
+import { prisma } from "@/lib/infra/db";
+import { deleteConfig, setConfig } from "@/lib/infra/config";
 import { z } from "zod";
 
 const setCCMonthlyLimitSchema = z.number().positive().nullable();

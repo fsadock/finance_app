@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildInstallmentPlans, committedByMonth, type InstallmentTx } from "../installments";
+import { buildInstallmentPlans, committedByMonth, type InstallmentTx } from "@/lib/domain/installments";
 
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d);
 const today = day(2026, 9, 15);

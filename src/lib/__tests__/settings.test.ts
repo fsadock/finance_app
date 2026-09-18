@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("@/lib/db", () => ({ prisma: {} }));
+vi.mock("@/lib/infra/db", () => ({ prisma: {} }));
 
-import { isPlaceholder, isValidPluggyClientId, maskSecret, resolveSetting } from "../settings";
+import { isPlaceholder, isValidPluggyClientId, maskSecret, resolveSetting } from "@/lib/infra/settings";
 
 describe("settings", () => {
   it("prefers the value saved in the app over .env", () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { ResponsiveContainer, Sankey, Tooltip, Layer, Text } from "recharts";
-import { formatBRLCompact } from "@/lib/format";
+import { formatBRLCompact } from "@/lib/domain/format";
 
 type Props = {
   data: {

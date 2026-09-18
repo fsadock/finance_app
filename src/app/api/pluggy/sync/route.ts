@@ -1,8 +1,8 @@
 import { PluggyConfigError, pluggyErrorMessage } from "@/lib/pluggy/client";
 import { syncItem, runPostSyncJobs, markSyncFailed } from "@/lib/pluggy/sync";
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/infra/db";
 import { NextResponse } from "next/server";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

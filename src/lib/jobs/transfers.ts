@@ -1,11 +1,11 @@
-import { prisma } from "./db";
-import { DAY_MS } from "./format";
+import { prisma } from "@/lib/infra/db";
+import { DAY_MS } from "@/lib/domain/format";
 import {
   TRANSFER_PAIR_DAY_WINDOW,
   TRANSFER_AMOUNT_TOLERANCE_RATE,
   TRANSFER_AMOUNT_TOLERANCE_FLOOR,
   TRANSFER_DETECTION_DAYS_BACK,
-} from "./constants";
+} from "@/lib/domain/constants";
 
 function genPairId() {
   return `pair_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;

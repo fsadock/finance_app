@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseBRLInput, resolveCounterparty, parseInstallmentFromDescription, isTransferMethod } from "../brazil";
+import { parseBRLInput, resolveCounterparty, parseInstallmentFromDescription, isTransferMethod } from "@/lib/domain/brazil";
 
 describe("parseBRLInput", () => {
   it.each([
@@ -69,8 +69,8 @@ describe("parseInstallmentFromDescription", () => {
   });
 });
 
-import { isCardBillPaymentDescription } from "../brazil";
-import { classifyFlow, spendDelta } from "../flows";
+import { isCardBillPaymentDescription } from "@/lib/domain/brazil";
+import { classifyFlow, spendDelta } from "@/lib/domain/flows";
 
 describe("isCardBillPaymentDescription", () => {
   it.each(["PAGAMENTO RECEBIDO", "Pagamento de fatura", "PGTO DEBITO AUTOMATICO", "PAG FATURA NUBANK"])("matches %s", (d) => {
@@ -100,7 +100,7 @@ describe("classifyFlow", () => {
   });
 });
 
-import { futureValue, monthlyRate, realRate } from "../rates";
+import { futureValue, monthlyRate, realRate } from "@/lib/data/rates";
 
 describe("rates", () => {
   it("compounds monthly to the annual rate", () => {
@@ -115,7 +115,7 @@ describe("rates", () => {
   });
 });
 
-import { deterministicCategory, expectedInstallmentDate, planInstallmentRedates, type InstallmentRow } from "../brazil";
+import { deterministicCategory, expectedInstallmentDate, planInstallmentRedates, type InstallmentRow } from "@/lib/domain/brazil";
 
 describe("deterministicCategory", () => {
   const base = { amount: -100, accountType: "CHECKING", counterpartyType: null, paymentMethod: "OTHER" };

@@ -1,7 +1,7 @@
 "use client";
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { formatBRL } from "@/lib/format";
+import { formatBRL } from "@/lib/domain/format";
 
 type Slice = { name: string; value: number; color: string };
 

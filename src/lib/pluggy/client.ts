@@ -1,5 +1,5 @@
 import { PluggyClient } from "pluggy-sdk";
-import { getPluggyCredentials, isValidPluggyClientId } from "../settings";
+import { getPluggyCredentials, isValidPluggyClientId } from "@/lib/infra/settings";
 
 let cached: { key: string; client: PluggyClient } | null = null;
 

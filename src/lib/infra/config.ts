@@ -1,4 +1,4 @@
-import { prisma } from "./db";
+import { prisma } from "@/lib/infra/db";
 
 /** Every key the app stores in the AppConfig table. These strings appear nowhere else. */
 const CONFIG_KEYS = {

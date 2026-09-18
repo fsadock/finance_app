@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { formatBRLCompact } from "@/lib/format";
+import { formatBRLCompact } from "@/lib/domain/format";
 
 type Row = { month: number; conservative: number; expected: number; aggressive: number };
 

@@ -1,14 +1,14 @@
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
-import { prisma } from "@/lib/db";
-import { formatBRL, formatDate } from "@/lib/format";
+import { prisma } from "@/lib/infra/db";
+import { formatBRL, formatDate } from "@/lib/domain/format";
 import { Search, Download, ChevronLeft, ChevronRight, Layers } from "lucide-react";
 import { PeriodPicker } from "@/components/period-picker";
 import { CategoryPicker } from "@/components/category-picker";
 import { TagPicker } from "@/components/tag-picker";
 import { TransferBadge } from "@/components/transactions/unpair-button";
 import { NotesEditor } from "@/components/transactions/notes-editor";
-import { buildTransactionWhere, filtersToSearchParams, TX_FILTER_KEYS, type TxFilterParams } from "@/lib/transaction-filters";
+import { buildTransactionWhere, filtersToSearchParams, TX_FILTER_KEYS, type TxFilterParams } from "@/lib/data/transaction-filters";
 import Link from "next/link";
 
 const PAGE_SIZE = 50;

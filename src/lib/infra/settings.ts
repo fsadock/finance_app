@@ -1,5 +1,5 @@
-import { prisma } from "./db";
-import { deleteConfig, getConfig, setConfig } from "./config";
+import { prisma } from "@/lib/infra/db";
+import { deleteConfig, getConfig, setConfig } from "@/lib/infra/config";
 
 /**
  * Credentials the app needs. Saved from the setup screen into AppConfig (the local SQLite file);

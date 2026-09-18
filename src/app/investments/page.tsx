@@ -1,11 +1,11 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
-import { prisma } from "@/lib/db";
-import { formatBRL, formatBRLCompact } from "@/lib/format";
+import { prisma } from "@/lib/infra/db";
+import { formatBRL, formatBRLCompact } from "@/lib/domain/format";
 import { InvestmentDonut } from "@/components/investments/donut";
 import { ProjectionChart } from "@/components/investments/projection";
-import { futureValue, getBenchmarkRates, realRate } from "@/lib/rates";
-import { parseBRLInput } from "@/lib/brazil";
+import { futureValue, getBenchmarkRates, realRate } from "@/lib/data/rates";
+import { parseBRLInput } from "@/lib/domain/brazil";
 
 /** Used only when the BCB API is unreachable. */
 const FALLBACK = { cdi: 0.1, ipca: 0.045 };

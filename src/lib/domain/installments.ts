@@ -1,6 +1,6 @@
 import { addMonths } from "date-fns";
-import { monthKey, monthKeyToDate } from "./format";
-import { normalizeMerchant } from "./ai/merchant";
+import { monthKey, monthKeyToDate } from "@/lib/domain/format";
+import { normalizeMerchant } from "@/lib/domain/merchant";
 
 export type InstallmentTx = {
   id: string;

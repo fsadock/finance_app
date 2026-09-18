@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
-import { getSetupStatus } from "@/lib/settings";
+import { getSetupStatus } from "@/lib/infra/settings";
 import { AiForm, PluggyForm, SourceBadge } from "@/components/setup/credential-forms";
 import { TestSettingsButton } from "@/components/setup/test-settings-button";
 

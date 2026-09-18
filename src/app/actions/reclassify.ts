@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { previewReclassify, runReclassify, undoReclassify } from "@/lib/reclassify";
+import { checkRateLimit } from "@/lib/infra/rate-limit";
+import { previewReclassify, runReclassify, undoReclassify } from "@/lib/jobs/reclassify";
 
 export async function previewReclassifyAction() {
   return previewReclassify();

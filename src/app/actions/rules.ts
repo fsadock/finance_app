@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/infra/db";
 import { z } from "zod";
 
 const idSchema = z.string().min(1);

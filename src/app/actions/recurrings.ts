@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/infra/db";
 import { z } from "zod";
-import { parseDateInput } from "@/lib/format";
-import { CADENCES, nextDueDate, type AutoChangeRecord, type Cadence } from "@/lib/recurrence";
+import { parseDateInput } from "@/lib/domain/format";
+import { CADENCES, nextDueDate, type AutoChangeRecord, type Cadence } from "@/lib/domain/recurrence";
 import type { RecurringCadence } from "@/generated/prisma/enums";
 
 // The shared cadence list must match the database enum exactly.

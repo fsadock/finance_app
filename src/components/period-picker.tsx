@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { parsePeriod, shiftPeriod, formatPeriodLabel } from "@/lib/period";
+import { parsePeriod, shiftPeriod, formatPeriodLabel } from "@/lib/domain/period";
 
 const MONTHS = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
