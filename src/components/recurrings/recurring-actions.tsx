@@ -5,7 +5,7 @@ import { Loader2, Pause, Pencil, Play, Trash2, Wand2 } from "lucide-react";
 import { deleteRecurring, setRecurringActive, undoRecurringAutoChange } from "@/app/actions/recurrings";
 import { CADENCE_LABEL, type AutoChangeRecord, type Cadence } from "@/lib/domain/recurrence";
 import { formatBRL } from "@/lib/domain/format";
-import { RecurringEditor, type CategoryOption, type RecurringFormValue } from "./recurring-editor";
+import { RecurringEditor, type CategoryOption, type RecurringFormValue } from "@/components/recurrings/recurring-editor";
 
 export function RecurringActions({
   recurring,

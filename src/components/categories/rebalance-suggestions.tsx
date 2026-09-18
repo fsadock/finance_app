@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { Sparkles, ArrowRight, Check, Loader2 } from "lucide-react";
 import { applyRebalance } from "@/app/actions/budgets";
 import { formatBRL } from "@/lib/domain/format";
-import { Card } from "./ui/card";
+import { Card } from "@/components/ui/card";
 import type { RebalanceSuggestion as Suggestion } from "@/lib/domain/budgets";
 
 

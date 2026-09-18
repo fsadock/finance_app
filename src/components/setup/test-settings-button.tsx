@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { testCurrentSettings } from "@/app/actions/settings";
-import { Feedback } from "./credential-forms";
+import { Feedback } from "@/components/setup/credential-forms";
 
 export function TestSettingsButton() {
   const [pending, startTransition] = useTransition();

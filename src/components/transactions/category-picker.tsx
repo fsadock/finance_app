@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { useClickOutside } from "@/components/ui/use-click-outside";
 import { Check, X, AlertCircle, Loader2, Search } from "lucide-react";
 import { setTransactionCategory } from "@/app/actions/transactions";
 import { cn } from "@/lib/utils";
@@ -27,14 +28,7 @@ export function CategoryPicker({
   const [pending, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
+  useClickOutside(ref, open, () => setOpen(false));
 
   function pick(catId: string | null) {
     startTransition(async () => {

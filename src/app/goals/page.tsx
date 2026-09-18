@@ -1,11 +1,11 @@
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { getGoalsWithAccounts } from "@/lib/data/goals";
 import { goalProgress } from "@/lib/domain/goals";
 import { formatBRL, formatBRLCompact, startOfDay } from "@/lib/domain/format";
 import { Link2, Target } from "lucide-react";
-import { AddGoalButton, EditGoalButton } from "@/components/goal-editor";
-import { GoalDeleteButton } from "@/components/goal-delete-button";
+import { AddGoalButton, EditGoalButton } from "@/components/goals/goal-editor";
+import { GoalDeleteButton } from "@/components/goals/goal-delete-button";
 
 export default async function GoalsPage() {
   const { goals, accounts } = await getGoalsWithAccounts();

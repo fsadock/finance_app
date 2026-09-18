@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { getRules } from "@/lib/data/rules";
 import { getCategoryOptions } from "@/lib/data/categories";

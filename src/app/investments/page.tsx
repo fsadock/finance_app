@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { getInvestments } from "@/lib/data/investments";
 import { formatBRL, formatBRLCompact } from "@/lib/domain/format";

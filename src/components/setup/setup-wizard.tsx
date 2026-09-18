@@ -4,9 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { Check, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { PluggyConnectButton } from "@/components/pluggy-connect-button";
+import { PluggyConnectButton } from "@/components/accounts/pluggy-connect-button";
 import type { SetupStatus } from "@/lib/infra/settings";
-import { AiForm, PluggyForm, SourceBadge } from "./credential-forms";
+import { AiForm, PluggyForm, SourceBadge } from "@/components/setup/credential-forms";
 import { cn } from "@/lib/utils";
 
 const STEPS = ["Pluggy", "IA (opcional)", "Conectar bancos"];

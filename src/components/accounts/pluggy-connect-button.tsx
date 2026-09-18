@@ -3,8 +3,9 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plug, Loader2, RefreshCw, RotateCcw } from "lucide-react";
-import { CategorizePendingButton } from "./categorize-pending-button";
+import { CategorizePendingButton } from "@/components/transactions/categorize-pending-button";
 import { errorMessage } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 declare global {
   interface Window {
@@ -151,14 +152,10 @@ export function PluggyConnectButton() {
   return (
     <div className="flex items-center gap-2 flex-wrap justify-end">
       {(msg || isPending) && <span className="text-xs text-fg-muted max-w-md">{isPending ? "Atualizando…" : msg}</span>}
-      <button
-        onClick={() => open()}
-        disabled={busy !== null}
-        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent text-bg text-sm font-medium hover:bg-accent-hover disabled:opacity-50"
-      >
+      <Button size="sm" onClick={() => open()} disabled={busy !== null}>
         {busy === "connect" ? <Loader2 className="size-3.5 animate-spin" /> : <Plug className="size-3.5" />}
         Conectar conta
-      </button>
+      </Button>
       <button onClick={syncAll} disabled={busy !== null} className={secondary}>
         {busy === "sync" ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
         Sincronizar

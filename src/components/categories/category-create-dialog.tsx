@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { useClickOutside } from "@/components/ui/use-click-outside";
 import { Plus, Loader2, X } from "lucide-react";
 import { createCategory } from "@/app/actions/transactions";
 
@@ -19,14 +20,7 @@ export function CategoryCreateDialog() {
   const [pending, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
+  useClickOutside(ref, open, () => setOpen(false));
 
   function submit(e: React.FormEvent) {
     e.preventDefault();

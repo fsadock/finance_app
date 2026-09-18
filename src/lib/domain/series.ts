@@ -10,7 +10,7 @@ export function sumByDay<T extends { date: Date }>(items: T[], value: (item: T) 
   return byDay;
 }
 
-export type SeriesPoint = { day: number; label: string; actual: number | null; ideal: number | null };
+type SeriesPoint = { day: number; label: string; actual: number | null; ideal: number | null };
 
 /**
  * Running total per day, starting at `from`, for `days` days — the spending-pace charts.

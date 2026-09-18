@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { getTaxYear } from "@/lib/data/taxes";
 import { formatBRL, formatDate, lastMonthKeys, formatMonthKeyShort } from "@/lib/domain/format";

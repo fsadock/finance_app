@@ -6,6 +6,7 @@ import { CheckCircle2, ExternalLink, Loader2, XCircle } from "lucide-react";
 import { removeAnthropicKey, saveAnthropicKey, savePluggyCredentials } from "@/app/actions/settings";
 import type { SetupStatus } from "@/lib/infra/settings";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 const input =
   "w-full bg-bg-elev border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-accent font-mono placeholder:font-sans";
@@ -91,14 +92,10 @@ export function PluggyForm({ status, onSaved }: { status: SetupStatus["pluggy"];
         />
       </div>
       <div className="flex items-center gap-3 flex-wrap">
-        <button
-          type="submit"
-          disabled={pending || !clientId.trim() || (!clientSecret.trim() && !status.configured)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-bg font-medium text-sm hover:bg-accent-hover disabled:opacity-50"
-        >
+        <Button type="submit" disabled={pending || !clientId.trim() || (!clientSecret.trim() && !status.configured)}>
           {pending && <Loader2 className="size-4 animate-spin" />}
           {keepingSecret ? "Testar e salvar Client ID" : "Testar e salvar"}
-        </button>
+        </Button>
         <Feedback result={result} />
       </div>
     </form>
@@ -158,14 +155,10 @@ export function AiForm({ status, onSaved }: { status: SetupStatus["ai"]; onSaved
         />
       </div>
       <div className="flex items-center gap-3 flex-wrap">
-        <button
-          type="submit"
-          disabled={pending || !key.trim()}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-bg font-medium text-sm hover:bg-accent-hover disabled:opacity-50"
-        >
+        <Button type="submit" disabled={pending || !key.trim()}>
           {pending && <Loader2 className="size-4 animate-spin" />}
           Testar e salvar
-        </button>
+        </Button>
         {status.configured && status.source === "app" && (
           <button type="button" onClick={remove} disabled={pending} className="text-sm text-fg-muted hover:text-danger">
             Remover chave

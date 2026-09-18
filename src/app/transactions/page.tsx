@@ -1,12 +1,12 @@
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { getTransactionFilterOptions, getTransactionsPage } from "@/lib/data/transactions";
 import { getCategoryOptions } from "@/lib/data/categories";
 import { formatBRL, formatDate } from "@/lib/domain/format";
 import { Search, Download, ChevronLeft, ChevronRight, Layers } from "lucide-react";
-import { PeriodPicker } from "@/components/period-picker";
-import { CategoryPicker } from "@/components/category-picker";
-import { TagPicker } from "@/components/tag-picker";
+import { PeriodPicker } from "@/components/layout/period-picker";
+import { CategoryPicker } from "@/components/transactions/category-picker";
+import { TagPicker } from "@/components/transactions/tag-picker";
 import { TransferBadge } from "@/components/transactions/unpair-button";
 import { NotesEditor } from "@/components/transactions/notes-editor";
 import { buildTransactionWhere, filtersToSearchParams, TX_FILTER_KEYS, type TxFilterParams } from "@/lib/data/transaction-filters";

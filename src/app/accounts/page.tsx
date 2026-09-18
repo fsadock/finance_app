@@ -1,11 +1,11 @@
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { getAccountsWithBills } from "@/lib/data/accounts";
 import { getConnections } from "@/lib/data/connections";
 import { getOpenBills } from "@/lib/data/cards";
 import { formatBRL, formatDate, formatDateTime, startOfDay } from "@/lib/domain/format";
 import { Wallet, CreditCard, PiggyBank, TrendingUp, Coins, Banknote, CalendarClock, AlertTriangle, CheckCircle2 } from "lucide-react";
-import { PluggyConnectButton, ReconnectButton } from "@/components/pluggy-connect-button";
+import { PluggyConnectButton, ReconnectButton } from "@/components/accounts/pluggy-connect-button";
 import { HideAccountToggle } from "@/components/accounts/hide-toggle";
 import { getNetWorthHistory } from "@/lib/data/net-worth";
 import { getConfigNumber } from "@/lib/infra/config";

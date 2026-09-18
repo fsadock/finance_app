@@ -1,16 +1,16 @@
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { getBudgetCategories } from "@/lib/data/categories";
 import { formatBRL, lastMonthKeys } from "@/lib/domain/format";
 import { CategoriesTrendChart } from "@/components/categories/trend-chart";
-import { PeriodPicker } from "@/components/period-picker";
+import { PeriodPicker } from "@/components/layout/period-picker";
 import { parsePeriod, formatPeriodLabel } from "@/lib/domain/period";
-import { CategoryCreateDialog } from "@/components/category-create-dialog";
-import { BudgetEditor } from "@/components/budget-editor";
+import { CategoryCreateDialog } from "@/components/categories/category-create-dialog";
+import { BudgetEditor } from "@/components/categories/budget-editor";
 import { getRebalanceSuggestions } from "@/lib/data/budgets";
 import { getCategorySpend } from "@/lib/data/spending";
 import { getBudgetsForMonth, getCategorySpendByMonth } from "@/lib/data/budgets";
-import { RebalanceSuggestions } from "@/components/rebalance-suggestions";
+import { RebalanceSuggestions } from "@/components/categories/rebalance-suggestions";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
