@@ -88,3 +88,28 @@ const UNNAMED_BILL_DESCRIPTIONS = new Set(["utilities", "bankslip", "boleto"]);
 export function isUnnamedBillPayment(t: { description: string; counterpartyName?: string | null }) {
   return !t.counterpartyName?.trim() && UNNAMED_BILL_DESCRIPTIONS.has(normalizeForGrouping(t.description));
 }
+
+type TxInput = { id: string; description: string; merchantRaw: string | null; counterpartyName?: string | null };
+type RuleInput = { pattern: string; categoryId: string; id: string };
+
+/** Pure pass-1 rule matching — no DB calls. Returns matched tx→categoryId pairs and unmatched remainder. */
+export function matchRulesToTransactions<T extends TxInput>(
+  txs: T[],
+  rules: RuleInput[]
+): { matched: Array<{ tx: T; rule: RuleInput }>; remaining: T[] } {
+  const ruleMap = new Map(rules.map((r) => [r.pattern, r]));
+  const matched: Array<{ tx: T; rule: RuleInput }> = [];
+  const remaining: T[] = [];
+
+  for (const t of txs) {
+    const pattern = merchantPattern(t);
+    const rule = pattern ? ruleMap.get(pattern) : undefined;
+    if (rule) {
+      matched.push({ tx: t, rule });
+    } else {
+      remaining.push(t);
+    }
+  }
+
+  return { matched, remaining };
+}

@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plug, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { CategorizePendingButton } from "./categorize-pending-button";
+import { errorMessage } from "@/lib/utils";
 
 declare global {
   interface Window {
@@ -93,7 +94,7 @@ function usePluggyConnect() {
             );
             startTransition(() => router.refresh());
           } catch (e) {
-            setMsg(e instanceof Error ? e.message : "Erro na sincronização");
+            setMsg(errorMessage(e, "Erro na sincronização"));
           } finally {
             setBusy(null);
           }
@@ -107,7 +108,7 @@ function usePluggyConnect() {
       });
       widget.init();
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Erro");
+      setMsg(errorMessage(e, "Erro"));
       setBusy(null);
     }
   }
@@ -139,7 +140,7 @@ export function PluggyConnectButton() {
       );
       startTransition(() => router.refresh());
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Erro");
+      setMsg(errorMessage(e, "Erro"));
     } finally {
       setBusy(null);
     }

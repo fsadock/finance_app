@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/infra/db";
 import { z } from "zod";
-import { limitInEffect } from "@/lib/data/budgets";
+import { limitInEffect } from "@/lib/domain/budgets";
 import { monthKey } from "@/lib/domain/format";
 
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;

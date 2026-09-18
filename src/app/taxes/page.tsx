@@ -1,75 +1,24 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
-import { prisma } from "@/lib/infra/db";
-import { formatBRL, formatDate, lastMonthKeys, monthKey, formatMonthKeyShort } from "@/lib/domain/format";
-import { INCOME_WHERE } from "@/lib/domain/flows";
-import { IRPF_EDUCATION_CAP, IRPF_PENSION_CAP_RATE, IRPF_TYPES, isIrpfType, type IrpfType } from "@/lib/domain/irpf";
+import { getTaxYear } from "@/lib/data/taxes";
+import { formatBRL, formatDate, lastMonthKeys, formatMonthKeyShort } from "@/lib/domain/format";
+import { IRPF_EDUCATION_CAP, IRPF_PENSION_CAP_RATE, IRPF_TYPES, groupDeductions, summarizeIncome, type IrpfType } from "@/lib/domain/irpf";
 import { Info } from "lucide-react";
 import Link from "next/link";
 
 type Props = { searchParams: Promise<{ year?: string }> };
 
-const DOC_LABEL: Record<string, string> = { CNPJ: "CNPJ", CPF: "CPF", SELF: "próprio" };
-
 export default async function TaxesPage({ searchParams }: Props) {
   const sp = await searchParams;
   const currentYear = new Date().getFullYear();
   const year = Number(sp.year) >= 2000 && Number(sp.year) <= currentYear ? Number(sp.year) : currentYear - 1;
-  const start = new Date(year, 0, 1);
-  const end = new Date(year + 1, 0, 1);
-  const range = { date: { gte: start, lt: end } };
+  const { incomeTx, deductibleTx } = await getTaxYear(year);
 
-  const [incomeTx, deductibleTx] = await Promise.all([
-    prisma.transaction.findMany({
-      where: { AND: [range, INCOME_WHERE] },
-      select: { amount: true, date: true, category: { select: { name: true } } },
-    }),
-    prisma.transaction.findMany({
-      where: { ...range, category: { irpfType: { not: null } } },
-      select: {
-        id: true,
-        date: true,
-        amount: true,
-        description: true,
-        merchantName: true,
-        merchantCnpj: true,
-        counterpartyName: true,
-        counterpartyType: true,
-        category: { select: { name: true, irpfType: true } },
-      },
-      orderBy: { date: "asc" },
-    }),
-  ]);
-
-  // Income by category and month
-  const incomeByCategory = new Map<string, number>();
-  const incomeByMonth = new Map<string, number>();
-  for (const t of incomeTx) {
-    const name = t.category?.name ?? "Sem categoria";
-    incomeByCategory.set(name, (incomeByCategory.get(name) ?? 0) + t.amount);
-    incomeByMonth.set(monthKey(t.date), (incomeByMonth.get(monthKey(t.date)) ?? 0) + t.amount);
-  }
-  const totalIncome = [...incomeByCategory.values()].reduce((s, v) => s + v, 0);
+  const { incomeByCategory, incomeByMonth, totalIncome } = summarizeIncome(incomeTx);
   const months = lastMonthKeys(12, new Date(year, 11, 1));
   const peak = Math.max(1, ...months.map((m) => incomeByMonth.get(m) ?? 0));
 
-  // Deductions: net of refunds, grouped by payee
-  const groups = new Map<IrpfType, { total: number; payees: Map<string, { name: string; doc: string | null; total: number; count: number }> }>();
-  for (const t of deductibleTx) {
-    const type = t.category?.irpfType;
-    if (!isIrpfType(type)) continue;
-    if (!groups.has(type)) groups.set(type, { total: 0, payees: new Map() });
-    const g = groups.get(type)!;
-    const value = -t.amount; // outflows positive, refunds subtract
-    g.total += value;
-    const name = t.merchantName ?? t.counterpartyName ?? t.description;
-    const doc = t.merchantCnpj ? `CNPJ ${t.merchantCnpj}` : t.counterpartyType ? DOC_LABEL[t.counterpartyType] ?? null : null;
-    const key = `${name}|${doc ?? ""}`;
-    const p = g.payees.get(key) ?? { name, doc, total: 0, count: 0 };
-    p.total += value;
-    p.count++;
-    g.payees.set(key, p);
-  }
+  const groups = groupDeductions(deductibleTx);
 
   const medical = Math.max(0, groups.get("MEDICAL")?.total ?? 0);
   const education = Math.max(0, groups.get("EDUCATION")?.total ?? 0);

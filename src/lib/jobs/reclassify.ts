@@ -4,7 +4,7 @@ import { deleteConfig, getConfig, setConfig } from "@/lib/infra/config";
 import { merchantPattern } from "@/lib/domain/merchant";
 import { deterministicCategory } from "@/lib/domain/brazil";
 import { applyDeterministicRules } from "@/lib/jobs/deterministic";
-import { categorizeAllPending } from "@/lib/ai/categorize";
+import { categorizeAllPending } from "@/lib/jobs/categorize";
 import { checkAiAvailable } from "@/lib/ai/client";
 
 

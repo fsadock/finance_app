@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
-import { prisma } from "@/lib/infra/db";
+import { getTransactionFilterOptions, getTransactionsPage } from "@/lib/data/transactions";
+import { getCategoryOptions } from "@/lib/data/categories";
 import { formatBRL, formatDate } from "@/lib/domain/format";
 import { Search, Download, ChevronLeft, ChevronRight, Layers } from "lucide-react";
 import { PeriodPicker } from "@/components/period-picker";
@@ -24,20 +25,10 @@ export default async function TransactionsPage({ searchParams }: Props) {
   const where = buildTransactionWhere(filters);
   const page = Math.max(1, Number(sp.page) || 1);
 
-  const [txs, count, outflow, inflow, categories, accounts, allTags] = await Promise.all([
-    prisma.transaction.findMany({
-      where,
-      include: { account: true, category: true, tags: true },
-      orderBy: [{ date: "desc" }, { id: "asc" }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    }),
-    prisma.transaction.count({ where }),
-    prisma.transaction.aggregate({ where: { AND: [where, { amount: { lt: 0 } }] }, _sum: { amount: true } }),
-    prisma.transaction.aggregate({ where: { AND: [where, { amount: { gt: 0 } }] }, _sum: { amount: true } }),
-    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, color: true, group: true } }),
-    prisma.account.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.tag.findMany({ orderBy: { name: "asc" } }),
+  const [{ txs, count, outflow, inflow }, categories, { accounts, tags: allTags }] = await Promise.all([
+    getTransactionsPage(where, page, PAGE_SIZE),
+    getCategoryOptions(),
+    getTransactionFilterOptions(),
   ]);
 
   const pages = Math.max(1, Math.ceil(count / PAGE_SIZE));

@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@/lib/infra/db", () => ({ prisma: {} }));
 vi.mock("@/lib/ai/client", () => ({ getAnthropic: vi.fn(), MODEL_FAST: "claude-haiku" }));
 
-import { matchRulesToTransactions } from "@/lib/ai/categorize";
+import { matchRulesToTransactions } from "@/lib/domain/merchant";
 
 const tx = (id: string, description: string, merchantRaw?: string) => ({
   id,

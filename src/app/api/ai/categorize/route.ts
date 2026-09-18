@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { applyDeterministicRules } from "@/lib/jobs/deterministic";
-import { categorizeAllPending } from "@/lib/ai/categorize";
+import { categorizeAllPending } from "@/lib/jobs/categorize";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

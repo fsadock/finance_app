@@ -1,6 +1,6 @@
 import { PluggyConfigError, pluggyErrorMessage } from "@/lib/pluggy/client";
-import { syncItem, runPostSyncJobs, markSyncFailed } from "@/lib/pluggy/sync";
-import { prisma } from "@/lib/infra/db";
+import { syncAllItems, syncItem, markSyncFailed } from "@/lib/pluggy/sync";
+import { runPostSyncJobs } from "@/lib/jobs/pipeline";
 import { NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 
@@ -29,17 +29,7 @@ export async function POST(req: Request) {
     }
 
     // No itemId → sync all known items
-    const items = await prisma.pluggyItem.findMany();
-    const results = [];
-    for (const it of items) {
-      try {
-        const r = await syncItem(it.pluggyId);
-        results.push({ itemId: it.pluggyId, ok: true, stats: r.stats });
-      } catch (e) {
-        await markSyncFailed(it.pluggyId, e);
-        results.push({ itemId: it.pluggyId, ok: false, error: pluggyErrorMessage(e) });
-      }
-    }
+    const results = await syncAllItems();
     const post = await runPostSyncJobs();
     return NextResponse.json({ items: results, post });
   } catch (e) {

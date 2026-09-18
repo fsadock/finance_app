@@ -1,17 +1,12 @@
 import { getPluggy, pluggyErrorMessage } from "@/lib/pluggy/client";
 import { prisma } from "@/lib/infra/db";
 import { getConfig, setConfig } from "@/lib/infra/config";
-import { detectTransfers } from "@/lib/jobs/transfers";
-import { categorizeAllPending } from "@/lib/ai/categorize";
-import { detectRecurrings, refreshRecurrings } from "@/lib/ai/recurrings";
-import { aiErrorMessage } from "@/lib/ai/client";
 import { snapshotBalances } from "@/lib/jobs/snapshots";
 import { deterministicCategory, onlyDigits, parseInstallmentFromDescription, resolveCounterparty } from "@/lib/domain/brazil";
-import { applyDeterministicRules } from "@/lib/jobs/deterministic";
 import { withRetry } from "@/lib/infra/retry";
-import { TRANSFER_DETECTION_DAYS_BACK } from "@/lib/domain/constants";
 import { logger } from "@/lib/infra/logger";
 import type { AccountType as PrismaAccountType, InvestmentType as PrismaInvestmentType } from "@/generated/prisma/client";
+import { errorMessage } from "@/lib/utils";
 
 function mapAccountType(pluggyType: string, subtype: string | undefined | null): PrismaAccountType {
   if (subtype === "CREDIT_CARD" || pluggyType === "CREDIT") return "CREDIT_CARD";
@@ -166,7 +161,7 @@ export async function syncItem(itemId: string) {
           });
         }
       } catch (e) {
-        logger.warn("sync:bills_skipped", { accountId: a.id, error: e instanceof Error ? e.message : String(e) });
+        logger.warn("sync:bills_skipped", { accountId: a.id, error: errorMessage(e) });
       }
     }
 
@@ -298,7 +293,7 @@ export async function syncItem(itemId: string) {
       await prisma.investment.deleteMany({ where: { accountId: invAccountId } });
     }
   } catch (e) {
-    logger.warn("sync:investments_skipped", { itemId, error: e instanceof Error ? e.message : String(e) });
+    logger.warn("sync:investments_skipped", { itemId, error: errorMessage(e) });
   }
 
   await snapshotBalances(syncedAccountIds);
@@ -325,7 +320,7 @@ async function getOwnerDocuments(itemId: string): Promise<string[]> {
     }
     await setConfig("ownerDocuments", JSON.stringify([...known]));
   } catch (e) {
-    logger.warn("sync:identity_unavailable", { itemId, error: e instanceof Error ? e.message : String(e) });
+    logger.warn("sync:identity_unavailable", { itemId, error: errorMessage(e) });
   }
   return [...known];
 }
@@ -337,59 +332,18 @@ export async function markSyncFailed(itemId: string, error: unknown) {
   logger.error("sync:failed", { itemId, error: message });
 }
 
-/**
- * @param fullHistory scan all history for transfer pairs — used on the first sync of a newly connected
- * bank, whose outflows can pair with older inflows (e.g. salary moved from that bank, already categorized).
- */
-export async function runPostSyncJobs({ fullHistory = false } = {}) {
-  const out = {
-    deterministic: 0,
-    redated: 0,
-    transfersPaired: 0,
-    categorized: 0,
-    fromRules: 0,
-    fromAI: 0,
-    pendingReview: 0,
-    recurringsLinked: 0,
-    recurringsChanged: 0,
-    recurringsDetected: 0,
-    aiError: null as string | null,
-  };
-  logger.info("post-sync:start");
-
-  try {
-    const d = await applyDeterministicRules();
-    out.deterministic = d.categorized;
-    out.redated = d.redated;
-  } catch (e) {
-    logger.error("post-sync:deterministic_failed", { error: errorMessage(e) });
+/** Syncs every connection; a failing one is recorded and doesn't stop the others. */
+export async function syncAllItems() {
+  const items = await prisma.pluggyItem.findMany();
+  const results = [];
+  for (const it of items) {
+    try {
+      const r = await syncItem(it.pluggyId);
+      results.push({ itemId: it.pluggyId, ok: true, stats: r.stats });
+    } catch (e) {
+      await markSyncFailed(it.pluggyId, e);
+      results.push({ itemId: it.pluggyId, ok: false, error: pluggyErrorMessage(e) });
+    }
   }
-
-  try {
-    out.transfersPaired = (await detectTransfers(fullHistory ? 365 * 5 : TRANSFER_DETECTION_DAYS_BACK)).paired;
-  } catch (e) {
-    logger.error("post-sync:transfers_failed", { error: errorMessage(e) });
-  }
-
-  const c = await categorizeAllPending();
-  out.categorized = c.applied;
-  out.fromRules = c.fromRules;
-  out.fromAI = c.fromAI;
-  out.pendingReview = c.remaining;
-  out.aiError = c.error;
-
-  try {
-    const refreshed = await refreshRecurrings();
-    out.recurringsLinked = refreshed.linked;
-    out.recurringsChanged = refreshed.changed;
-    if (!out.aiError && c.aiConfigured) out.recurringsDetected = (await detectRecurrings()).detected;
-  } catch (e) {
-    out.aiError ??= aiErrorMessage(e);
-    logger.error("post-sync:recurrings_failed", { error: errorMessage(e) });
-  }
-
-  logger.info("post-sync:done", out);
-  return out;
+  return results;
 }
-
-const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));

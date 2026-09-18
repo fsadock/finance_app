@@ -1,38 +1,12 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
-import { prisma } from "@/lib/infra/db";
+import { getInstallmentPlans } from "@/lib/data/installments";
 import { formatBRL, formatMonthKeyLong, formatMonthKeyShort } from "@/lib/domain/format";
-import { buildInstallmentPlans, committedByMonth } from "@/lib/domain/installments";
+import { committedByMonth } from "@/lib/domain/installments";
 import { Layers } from "lucide-react";
 
 export default async function InstallmentsPage() {
-  const since = new Date();
-  since.setMonth(since.getMonth() - 48);
-  const txs = await prisma.transaction.findMany({
-    where: {
-      totalInstallments: { gt: 1 },
-      amount: { lt: 0 },
-      date: { gte: since },
-      account: { type: "CREDIT_CARD", hidden: false },
-    },
-    select: {
-      id: true,
-      accountId: true,
-      description: true,
-      merchantName: true,
-      amount: true,
-      date: true,
-      installmentNumber: true,
-      totalInstallments: true,
-      purchaseAmount: true,
-      purchaseDate: true,
-      account: { select: { name: true } },
-    },
-  });
-
-  const plans = buildInstallmentPlans(
-    txs.map((t) => ({ ...t, accountName: t.account.name, totalInstallments: t.totalInstallments! }))
-  );
+  const plans = await getInstallmentPlans();
   const upcoming = committedByMonth(plans, 12);
   const totalRemaining = plans.reduce((s, p) => s + p.remainingAmount, 0);
   const nextMonth = upcoming.find((m) => m.total > 0);

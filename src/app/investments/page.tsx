@@ -1,10 +1,11 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
-import { prisma } from "@/lib/infra/db";
+import { getInvestments } from "@/lib/data/investments";
 import { formatBRL, formatBRLCompact } from "@/lib/domain/format";
 import { InvestmentDonut } from "@/components/investments/donut";
 import { ProjectionChart } from "@/components/investments/projection";
-import { futureValue, getBenchmarkRates, realRate } from "@/lib/data/rates";
+import { getBenchmarkRates } from "@/lib/data/rates";
+import { futureValue, realRate } from "@/lib/domain/investments";
 import { parseBRLInput } from "@/lib/domain/brazil";
 
 /** Used only when the BCB API is unreachable. */
@@ -34,7 +35,7 @@ type Props = { searchParams: Promise<{ aporte?: string }> };
 export default async function InvestmentsPage({ searchParams }: Props) {
   const sp = await searchParams;
   const [investments, rates] = await Promise.all([
-    prisma.investment.findMany({ include: { account: true }, where: { account: { hidden: false } } }),
+    getInvestments(),
     getBenchmarkRates(),
   ]);
 

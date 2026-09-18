@@ -376,10 +376,15 @@ pnpm db:migrate   # create a migration after editing prisma/schema.prisma
 prisma/              schema, migrations, seed / wipe / dedupe scripts
 src/app/             pages (App Router), API routes, server actions (src/app/actions)
 src/components/      UI components
-src/lib/             business logic: queries, flows (money model), budgets, billing, installments,
-                     recurrence, brazil (BR parsing/rules), deterministic, transfers, rates (BCB), irpf,
-                     transaction-filters, snapshots
-src/lib/ai/          categorization and recurring detection (Claude)
-src/lib/pluggy/      Pluggy client and sync pipeline
+src/lib/domain/      pure rules, no database or network: money model (flows), Brazil (brazil), recurrence,
+                     installments, billing cycles, budgets, IRPF, goals, investments, merchant keys, formatting
+src/lib/data/        everything pages read, one module per subject (spending, cashflow, cards, recurrings…)
+src/lib/jobs/        processing that writes derived data; pipeline.ts runs after every sync:
+                     deterministic rules → transfers → categorize → recurrings
+src/lib/pluggy/      Pluggy client and data import
+src/lib/ai/          Claude calls only: category suggestions and recurring detection
+src/lib/infra/       database, config and credentials, logger, retry, rate limit
 src/lib/__tests__/   unit tests for the pure logic
 ```
+
+Rules that keep it that way: pages call `data/` (never the database directly), `domain/` imports neither the database nor `ai/`, and `ai/` only talks to the API. `pnpm unused` (knip) lists unused files, exports and dependencies.

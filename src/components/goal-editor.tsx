@@ -6,6 +6,7 @@ import { setGoal } from "@/app/actions/goals";
 import { parseBRLInput } from "@/lib/domain/brazil";
 import { toDateInput, parseDateInput } from "@/lib/domain/format";
 import { Card } from "./ui/card";
+import { errorMessage } from "@/lib/utils";
 
 type GoalFormValue = {
   id: string;
@@ -53,7 +54,7 @@ function GoalEditor({ goal, accounts, onClose }: { goal?: GoalFormValue; account
         });
         onClose();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro ao salvar");
+        setError(errorMessage(e, "Erro ao salvar"));
       }
     });
   }

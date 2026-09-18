@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/infra/db";
+import { getTransactionsForExport } from "@/lib/data/transactions";
 import { NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 import { buildTransactionWhere, TX_FILTER_KEYS } from "@/lib/data/transaction-filters";
@@ -26,11 +26,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const where = buildTransactionWhere(Object.fromEntries(TX_FILTER_KEYS.map((k) => [k, searchParams.get(k)])));
 
-  const txs = await prisma.transaction.findMany({
-    where,
-    include: { account: true, category: true, tags: true },
-    orderBy: { date: "desc" },
-  });
+  const txs = await getTransactionsForExport(where);
 
   const lines = [
     row(

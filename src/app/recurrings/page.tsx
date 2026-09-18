@@ -1,9 +1,9 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
-import { prisma } from "@/lib/infra/db";
 import { formatBRL, formatDate, formatDateNumeric, formatMonthShort } from "@/lib/domain/format";
 import { Sparkles, Receipt, TrendingUp, TrendingDown, AlertTriangle, Home, type LucideIcon } from "lucide-react";
-import { getActiveRecurrings } from "@/lib/data/queries";
+import { getActiveRecurrings, getPausedRecurrings } from "@/lib/data/recurrings";
+import { getCategoryOptions } from "@/lib/data/categories";
 import { CADENCE_LABEL, type Cadence } from "@/lib/domain/recurrence";
 import { AutoChangeBadge, RecurringActions } from "@/components/recurrings/recurring-actions";
 import type { CategoryOption } from "@/components/recurrings/recurring-editor";
@@ -123,8 +123,8 @@ function RecurringSection({
 export default async function RecurringsPage() {
   const [recurrings, paused, categories] = await Promise.all([
     getActiveRecurrings(),
-    prisma.recurring.findMany({ where: { active: false }, orderBy: { lastDate: "desc" } }),
-    prisma.category.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    getPausedRecurrings(),
+    getCategoryOptions(),
   ]);
 
   const outflows = recurrings.filter((r) => r.amount < 0);

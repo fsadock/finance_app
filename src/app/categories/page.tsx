@@ -1,13 +1,14 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { prisma } from "@/lib/infra/db";
+import { getBudgetCategories } from "@/lib/data/categories";
 import { formatBRL, lastMonthKeys } from "@/lib/domain/format";
 import { CategoriesTrendChart } from "@/components/categories/trend-chart";
 import { PeriodPicker } from "@/components/period-picker";
 import { parsePeriod, formatPeriodLabel } from "@/lib/domain/period";
 import { CategoryCreateDialog } from "@/components/category-create-dialog";
 import { BudgetEditor } from "@/components/budget-editor";
-import { getCategorySpend, getRebalanceSuggestions } from "@/lib/data/queries";
+import { getRebalanceSuggestions } from "@/lib/data/budgets";
+import { getCategorySpend } from "@/lib/data/spending";
 import { getBudgetsForMonth, getCategorySpendByMonth } from "@/lib/data/budgets";
 import { RebalanceSuggestions } from "@/components/rebalance-suggestions";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
   const anchor = period.date;
   const months = lastMonthKeys(6, anchor);
 
-  const categories = await prisma.category.findMany({ where: { excludeFromBudget: false }, orderBy: { name: "asc" } });
+  const categories = await getBudgetCategories();
   const [budgets, spend, history, suggestions] = await Promise.all([
     getBudgetsForMonth(anchor),
     getCategorySpend(anchor),

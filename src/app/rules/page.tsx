@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
-import { prisma } from "@/lib/infra/db";
+import { getRules } from "@/lib/data/rules";
+import { getCategoryOptions } from "@/lib/data/categories";
 import { Search, Sparkles, User } from "lucide-react";
 import { RuleCategorySelect, DeleteRuleButton } from "@/components/rules/rule-row-actions";
 import { ReclassifyPanel } from "@/components/rules/reclassify-panel";
@@ -14,18 +15,8 @@ export default async function RulesPage({ searchParams }: Props) {
   const q = sp.q?.trim().toLowerCase();
   const source = sp.source === "AI" || sp.source === "USER" ? sp.source : undefined;
 
-  const [rules, categories, counts] = await Promise.all([
-    prisma.merchantRule.findMany({
-      where: { ...(q ? { pattern: { contains: q } } : {}), ...(source ? { source } : {}) },
-      include: { category: { select: { name: true, color: true } } },
-      orderBy: [{ hits: "desc" }, { pattern: "asc" }],
-      take: 500,
-    }),
-    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.merchantRule.groupBy({ by: ["source"], _count: true }),
-  ]);
+  const [{ rules, count }, categories] = await Promise.all([getRules({ q, source }), getCategoryOptions()]);
   const backup = await getReclassifyBackupInfo();
-  const count = (s: string) => counts.find((c) => c.source === s)?._count ?? 0;
 
   return (
     <>

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Wand2 } from "lucide-react";
+import { errorMessage } from "@/lib/utils";
 
 export function CategorizePendingButton({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
@@ -25,7 +26,7 @@ export function CategorizePendingButton({ compact = false }: { compact?: boolean
       );
       startTransition(() => router.refresh());
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Erro");
+      setMsg(errorMessage(e, "Erro"));
     } finally {
       setBusy(false);
     }

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSetting } from "@/lib/infra/settings";
+import { errorMessage } from "@/lib/utils";
 
 let cached: { key: string; client: Anthropic } | null = null;
 
@@ -27,7 +28,7 @@ export function aiErrorMessage(e: unknown): string {
     if (e.status === 401) return "IA indisponível: chave da Anthropic inválida ou revogada.";
     return `IA indisponível: ${msg}`;
   }
-  return `IA indisponível: ${e instanceof Error ? e.message : String(e)}`;
+  return `IA indisponível: ${errorMessage(e)}`;
 }
 
 /** 1-output-token call that proves a key works and has credits. Returns a user-facing reason, or null. */

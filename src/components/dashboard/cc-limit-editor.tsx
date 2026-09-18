@@ -5,6 +5,7 @@ import { Pencil, Check, X, Loader2, CreditCard } from "lucide-react";
 import { setCCMonthlyLimit, setCCCycleCloseDay } from "@/app/actions/accounts";
 import { formatBRL } from "@/lib/domain/format";
 import { parseBRLInput } from "@/lib/domain/brazil";
+import { errorMessage } from "@/lib/utils";
 
 export function CCLimitEditor({
   current,
@@ -50,7 +51,7 @@ export function CCLimitEditor({
         await setCCCycleCloseDay(day);
         setEditing(false);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro");
+        setError(errorMessage(e, "Erro"));
       }
     });
   }

@@ -1,41 +1,17 @@
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
-import { prisma } from "@/lib/infra/db";
+import { getGoalsWithAccounts } from "@/lib/data/goals";
+import { goalProgress } from "@/lib/domain/goals";
 import { formatBRL, formatBRLCompact, startOfDay } from "@/lib/domain/format";
 import { Link2, Target } from "lucide-react";
 import { AddGoalButton, EditGoalButton } from "@/components/goal-editor";
 import { GoalDeleteButton } from "@/components/goal-delete-button";
-import { differenceInCalendarDays, differenceInCalendarMonths } from "date-fns";
 
 export default async function GoalsPage() {
-  const [goals, accounts] = await Promise.all([
-    prisma.goal.findMany({
-      orderBy: [{ createdAt: "asc" }],
-      include: { account: { select: { name: true, balance: true } } },
-    }),
-    prisma.account.findMany({
-      where: { hidden: false, type: { not: "CREDIT_CARD" } },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, institution: true },
-    }),
-  ]);
+  const { goals, accounts } = await getGoalsWithAccounts();
 
   const today = startOfDay(new Date());
-  const rows = goals.map((g) => {
-    // linked goals follow the account balance
-    const saved = g.account ? Math.max(0, g.account.balance) : g.currentAmount;
-    const remaining = Math.max(0, g.targetAmount - saved);
-    const daysLeft = g.deadline ? differenceInCalendarDays(g.deadline, today) : null;
-    const monthsLeft = g.deadline ? Math.max(1, differenceInCalendarMonths(g.deadline, today)) : null;
-    return {
-      goal: g,
-      saved,
-      remaining,
-      pct: g.targetAmount > 0 ? Math.min(100, (saved / g.targetAmount) * 100) : 0,
-      daysLeft,
-      monthlyNeeded: daysLeft !== null && daysLeft > 0 && remaining > 0 ? remaining / monthsLeft! : null,
-    };
-  });
+  const rows = goals.map((g) => goalProgress(g, today));
   const totalSaved = rows.reduce((s, r) => s + r.saved, 0);
   const totalTarget = goals.reduce((s, g) => s + g.targetAmount, 0);
 

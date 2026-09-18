@@ -1,105 +1,36 @@
-import { aiErrorMessage, getAnthropic, getAnthropicOrNull, MODEL_FAST } from "@/lib/ai/client";
-import { prisma } from "@/lib/infra/db";
-import { merchantPattern } from "@/lib/domain/merchant";
-import {
-  CATEGORIZE_BATCH_SIZE,
-  CATEGORIZE_MIN_CONFIDENCE,
-  CATEGORIZE_CACHE_RULE_MIN_CONFIDENCE,
-} from "@/lib/domain/constants";
+import { getAnthropic, MODEL_FAST } from "@/lib/ai/client";
 import { withRetry } from "@/lib/infra/retry";
 import { logger } from "@/lib/infra/logger";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 
-type Suggestion = { txId: string; categoryName: string; confidence: number };
+export type CategorySuggestion = { txId: string; categoryName: string; confidence: number };
 
-type TxInput = { id: string; description: string; merchantRaw: string | null; counterpartyName?: string | null };
-type RuleInput = { pattern: string; categoryId: string; id: string };
-
-/** Pure pass-1 rule matching — no DB calls. Returns matched tx→categoryId pairs and unmatched remainder. */
-export function matchRulesToTransactions<T extends TxInput>(
-  txs: T[],
-  rules: RuleInput[]
-): { matched: Array<{ tx: T; rule: RuleInput }>; remaining: T[] } {
-  const ruleMap = new Map(rules.map((r) => [r.pattern, r]));
-  const matched: Array<{ tx: T; rule: RuleInput }> = [];
-  const remaining: T[] = [];
-
-  for (const t of txs) {
-    const pattern = merchantPattern(t);
-    const rule = pattern ? ruleMap.get(pattern) : undefined;
-    if (rule) {
-      matched.push({ tx: t, rule });
-    } else {
-      remaining.push(t);
-    }
-  }
-
-  return { matched, remaining };
-}
+/** What the prompt shows Claude about each transaction. */
+type TxForAI = {
+  id: string;
+  description: string;
+  merchantRaw: string | null;
+  amount: number;
+  date: Date;
+  paymentMethod: string | null;
+  counterpartyName: string | null;
+  counterpartyType: string | null;
+  merchantName: string | null;
+  merchantCnae: string | null;
+  mcc: number | null;
+  installmentNumber: number | null;
+  totalInstallments: number | null;
+  pluggyCategory: string | null;
+  account: { type: string };
+};
 
 /**
- * Categorizes one batch of REVIEW transactions (rules first, then AI).
- * Pass the ids returned in `attemptedIds` from previous passes as `skipIds` — otherwise transactions the
- * AI can't classify confidently are re-fetched on every pass and block everything behind them.
+ * Asks Claude for a category per transaction (Brazilian rules in the system prompt, cached).
+ * Only talks to the API: applying the suggestions is up to the caller (jobs/categorize.ts).
+ * Throws on API errors and on unparseable output.
  */
-async function categorizeReviewTransactions(skipIds: string[] = [], { useAI = true } = {}) {
-  const [txs, categories, rules] = await Promise.all([
-    prisma.transaction.findMany({
-      where: { status: "REVIEW", ...(skipIds.length > 0 ? { id: { notIn: skipIds } } : {}) },
-      orderBy: { date: "desc" },
-      select: {
-        id: true,
-        description: true,
-        merchantRaw: true,
-        amount: true,
-        date: true,
-        paymentMethod: true,
-        counterpartyName: true,
-        counterpartyType: true,
-        merchantName: true,
-        merchantCnae: true,
-        mcc: true,
-        installmentNumber: true,
-        totalInstallments: true,
-        pluggyCategory: true,
-        account: { select: { type: true } },
-      },
-      take: CATEGORIZE_BATCH_SIZE,
-    }),
-    prisma.category.findMany({ where: { excludeFromBudget: false } }),
-    prisma.merchantRule.findMany(),
-  ]);
-
-  const attemptedIds = txs.map((t) => t.id);
-  if (txs.length === 0) {
-    return { applied: 0, fromRules: 0, fromAI: 0, attemptedIds, suggestions: [] as Suggestion[] };
-  }
-
-  const catByName = new Map(categories.map((c) => [c.name, c]));
-
-  // Pass 1: apply existing rules
-  const { matched, remaining } = matchRulesToTransactions(txs, rules);
-  let fromRules = 0;
-  for (const { tx: t, rule } of matched) {
-    await prisma.$transaction([
-      prisma.transaction.update({
-        where: { id: t.id },
-        data: { categoryId: rule.categoryId, status: "POSTED" },
-      }),
-      prisma.merchantRule.update({
-        where: { id: rule.id },
-        data: { hits: { increment: 1 } },
-      }),
-    ]);
-    fromRules++;
-  }
-
-  if (remaining.length === 0 || !useAI) {
-    return { applied: fromRules, fromRules, fromAI: 0, attemptedIds, suggestions: [] as Suggestion[] };
-  }
-
-  // Pass 2: AI classify the rest
+export async function suggestCategories(remaining: TxForAI[], categories: { name: string; group: string | null }[]) {
   const categoryNames = categories.map((c) => c.name);
   const categoryList = categories.map((c) => `- ${c.name}${c.group ? ` (${c.group})` : ""}`).join("\n");
 
@@ -199,74 +130,11 @@ async function categorizeReviewTransactions(skipIds: string[] = [], { useAI = tr
   const parsed = resp.parsed_output;
   if (!parsed) throw new Error(`Claude returned no parseable output (stop_reason=${resp.stop_reason})`);
 
-  let fromAI = 0;
-  // Build txId -> tx map for merchant lookup
-  const txById = new Map(remaining.map((t) => [t.id, t]));
-  for (const s of parsed.suggestions) {
-    const cat = catByName.get(s.categoryName);
-    if (!cat) continue;
-    if (s.confidence < CATEGORIZE_MIN_CONFIDENCE) continue;
-    const tx = txById.get(s.txId);
-    if (!tx) continue;
-
-    await prisma.transaction.update({
-      where: { id: s.txId },
-      data: { categoryId: cat.id, status: "POSTED" },
-    });
-    fromAI++;
-
-    // Cache rule for future tx
-    const pattern = merchantPattern(tx);
-    if (pattern && s.confidence >= CATEGORIZE_CACHE_RULE_MIN_CONFIDENCE) {
-      const existing = await prisma.merchantRule.findUnique({ where: { pattern }, select: { source: true } });
-      if (!existing) {
-        await prisma.merchantRule.create({
-          data: { pattern, categoryId: cat.id, confidence: s.confidence, source: "AI", hits: 1 },
-        });
-      } else if (existing.source === "AI") {
-        // never overwrite USER rules
-        await prisma.merchantRule.update({
-          where: { pattern },
-          data: { categoryId: cat.id, confidence: s.confidence },
-        });
-      }
-    }
-  }
-
   const usage = {
     input: resp.usage.input_tokens,
     output: resp.usage.output_tokens,
     cacheRead: resp.usage.cache_read_input_tokens ?? 0,
     cacheCreation: resp.usage.cache_creation_input_tokens ?? 0,
   };
-  logger.info("ai:categorize", { fromRules, fromAI, ...usage });
-
-  return { applied: fromRules + fromAI, fromRules, fromAI, attemptedIds, suggestions: parsed.suggestions, usage };
-}
-
-/**
- * Categorizes every REVIEW transaction: passes continue until each has been tried once.
- * Returns the AI error (if any) instead of throwing, so callers can show it.
- */
-export async function categorizeAllPending(maxPasses = 150) {
-  // Without a key the AI is simply skipped: merchant rules still apply, the rest waits in REVIEW.
-  const useAI = Boolean(await getAnthropicOrNull());
-  const out = { applied: 0, fromRules: 0, fromAI: 0, remaining: 0, error: null as string | null, aiConfigured: useAI };
-  const attempted: string[] = [];
-  for (let i = 0; i < maxPasses; i++) {
-    try {
-      const r = await categorizeReviewTransactions(attempted, { useAI });
-      if (r.attemptedIds.length === 0) break;
-      attempted.push(...r.attemptedIds);
-      out.applied += r.applied;
-      out.fromRules += r.fromRules;
-      out.fromAI += r.fromAI;
-    } catch (e) {
-      out.error = aiErrorMessage(e);
-      logger.error("ai:categorize_failed", { pass: i + 1, error: e instanceof Error ? e.message : String(e) });
-      break;
-    }
-  }
-  out.remaining = await prisma.transaction.count({ where: { status: "REVIEW" } });
-  return out;
+  return { suggestions: parsed.suggestions as CategorySuggestion[], usage };
 }

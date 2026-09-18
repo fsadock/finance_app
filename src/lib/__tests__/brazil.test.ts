@@ -100,7 +100,7 @@ describe("classifyFlow", () => {
   });
 });
 
-import { futureValue, monthlyRate, realRate } from "@/lib/data/rates";
+import { futureValue, monthlyRate, realRate } from "@/lib/domain/investments";
 
 describe("rates", () => {
   it("compounds monthly to the annual rate", () => {

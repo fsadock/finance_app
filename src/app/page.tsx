@@ -1,16 +1,12 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
-import {
-  getActiveRecurrings,
-  getCCSpendingData,
-  getMonthBudgetProgress,
-  getMonthSpend,
-  getMonthlyCashflow,
-  getNetWorth,
-  getReviewTransactions,
-  getSpendingPace,
-  getTopCategories,
-} from "@/lib/data/queries";
+import { getMonthBudgetProgress } from "@/lib/data/budgets";
+import { getCCSpendingData } from "@/lib/data/cards";
+import { getMonthlyCashflow } from "@/lib/data/cashflow";
+import { getNetWorth } from "@/lib/data/net-worth";
+import { getActiveRecurrings } from "@/lib/data/recurrings";
+import { getMonthSpend, getSpendingPace, getTopCategories } from "@/lib/data/spending";
+import { getReviewTransactions } from "@/lib/data/transactions";
 import { formatBRL, formatBRLCompact, formatDate, monthKey, startOfDay } from "@/lib/domain/format";
 import Link from "next/link";
 import { ArrowRight, Wallet } from "lucide-react";
@@ -22,7 +18,8 @@ import { PeriodPicker } from "@/components/period-picker";
 import { parsePeriod, formatPeriodLabel } from "@/lib/domain/period";
 import { CategoryPicker } from "@/components/category-picker";
 import { CategorizePendingButton } from "@/components/categorize-pending-button";
-import { prisma } from "@/lib/infra/db";
+import { countAccounts } from "@/lib/data/accounts";
+import { getCategoryOptions } from "@/lib/data/categories";
 import { getPluggyCredentials } from "@/lib/infra/settings";
 import { redirect } from "next/navigation";
 
@@ -30,7 +27,7 @@ type Props = { searchParams: Promise<{ month?: string }> };
 
 export default async function DashboardPage({ searchParams }: Props) {
   // First run: nothing configured and no data yet → go straight to the setup wizard
-  const [pluggy, accounts] = await Promise.all([getPluggyCredentials(), prisma.account.count()]);
+  const [pluggy, accounts] = await Promise.all([getPluggyCredentials(), countAccounts()]);
   if (!pluggy.configured && accounts === 0) redirect("/setup");
 
   const sp = await searchParams;
@@ -46,7 +43,7 @@ export default async function DashboardPage({ searchParams }: Props) {
     getActiveRecurrings(),
     getMonthlyCashflow(6, periodDate),
     getMonthBudgetProgress(periodDate),
-    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, color: true, group: true } }),
+    getCategoryOptions(),
   ]);
 
   const totalBudget = budgets.reduce((s, b) => s + Math.max(0, b.effective), 0);

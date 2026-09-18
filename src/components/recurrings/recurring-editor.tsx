@@ -7,6 +7,7 @@ import { parseBRLInput } from "@/lib/domain/brazil";
 import { formatBRL, toDateInput } from "@/lib/domain/format";
 import { CADENCES, CADENCE_LABEL, CADENCE_TO_MONTHLY, type Cadence } from "@/lib/domain/recurrence";
 import { Card } from "@/components/ui/card";
+import { errorMessage } from "@/lib/utils";
 
 export type RecurringFormValue = {
   id: string;
@@ -52,7 +53,7 @@ export function RecurringEditor({
         await updateRecurring({ id: recurring.id, name, amount: parsed, cadence, nextDate, categoryId: categoryId || null });
         onClose();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro ao salvar");
+        setError(errorMessage(e, "Erro ao salvar"));
       }
     });
   }

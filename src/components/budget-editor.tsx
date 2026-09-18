@@ -5,7 +5,7 @@ import { Pencil, Check, X, Loader2, Trash2, RefreshCcw } from "lucide-react";
 import { setBudget, deleteBudget, toggleRollover } from "@/app/actions/budgets";
 import { formatBRL } from "@/lib/domain/format";
 import { parseBRLInput } from "@/lib/domain/brazil";
-import { cn } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
 
 export function BudgetEditor({
   categoryId,
@@ -46,7 +46,7 @@ export function BudgetEditor({
         await setBudget({ categoryId, monthlyLimit: num, startMonth });
         setEditing(false);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro");
+        setError(errorMessage(e, "Erro"));
       }
     });
   }
@@ -69,7 +69,7 @@ export function BudgetEditor({
         setValue("");
         setEditing(false);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro");
+        setError(errorMessage(e, "Erro"));
       }
     });
   }

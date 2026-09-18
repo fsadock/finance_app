@@ -1,14 +1,14 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
-import { prisma } from "@/lib/infra/db";
+import { getAccountsWithBills } from "@/lib/data/accounts";
+import { getConnections } from "@/lib/data/connections";
+import { getOpenBills } from "@/lib/data/cards";
 import { formatBRL, formatDate, formatDateTime, startOfDay } from "@/lib/domain/format";
 import { Wallet, CreditCard, PiggyBank, TrendingUp, Coins, Banknote, CalendarClock, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { PluggyConnectButton, ReconnectButton } from "@/components/pluggy-connect-button";
 import { HideAccountToggle } from "@/components/accounts/hide-toggle";
-import { getNetWorthHistory } from "@/lib/data/queries";
+import { getNetWorthHistory } from "@/lib/data/net-worth";
 import { getConfigNumber } from "@/lib/infra/config";
-import { resolveBillingCycle } from "@/lib/domain/billing";
-import { FLOW_SELECT, SPEND_WHERE, spendDelta } from "@/lib/domain/flows";
 import { NetWorthChart } from "@/components/dashboard/net-worth-chart";
 import { differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -45,42 +45,13 @@ export default async function AccountsPage() {
   const today = startOfDay(new Date());
 
   const [accounts, history, items, closeDay] = await Promise.all([
-    prisma.account.findMany({
-      orderBy: [{ type: "asc" }, { name: "asc" }],
-      include: { creditCardBills: { orderBy: { dueDate: "desc" }, take: 2 } },
-    }),
+    getAccountsWithBills(),
     getNetWorthHistory(12),
-    prisma.pluggyItem.findMany({ orderBy: { createdAt: "asc" } }),
+    getConnections(),
     getConfigNumber("ccCycleCloseDay"),
   ]);
 
-  // Open fatura per card = net spend inside the current billing cycle
-  const openBill = new Map<string, { total: number; start: Date; end: Date }>();
-  const cards = accounts.filter((a) => a.type === "CREDIT_CARD");
-  const cycles = cards
-    .map((a) => ({
-      id: a.id,
-      cycle: resolveBillingCycle({
-        today,
-        closeDay,
-        balanceCloseDate: a.balanceCloseDate,
-        lastBillDueDate: a.creditCardBills[0]?.dueDate,
-      }),
-    }))
-    .filter((c): c is { id: string; cycle: NonNullable<typeof c.cycle> } => c.cycle !== null);
-  if (cycles.length > 0) {
-    const earliest = cycles.reduce((min, c) => (c.cycle.start < min ? c.cycle.start : min), cycles[0]!.cycle.start);
-    const txs = await prisma.transaction.findMany({
-      where: { AND: [{ accountId: { in: cycles.map((c) => c.id) }, date: { gte: earliest } }, SPEND_WHERE] },
-      select: { ...FLOW_SELECT, accountId: true, date: true },
-    });
-    for (const { id, cycle } of cycles) {
-      const total = txs
-        .filter((t) => t.accountId === id && t.date >= cycle.start && t.date < cycle.end)
-        .reduce((s, t) => s + spendDelta(t), 0);
-      openBill.set(id, { total, ...cycle });
-    }
-  }
+  const openBill = await getOpenBills(accounts, closeDay, today);
 
   const visible = accounts.filter((a) => !a.hidden);
   const totalAssets = visible.filter((a) => a.balance > 0).reduce((s, a) => s + a.balance, 0);

@@ -1,5 +1,6 @@
 import { PluggyClient } from "pluggy-sdk";
 import { getPluggyCredentials, isValidPluggyClientId } from "@/lib/infra/settings";
+import { errorMessage } from "@/lib/utils";
 
 let cached: { key: string; client: PluggyClient } | null = null;
 
@@ -41,7 +42,7 @@ export function pluggyErrorMessage(e: unknown): string {
     const message = (parsed as { message?: string } | undefined)?.message;
     if (message) return `Pluggy: ${message}`;
   }
-  return e instanceof Error ? e.message : "Erro desconhecido";
+  return errorMessage(e, "Erro desconhecido");
 }
 
 function safeJson(s: string) {
