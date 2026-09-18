@@ -2,7 +2,8 @@ import { prisma } from "@/lib/infra/db";
 import { getConfigNumber } from "@/lib/infra/config";
 import { resolveBillingCycle } from "@/lib/domain/billing";
 import { FLOW_SELECT, SPEND_WHERE, spendDelta } from "@/lib/domain/flows";
-import { DAY_MS, localDayKey, monthBounds, monthKey, startOfDay } from "@/lib/domain/format";
+import { DAY_MS, monthBounds, monthKey, startOfDay } from "@/lib/domain/format";
+import { cumulativeSeries, sumByDay } from "@/lib/domain/series";
 
 /** Card spending pace against the monthly card goal, per-account billing cycles. */
 export async function getCCSpendingData(month = new Date()) {
@@ -24,18 +25,9 @@ export async function getCCSpendingData(month = new Date()) {
   const today = startOfDay(new Date());
   const isCurrentMonth = monthKey(month) === monthKey(today);
 
-  const cycles = new Map<string, { start: Date; end: Date }>();
-  for (const c of cards) {
-    const cycle = isCurrentMonth
-      ? resolveBillingCycle({
-          today,
-          closeDay,
-          balanceCloseDate: c.balanceCloseDate,
-          lastBillDueDate: c.creditCardBills[0]?.dueDate,
-        })
-      : null;
-    cycles.set(c.id, cycle ?? { start: monthStart, end: monthEnd });
-  }
+  // Past months use the calendar month for every card.
+  const current = isCurrentMonth ? currentCycles(cards, closeDay, today) : null;
+  const cycles = new Map(cards.map((c) => [c.id, current?.get(c.id) ?? { start: monthStart, end: monthEnd }]));
 
   const chartStart = monthStart;
   let chartEnd = monthEnd;
@@ -66,35 +58,29 @@ export async function getCCSpendingData(month = new Date()) {
       : [];
 
   // Spend before the chart window (cycle started last month) is folded into day one.
-  const byDay = new Map<string, number>();
-  let carriedIn = 0;
-  for (const t of txs) {
+  const inCycle = txs.filter((t) => {
     const cycle = cycles.get(t.accountId)!;
-    if (t.date < cycle.start || t.date >= cycle.end) continue;
-    if (t.date < chartStart) {
-      carriedIn += spendDelta(t);
-      continue;
-    }
-    const key = localDayKey(t.date);
-    byDay.set(key, (byDay.get(key) ?? 0) + spendDelta(t));
-  }
+    return t.date >= cycle.start && t.date < cycle.end;
+  });
+  const carriedIn = inCycle.filter((t) => t.date < chartStart).reduce((s, t) => s + spendDelta(t), 0);
+  const byDay = sumByDay(inCycle.filter((t) => t.date >= chartStart), spendDelta);
 
   const cycleDays = Math.max(1, Math.round((chartEnd.getTime() - billingStart.getTime()) / DAY_MS));
   const chartDays = Math.max(1, Math.round((chartEnd.getTime() - chartStart.getTime()) / DAY_MS));
-  const data: { day: number; label: string; ccActual: number | null; ccIdeal: number | null }[] = [];
-  let cumulative = carriedIn;
-  for (let i = 0; i < chartDays; i++) {
-    const d = new Date(chartStart.getFullYear(), chartStart.getMonth(), chartStart.getDate() + i);
-    const inCycle = d >= billingStart;
-    if (inCycle && d <= today) cumulative += byDay.get(localDayKey(d)) ?? 0;
-    const offset = Math.round((d.getTime() - billingStart.getTime()) / DAY_MS) + 1;
-    data.push({
-      day: i + 1,
-      label: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`,
-      ccActual: inCycle && d <= today ? cumulative : null,
-      ccIdeal: inCycle && totalBudget > 0 ? (totalBudget / cycleDays) * offset : null,
-    });
-  }
+  const cycleStart = billingStart;
+  const { points, total: cumulative } = cumulativeSeries({
+    from: chartStart,
+    days: chartDays,
+    today,
+    byDay,
+    initial: carriedIn,
+    counts: (d) => d >= cycleStart,
+    ideal: (d) =>
+      d >= cycleStart && totalBudget > 0
+        ? (totalBudget / cycleDays) * (Math.round((d.getTime() - cycleStart.getTime()) / DAY_MS) + 1)
+        : null,
+  });
+  const data = points.map(({ actual, ideal, ...p }) => ({ ...p, ccActual: actual, ccIdeal: ideal }));
 
   const currentSpend = isCurrentMonth ? cumulative : [...byDay.values()].reduce((s, v) => s + v, carriedIn);
   const daysLeft = Math.max(1, Math.ceil((nextCloseDate.getTime() - today.getTime()) / DAY_MS));
@@ -119,6 +105,23 @@ export async function getCCSpendingData(month = new Date()) {
   };
 }
 
+type CardCycleInput = { id: string; balanceCloseDate: Date | null; creditCardBills: { dueDate: Date }[] };
+
+/** Each card's current billing cycle; null when it can't be determined yet. */
+function currentCycles(cards: CardCycleInput[], closeDay: number | null, today: Date) {
+  return new Map(
+    cards.map((c) => [
+      c.id,
+      resolveBillingCycle({
+        today,
+        closeDay,
+        balanceCloseDate: c.balanceCloseDate,
+        lastBillDueDate: c.creditCardBills[0]?.dueDate,
+      }),
+    ])
+  );
+}
+
 type CardForBill = {
   id: string;
   type: string;
@@ -130,17 +133,7 @@ type CardForBill = {
 export async function getOpenBills(accounts: CardForBill[], closeDay: number | null, today: Date) {
   const openBill = new Map<string, { total: number; start: Date; end: Date }>();
   const cards = accounts.filter((a) => a.type === "CREDIT_CARD");
-  const cycles = cards
-    .map((a) => ({
-      id: a.id,
-      cycle: resolveBillingCycle({
-        today,
-        closeDay,
-        balanceCloseDate: a.balanceCloseDate,
-        lastBillDueDate: a.creditCardBills[0]?.dueDate,
-      }),
-    }))
-    .filter((c): c is { id: string; cycle: NonNullable<typeof c.cycle> } => c.cycle !== null);
+  const cycles = [...currentCycles(cards, closeDay, today)].flatMap(([id, cycle]) => (cycle ? [{ id, cycle }] : []));
   if (cycles.length > 0) {
     const earliest = cycles.reduce((min, c) => (c.cycle.start < min ? c.cycle.start : min), cycles[0]!.cycle.start);
     const txs = await prisma.transaction.findMany({

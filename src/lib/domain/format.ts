@@ -50,6 +50,11 @@ export function formatMonthKeyShort(key: string) {
   return formatMonthShort(monthKeyToDate(key));
 }
 
+/** "18/09" */
+export function formatDayMonth(d: Date) {
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 /** "18/09/2026" */
 export function formatDateNumeric(d: Date | string) {
   const date = typeof d === "string" ? new Date(d) : d;

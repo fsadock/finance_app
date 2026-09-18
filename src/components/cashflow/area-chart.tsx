@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatBRLCompact } from "@/lib/domain/format";
+import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_STYLE } from "@/components/ui/chart-theme";
 
 const monthLabel = (m: string) => {
   const [y, mm] = m.split("-");
@@ -27,11 +28,11 @@ export function CashflowAreaChart({ data }: { data: { month: string; cumulative:
               <stop offset="100%" stopColor="#00d28d" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="#232831" strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="month" tickFormatter={monthLabel} stroke="#9aa0a6" tickLine={false} axisLine={false} fontSize={11} />
-          <YAxis tickFormatter={(v) => formatBRLCompact(Number(v))} stroke="#9aa0a6" tickLine={false} axisLine={false} fontSize={11} width={70} />
+          <CartesianGrid {...CHART_GRID_PROPS} />
+          <XAxis dataKey="month" tickFormatter={monthLabel} {...CHART_AXIS_PROPS} />
+          <YAxis tickFormatter={(v) => formatBRLCompact(Number(v))} {...CHART_AXIS_PROPS} width={70} />
           <Tooltip
-            contentStyle={{ background: "#15181d", border: "1px solid #232831", borderRadius: 12, fontSize: 12 }}
+            contentStyle={CHART_TOOLTIP_STYLE}
             labelFormatter={(l) => monthLabel(String(l))}
             formatter={(v) => [formatBRLCompact(Number(v)), "Acumulado"]}
           />

@@ -2,6 +2,7 @@
 
 import { ResponsiveContainer, Sankey, Tooltip, Layer, Text } from "recharts";
 import { formatBRLCompact } from "@/lib/domain/format";
+import { CHART_TOOLTIP_STYLE } from "@/components/ui/chart-theme";
 
 type Props = {
   data: {
@@ -33,7 +34,7 @@ function SankeyNode({ x, y, width, height, index, payload, containerWidth }: Nod
         textAnchor={isOut ? "end" : "start"}
         verticalAnchor="middle"
         fontSize={12}
-        fill="#9aa0a6"
+        fill="var(--color-fg-muted)"
       >
         {payload.name}
       </Text>
@@ -81,12 +82,7 @@ export function CashflowSankey({ data }: Props) {
           nodePadding={40}
         >
           <Tooltip
-            contentStyle={{
-              background: "#15181d",
-              border: "1px solid #232831",
-              borderRadius: 12,
-              fontSize: 12,
-            }}
+            contentStyle={CHART_TOOLTIP_STYLE}
             formatter={(v) => formatBRLCompact(Number(v))}
           />
         </Sankey>

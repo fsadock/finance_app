@@ -2,6 +2,7 @@
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { formatBRL } from "@/lib/domain/format";
+import { CHART_TOOLTIP_STYLE } from "@/components/ui/chart-theme";
 
 export function InvestmentDonut({ data }: { data: { name: string; value: number; color: string }[] }) {
   return (
@@ -14,7 +15,7 @@ export function InvestmentDonut({ data }: { data: { name: string; value: number;
             ))}
           </Pie>
           <Tooltip
-            contentStyle={{ background: "#15181d", border: "1px solid #232831", borderRadius: 12, fontSize: 12 }}
+            contentStyle={CHART_TOOLTIP_STYLE}
             formatter={(v, n) => [formatBRL(Number(v)), n]}
           />
         </PieChart>

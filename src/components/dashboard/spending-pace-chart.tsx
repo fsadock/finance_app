@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatBRLCompact } from "@/lib/domain/format";
+import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_STYLE } from "@/components/ui/chart-theme";
 
 type Row = {
   day: number;
@@ -32,30 +33,19 @@ export function SpendingPaceChart({ data, showCC = false }: { data: Row[]; showC
     <div className="h-[280px] -mx-2">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
-          <CartesianGrid stroke="#232831" strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid {...CHART_GRID_PROPS} />
           <XAxis
             dataKey="label"
-            stroke="#9aa0a6"
-            tickLine={false}
-            axisLine={false}
-            fontSize={11}
+            {...CHART_AXIS_PROPS}
             interval={4}
           />
           <YAxis
             tickFormatter={(v) => formatBRLCompact(v)}
-            stroke="#9aa0a6"
-            tickLine={false}
-            axisLine={false}
-            fontSize={11}
+            {...CHART_AXIS_PROPS}
             width={70}
           />
           <Tooltip
-            contentStyle={{
-              background: "#15181d",
-              border: "1px solid #232831",
-              borderRadius: 12,
-              fontSize: 12,
-            }}
+            contentStyle={CHART_TOOLTIP_STYLE}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             formatter={(v: any, n: any) => [
               formatBRLCompact(Number(v)),
@@ -66,7 +56,7 @@ export function SpendingPaceChart({ data, showCC = false }: { data: Row[]; showC
           <Line
             type="monotone"
             dataKey="ideal"
-            stroke="#9aa0a6"
+            stroke="var(--color-fg-muted)"
             strokeDasharray="5 5"
             dot={false}
             strokeWidth={1}

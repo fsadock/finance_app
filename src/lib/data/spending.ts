@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/infra/db";
 import { FLOW_SELECT, INCOME_WHERE, SPEND_WHERE, spendDelta } from "@/lib/domain/flows";
-import { DAY_MS, localDayKey, monthBounds, startOfDay } from "@/lib/domain/format";
+import { DAY_MS, monthBounds, startOfDay } from "@/lib/domain/format";
+import { cumulativeSeries, sumByDay } from "@/lib/domain/series";
 
 /** Spent = expenses − refunds (estornos); income = income categories / uncategorized deposits. */
 export async function getMonthSpend(month = new Date()) {
@@ -50,26 +51,15 @@ export async function getSpendingPace(month: Date, totalBudget: number, chartSta
   const monthDays = Math.round((monthEnd.getTime() - monthStart.getTime()) / DAY_MS);
   const chartDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / DAY_MS));
 
-  const byDay = new Map<string, number>();
-  for (const t of txs) {
-    const key = localDayKey(t.date);
-    byDay.set(key, (byDay.get(key) ?? 0) + spendDelta(t));
-  }
-
-  const today = startOfDay(new Date());
-  const data: { day: number; label: string; actual: number | null; ideal: number | null }[] = [];
-  let cumulative = 0;
-  for (let i = 0; i < chartDays; i++) {
-    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i);
-    const inMonth = d >= monthStart && d < monthEnd;
-    if (inMonth && d <= today) cumulative += byDay.get(localDayKey(d)) ?? 0;
-    data.push({
-      day: i + 1,
-      label: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`,
-      actual: inMonth && d <= today ? cumulative : null,
-      ideal: inMonth && totalBudget > 0 ? (totalBudget / monthDays) * d.getDate() : null,
-    });
-  }
+  const inMonth = (d: Date) => d >= monthStart && d < monthEnd;
+  const { points: data } = cumulativeSeries({
+    from,
+    days: chartDays,
+    today: startOfDay(new Date()),
+    byDay: sumByDay(txs, spendDelta),
+    counts: inMonth,
+    ideal: (d) => (inMonth(d) && totalBudget > 0 ? (totalBudget / monthDays) * d.getDate() : null),
+  });
 
   const currentSpend = Math.max(0, txs.reduce((s, t) => s + spendDelta(t), 0));
   return { data, totalBudget, currentSpend };
