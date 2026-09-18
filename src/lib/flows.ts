@@ -7,9 +7,9 @@ import type { Prisma } from "@/generated/prisma/client";
  *  - income:  money in an income category, or uncategorized money into a non-card account
  * Transfers, card bill payments and investment moves are excluded upstream via `BUDGET_RELEVANT`.
  */
-export type Flow = "expense" | "refund" | "income";
+type Flow = "expense" | "refund" | "income";
 
-export type FlowInput = {
+type FlowInput = {
   amount: number;
   categoryId: string | null;
   account: { type: string };
@@ -50,7 +50,7 @@ export const INCOME_WHERE: Prisma.TransactionWhereInput = {
   ],
 };
 
-export const REFUND_WHERE: Prisma.TransactionWhereInput = {
+const REFUND_WHERE: Prisma.TransactionWhereInput = {
   AND: [
     BUDGET_RELEVANT,
     { amount: { gt: 0 } },

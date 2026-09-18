@@ -5,7 +5,7 @@ import { Loader2, X } from "lucide-react";
 import { updateRecurring } from "@/app/actions/recurrings";
 import { parseBRLInput } from "@/lib/brazil";
 import { formatBRL, toDateInput } from "@/lib/format";
-import { CADENCE_LABEL, CADENCE_TO_MONTHLY, type Cadence } from "@/lib/recurrence";
+import { CADENCES, CADENCE_LABEL, CADENCE_TO_MONTHLY, type Cadence } from "@/lib/recurrence";
 import { Card } from "@/components/ui/card";
 
 export type RecurringFormValue = {
@@ -80,7 +80,7 @@ export function RecurringEditor({
             <div>
               <label className={labelClass}>Frequência</label>
               <select value={cadence} onChange={(e) => setCadence(e.target.value as Cadence)} className={inputClass}>
-                {(Object.keys(CADENCE_LABEL) as Cadence[]).map((c) => (
+                {CADENCES.map((c) => (
                   <option key={c} value={c}>
                     {CADENCE_LABEL[c]}
                   </option>

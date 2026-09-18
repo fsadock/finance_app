@@ -43,7 +43,7 @@ export function matchRulesToTransactions<T extends TxInput>(
  * Pass the ids returned in `attemptedIds` from previous passes as `skipIds` — otherwise transactions the
  * AI can't classify confidently are re-fetched on every pass and block everything behind them.
  */
-export async function categorizeReviewTransactions(skipIds: string[] = [], { useAI = true } = {}) {
+async function categorizeReviewTransactions(skipIds: string[] = [], { useAI = true } = {}) {
   const [txs, categories, rules] = await Promise.all([
     prisma.transaction.findMany({
       where: { status: "REVIEW", ...(skipIds.length > 0 ? { id: { notIn: skipIds } } : {}) },

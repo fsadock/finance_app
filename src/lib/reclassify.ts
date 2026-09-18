@@ -1,14 +1,12 @@
 import { prisma } from "./db";
+import { RECLASSIFY_CONFIRMATION } from "./constants";
+import { deleteConfig, getConfig, setConfig } from "./config";
 import { merchantPattern } from "./ai/merchant";
 import { deterministicCategory } from "./brazil";
 import { applyDeterministicRules } from "./deterministic";
 import { categorizeAllPending } from "./ai/categorize";
 import { checkAiAvailable } from "./ai/client";
 
-/** What the user must type to run a reclassification (checked on the server too). */
-export const RECLASSIFY_CONFIRMATION = "RECLASSIFICAR";
-
-const BACKUP_KEY = "reclassify_backup";
 
 type Backup = {
   createdAt: string;
@@ -98,7 +96,7 @@ export async function runReclassify(confirmation: string) {
   const value = JSON.stringify(backup);
 
   await prisma.$transaction([
-    prisma.appConfig.upsert({ where: { key: BACKUP_KEY }, create: { key: BACKUP_KEY, value }, update: { value } }),
+    setConfig("reclassifyBackup", value),
     prisma.merchantRule.deleteMany({ where: { source: "AI" } }),
     prisma.transaction.updateMany({
       where: { id: { in: plan.toReset.map((t) => t.id) } },
@@ -119,9 +117,9 @@ export async function runReclassify(confirmation: string) {
 }
 
 export async function getReclassifyBackupInfo() {
-  const row = await prisma.appConfig.findUnique({ where: { key: BACKUP_KEY } });
-  if (!row) return null;
-  const backup = JSON.parse(row.value) as Backup;
+  const saved = await getConfig("reclassifyBackup");
+  if (!saved) return null;
+  const backup = JSON.parse(saved) as Backup;
   return { createdAt: backup.createdAt, rules: backup.rules.length, transactions: backup.transactions.length };
 }
 
@@ -131,9 +129,9 @@ export async function getReclassifyBackupInfo() {
  * creates one of your rules, and those win).
  */
 export async function undoReclassify() {
-  const row = await prisma.appConfig.findUnique({ where: { key: BACKUP_KEY } });
-  if (!row) return { ok: false as const, error: "Nenhuma reclassificação para desfazer." };
-  const backup = JSON.parse(row.value) as Backup;
+  const saved = await getConfig("reclassifyBackup");
+  if (!saved) return { ok: false as const, error: "Nenhuma reclassificação para desfazer." };
+  const backup = JSON.parse(saved) as Backup;
   const createdAt = new Date(backup.createdAt);
 
   const [existingPatterns, userPatterns, current] = await Promise.all([
@@ -166,7 +164,7 @@ export async function undoReclassify() {
         data: { categoryId: t.categoryId, status: t.status, excludeFromBudget: t.excludeFromBudget },
       })
     ),
-    prisma.appConfig.delete({ where: { key: BACKUP_KEY } }),
+    deleteConfig("reclassifyBackup"),
   ]);
   return {
     ok: true as const,

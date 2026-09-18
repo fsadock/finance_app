@@ -3,7 +3,7 @@ import { lastMonthKeys, monthKey, monthKeyToDate } from "./format";
 import { FLOW_SELECT, SPEND_WHERE, spendDelta } from "./flows";
 
 /** How many months of history rollover looks back over. */
-export const ROLLOVER_WINDOW_MONTHS = 6;
+const ROLLOVER_WINDOW_MONTHS = 6;
 
 type BudgetRow = { categoryId: string; startMonth: string; monthlyLimit: number };
 
@@ -45,7 +45,7 @@ export function effectiveWithRollover(
   return effective;
 }
 
-export type CategoryBudget = { limit: number; effective: number };
+type CategoryBudget = { limit: number; effective: number };
 
 /**
  * Budget in effect for every category that has one in `month` (carry-forward), plus the

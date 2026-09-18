@@ -19,14 +19,14 @@
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && eslint && vitest run",
     "db:deploy": "prisma migrate deploy",
-    "db:setup": "prisma migrate deploy && tsx prisma/seed.ts"
+    "db:setup": "prisma migrate deploy && tsx prisma/seed.ts",
+    "unused": "pnpm dlx knip@5"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
     "@prisma/adapter-better-sqlite3": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "better-sqlite3": "^12.9.0",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^1.11.0",

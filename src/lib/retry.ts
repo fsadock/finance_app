@@ -11,7 +11,7 @@ function statusOf(err: unknown): number | undefined {
 }
 
 /** Network errors, timeouts, rate limits and 5xx are worth retrying; other 4xx (bad key, no credits) are not. */
-export function isRetryable(err: unknown) {
+function isRetryable(err: unknown) {
   const status = statusOf(err);
   return status === undefined || status >= 500 || status === 408 || status === 409 || status === 429;
 }

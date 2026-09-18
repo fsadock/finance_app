@@ -2,17 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { deleteSetting, getPluggyCredentials, getSetting, getSetupStatus, saveSetting } from "@/lib/settings";
+import { deleteSetting, getPluggyCredentials, getSetting, saveSetting } from "@/lib/settings";
 import { testPluggyCredentials } from "@/lib/pluggy/client";
 import { testAnthropicKey } from "@/lib/ai/client";
 
 type Result = { ok: true; message: string } | { ok: false; error: string };
 
 const text = z.string().max(500);
-
-export async function getSetupStatusAction() {
-  return getSetupStatus();
-}
 
 /**
  * Tests the Pluggy credentials against the real API and saves them only if they work.

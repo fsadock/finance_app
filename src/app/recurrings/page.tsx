@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
-import { formatBRL, formatDate } from "@/lib/format";
+import { formatBRL, formatDate, formatDateNumeric, formatMonthShort } from "@/lib/format";
 import { Sparkles, Receipt, TrendingUp, TrendingDown, AlertTriangle, Home, type LucideIcon } from "lucide-react";
 import { getActiveRecurrings } from "@/lib/queries";
 import { CADENCE_LABEL, type Cadence } from "@/lib/recurrence";
@@ -16,13 +16,11 @@ const HOUSING_CATEGORIES = new Set(["Aluguel", "Contas de casa"]);
 type Item = Awaited<ReturnType<typeof getActiveRecurrings>>[number];
 
 const sum = (items: Item[], f: (i: Item) => number) => items.filter((r) => !r.likelyInactive).reduce((s, r) => s + f(r), 0);
-const dayMonthYear = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 /** Every charge the "Pago em 12 meses" sum includes, oldest first. */
 const chargesTooltip = (charges: { date: Date; amount: number }[]) =>
   charges.length === 0
     ? "Nenhuma cobrança ligada nos últimos 12 meses"
-    : charges.map((c) => `${dayMonthYear.format(c.date)}  ${formatBRL(Math.abs(c.amount))}`).join("\n");
-const shortMonth = (d: Date) => new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" }).format(d);
+    : charges.map((c) => `${formatDateNumeric(c.date)}  ${formatBRL(Math.abs(c.amount))}`).join("\n");
 
 function RecurringSection({
   title,
@@ -79,7 +77,7 @@ function RecurringSection({
                       >
                         {r.priceChange > 0 ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
                         {r.priceChange > 0 ? "+" : ""}
-                        {Math.round(r.priceChange * 100)}% desde {shortMonth(r.firstCharge.date)}
+                        {Math.round(r.priceChange * 100)}% desde {formatMonthShort(r.firstCharge.date)}
                       </span>
                     )}
                     {r.autoChange && <AutoChangeBadge id={r.id} change={r.autoChange} />}

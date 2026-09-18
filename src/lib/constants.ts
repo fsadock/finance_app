@@ -1,3 +1,6 @@
+// Reclassification: what the user must type to confirm (checked on screen and on the server)
+export const RECLASSIFY_CONFIRMATION = "RECLASSIFICAR";
+
 // Transfer detection
 export const TRANSFER_PAIR_DAY_WINDOW = 5;
 export const TRANSFER_AMOUNT_TOLERANCE_RATE = 0.005; // 0.5% of amount

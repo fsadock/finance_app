@@ -13,7 +13,7 @@ import { formatBRLCompact } from "@/lib/format";
 
 type Row = { month: number; conservative: number; expected: number; aggressive: number };
 
-export type ProjectionLabels = { conservative: string; expected: string; aggressive: string };
+type ProjectionLabels = { conservative: string; expected: string; aggressive: string };
 
 export function ProjectionChart({ data, labels }: { data: Row[]; labels: ProjectionLabels }) {
   const yearTick = (m: number) => (m % 12 === 0 ? `${m / 12}a` : "");

@@ -1,7 +1,9 @@
 import { addDays, addMonths, differenceInCalendarDays } from "date-fns";
 import { localDayKey, startOfDay } from "./format";
 
-export type Cadence = "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+/** Same values as the RecurringCadence enum in schema.prisma (checked at compile time in actions/recurrings.ts). */
+export const CADENCES = ["WEEKLY", "BIWEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"] as const;
+export type Cadence = (typeof CADENCES)[number];
 
 export const CADENCE_LABEL: Record<Cadence, string> = {
   WEEKLY: "Semanal",
@@ -19,7 +21,7 @@ export const CADENCE_TO_MONTHLY: Record<Cadence, number> = {
   YEARLY: 1 / 12,
 };
 
-export const CADENCE_DAYS: Record<Cadence, number> = {
+const CADENCE_DAYS: Record<Cadence, number> = {
   WEEKLY: 7,
   BIWEEKLY: 14,
   MONTHLY: 30,
@@ -85,7 +87,7 @@ export function nextDueDate(lastDate: Date, cadence: Cadence, today = new Date()
 export type Charge = { date: Date; amount: number };
 
 /** Whether a gap between two charges is plausible for the cadence (bills drift a few days). */
-export function fitsCadence(days: number, cadence: Cadence): boolean {
+function fitsCadence(days: number, cadence: Cadence): boolean {
   const ratio = days / CADENCE_DAYS[cadence];
   return ratio >= 0.6 && ratio <= 1.6;
 }

@@ -7,8 +7,8 @@ import { previewReclassifyAction, runReclassifyAction, undoReclassifyAction } fr
 import type { ReclassifyPreview } from "@/lib/reclassify";
 import { Card } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/format";
+import { RECLASSIFY_CONFIRMATION } from "@/lib/constants";
 
-const CONFIRMATION = "RECLASSIFICAR";
 
 export function ReclassifyPanel({ backup }: { backup: { createdAt: string; rules: number; transactions: number } | null }) {
   const router = useRouter();
@@ -117,7 +117,7 @@ export function ReclassifyPanel({ backup }: { backup: { createdAt: string; rules
                 </li>
               </ul>
               <label className="block text-xs text-fg-muted">
-                Para confirmar, digite <code className="text-fg">{CONFIRMATION}</code>
+                Para confirmar, digite <code className="text-fg">{RECLASSIFY_CONFIRMATION}</code>
               </label>
               <div className="flex items-center gap-2 flex-wrap">
                 <input
@@ -125,12 +125,12 @@ export function ReclassifyPanel({ backup }: { backup: { createdAt: string; rules
                   onChange={(e) => setTyped(e.target.value)}
                   disabled={pending || Boolean(preview.aiUnavailable)}
                   className="w-48 bg-bg-elev border border-border rounded-md px-2 py-1 outline-none focus:border-danger font-mono"
-                  placeholder={CONFIRMATION}
+                  placeholder={RECLASSIFY_CONFIRMATION}
                   autoComplete="off"
                 />
                 <button
                   onClick={run}
-                  disabled={pending || typed.trim() !== CONFIRMATION || Boolean(preview.aiUnavailable) || preview.transactionsToReset + preview.aiRules === 0}
+                  disabled={pending || typed.trim() !== RECLASSIFY_CONFIRMATION || Boolean(preview.aiUnavailable) || preview.transactionsToReset + preview.aiRules === 0}
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-danger text-bg font-medium text-sm disabled:opacity-40"
                 >
                   {pending && <Loader2 className="size-3.5 animate-spin" />} Reclassificar

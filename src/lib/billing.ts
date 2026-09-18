@@ -1,7 +1,7 @@
 import { addDays, addMonths } from "date-fns";
 import { startOfDay } from "./format";
 
-export type BillingCycle = { start: Date; end: Date; source: "closeDay" | "pluggy" | "lastBill" };
+type BillingCycle = { start: Date; end: Date; source: "closeDay" | "pluggy" | "lastBill" };
 
 /** Cycle [start, end) containing `today`, for a card that closes on the same day-of-month as `anchorClose`. */
 export function cycleContaining(anchorClose: Date, today: Date): { start: Date; end: Date } {

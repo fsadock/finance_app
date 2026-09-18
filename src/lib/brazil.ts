@@ -1,3 +1,5 @@
+import { DAY_MS } from "./format";
+
 /**
  * Brazil-specific parsing of bank data: Pix/TED counterparties (CPF vs CNPJ), card installments
  * ("parcelado"), and pt-BR money input.
@@ -24,7 +26,7 @@ export function parseBRLInput(input: string): number | null {
 
 type Participant = { name?: string; documentNumber?: { value?: string; type?: "CPF" | "CNPJ" } } | undefined;
 
-export type Counterparty = { name: string | null; type: "SELF" | "CPF" | "CNPJ" | null };
+type Counterparty = { name: string | null; type: "SELF" | "CPF" | "CNPJ" | null };
 
 /** The other side of a payment: the receiver for money out, the payer for money in. */
 export function resolveCounterparty(
@@ -45,7 +47,7 @@ export function isTransferMethod(method: string | null | undefined) {
   return /\b(PIX|TED|DOC|TEF)\b/i.test(method ?? "");
 }
 
-export type InstallmentInfo = { number: number; total: number };
+type InstallmentInfo = { number: number; total: number };
 
 /**
  * Installment "n/N" from a card description ("LOJA X PARC 03/12", "LOJA X 03/12").
@@ -163,7 +165,7 @@ export function planInstallmentRedates(rows: InstallmentRow[]): { id: string; da
     const anchor = new Date(Math.min(...candidates));
     for (const r of list) {
       const expected = expectedInstallmentDate(anchor, r.installmentNumber!);
-      if (Math.abs(r.date.getTime() - expected.getTime()) > 20 * 86_400_000) out.push({ id: r.id, date: expected });
+      if (Math.abs(r.date.getTime() - expected.getTime()) > 20 * DAY_MS) out.push({ id: r.id, date: expected });
     }
   }
   return out;

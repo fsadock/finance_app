@@ -17,6 +17,7 @@ import {
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -82,7 +83,7 @@ export function Sidebar({ lastSync, setupPending }: { lastSync: string | null; s
         <div>BRL · pt-BR</div>
         <div>
           {lastSync
-            ? `Sincronizado ${new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(lastSync))}`
+            ? `Sincronizado ${formatDateTime(lastSync)}`
             : "Nenhuma sincronização ainda"}
         </div>
       </div>

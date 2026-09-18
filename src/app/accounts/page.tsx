@@ -6,6 +6,7 @@ import { Wallet, CreditCard, PiggyBank, TrendingUp, Coins, Banknote, CalendarClo
 import { PluggyConnectButton, ReconnectButton } from "@/components/pluggy-connect-button";
 import { HideAccountToggle } from "@/components/accounts/hide-toggle";
 import { getNetWorthHistory } from "@/lib/queries";
+import { getConfigNumber } from "@/lib/config";
 import { resolveBillingCycle } from "@/lib/billing";
 import { FLOW_SELECT, SPEND_WHERE, spendDelta } from "@/lib/flows";
 import { NetWorthChart } from "@/components/dashboard/net-worth-chart";
@@ -43,16 +44,15 @@ const ITEM_STATUS: Record<string, { label: string; ok: boolean }> = {
 export default async function AccountsPage() {
   const today = startOfDay(new Date());
 
-  const [accounts, history, items, closeDayConfig] = await Promise.all([
+  const [accounts, history, items, closeDay] = await Promise.all([
     prisma.account.findMany({
       orderBy: [{ type: "asc" }, { name: "asc" }],
       include: { creditCardBills: { orderBy: { dueDate: "desc" }, take: 2 } },
     }),
     getNetWorthHistory(12),
     prisma.pluggyItem.findMany({ orderBy: { createdAt: "asc" } }),
-    prisma.appConfig.findUnique({ where: { key: "cc_cycle_close_day" } }),
+    getConfigNumber("ccCycleCloseDay"),
   ]);
-  const closeDay = closeDayConfig ? parseInt(closeDayConfig.value) : null;
 
   // Open fatura per card = net spend inside the current billing cycle
   const openBill = new Map<string, { total: number; start: Date; end: Date }>();

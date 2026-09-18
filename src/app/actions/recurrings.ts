@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { parseDateInput } from "@/lib/format";
-import { nextDueDate, type AutoChangeRecord, type Cadence } from "@/lib/recurrence";
+import { CADENCES, nextDueDate, type AutoChangeRecord, type Cadence } from "@/lib/recurrence";
+import type { RecurringCadence } from "@/generated/prisma/enums";
+
+// The shared cadence list must match the database enum exactly.
+const sameCadences: [Cadence, RecurringCadence] extends [RecurringCadence, Cadence] ? true : never = true;
+void sameCadences;
 
 const idSchema = z.string().min(1);
 
@@ -35,7 +40,7 @@ const updateSchema = z.object({
   name: z.string().trim().min(1, "Informe um nome").max(80),
   /** Per charge, always positive here; the sign (expense/income) is kept from the recurring. */
   amount: z.number().positive("Valor inválido").max(10_000_000),
-  cadence: z.enum(["WEEKLY", "BIWEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"]),
+  cadence: z.enum(CADENCES),
   /** "YYYY-MM-DD" */
   nextDate: z.string(),
   categoryId: z.string().min(1).nullable(),

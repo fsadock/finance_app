@@ -1,4 +1,4 @@
-import { addMonths, differenceInCalendarMonths } from "date-fns";
+import { addMonths } from "date-fns";
 import { monthKey, monthKeyToDate } from "./format";
 import { normalizeMerchant } from "./ai/merchant";
 
@@ -16,7 +16,7 @@ export type InstallmentTx = {
   purchaseDate: Date | null;
 };
 
-export type InstallmentPlan = {
+type InstallmentPlan = {
   key: string;
   label: string;
   accountName: string;
@@ -96,8 +96,4 @@ export function committedByMonth(plans: InstallmentPlan[], months = 12, today = 
     const month = monthKey(addMonths(start, i));
     return { month, total: plans.reduce((s, p) => s + (p.schedule.get(month) ?? 0), 0) };
   });
-}
-
-export function monthsUntil(month: string, today = new Date()) {
-  return differenceInCalendarMonths(monthKeyToDate(month), monthKeyToDate(monthKey(today)));
 }

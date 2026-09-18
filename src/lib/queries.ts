@@ -1,12 +1,11 @@
 import { prisma } from "./db";
+import { getConfigNumber } from "./config";
 import { BUDGET_RELEVANT, FLOW_SELECT, INCOME_WHERE, SPEND_WHERE, classifyFlow, spendDelta } from "./flows";
-import { lastMonthKeys, monthBounds, monthKey, monthKeyToDate, localDayKey, startOfDay } from "./format";
+import { DAY_MS, lastMonthKeys, monthBounds, monthKey, monthKeyToDate, localDayKey, startOfDay } from "./format";
 import { groupingKey, normalizeForGrouping } from "./ai/merchant";
 import { getBudgetsForMonth } from "./budgets";
 import { resolveBillingCycle } from "./billing";
 import { nextOccurrence, isLikelyInactive, priceTrend, CADENCE_TO_MONTHLY, type AutoChangeRecord, type Cadence } from "./recurrence";
-
-const DAY_MS = 1000 * 60 * 60 * 24;
 
 export async function getNetWorth() {
   const accounts = await prisma.account.findMany({ where: { hidden: false }, select: { balance: true } });
@@ -105,7 +104,7 @@ export async function getActiveRecurrings() {
         // charge vs charge, only within the current plan (monthly → yearly must not read as +32%)
         priceChange: trend?.change ?? 0,
         // shown for 30 days, with an undo
-        autoChange: autoChange && today.getTime() - new Date(autoChange.at).getTime() < 30 * 86_400_000 ? autoChange : null,
+        autoChange: autoChange && today.getTime() - new Date(autoChange.at).getTime() < 30 * DAY_MS ? autoChange : null,
       };
     })
     .sort((a, b) => a.upcoming.getTime() - b.upcoming.getTime());
@@ -298,9 +297,9 @@ export async function getSankeyData(month = new Date()) {
 /** Card spending pace against the monthly card goal, per-account billing cycles. */
 export async function getCCSpendingData(month = new Date()) {
   const { start: monthStart, end: monthEnd } = monthBounds(month);
-  const [limitConfig, closeDayConfig, cards] = await Promise.all([
-    prisma.appConfig.findUnique({ where: { key: "cc_monthly_limit" } }),
-    prisma.appConfig.findUnique({ where: { key: "cc_cycle_close_day" } }),
+  const [limit, closeDay, cards] = await Promise.all([
+    getConfigNumber("ccMonthlyLimit"),
+    getConfigNumber("ccCycleCloseDay"),
     prisma.account.findMany({
       where: { type: "CREDIT_CARD", hidden: false },
       select: {
@@ -310,8 +309,7 @@ export async function getCCSpendingData(month = new Date()) {
       },
     }),
   ]);
-  const totalBudget = limitConfig ? parseFloat(limitConfig.value) : 0;
-  const closeDay = closeDayConfig ? parseInt(closeDayConfig.value) : null;
+  const totalBudget = limit ?? 0;
 
   const today = startOfDay(new Date());
   const isCurrentMonth = monthKey(month) === monthKey(today);
@@ -411,7 +409,7 @@ export async function getCCSpendingData(month = new Date()) {
   };
 }
 
-export type RebalanceSuggestion = { fromId: string; fromName: string; toId: string; toName: string; amount: number };
+type RebalanceSuggestion = { fromId: string; fromName: string; toId: string; toName: string; amount: number };
 
 export async function getRebalanceSuggestions(month = new Date()): Promise<RebalanceSuggestion[]> {
   const budgets = await getMonthBudgetProgress(month);

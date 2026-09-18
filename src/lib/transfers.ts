@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { DAY_MS } from "./format";
 import {
   TRANSFER_PAIR_DAY_WINDOW,
   TRANSFER_AMOUNT_TOLERANCE_RATE,
@@ -33,7 +34,7 @@ export function findTransferPairs(txs: TxStub[]): Array<[TxStub, TxStub]> {
       if (usedPositive.has(inn.id)) continue;
       if (inn.accountId === out.accountId) continue;
       if (Math.abs(inn.amount - target) > tol) continue;
-      const dayDelta = Math.abs(inn.date.getTime() - out.date.getTime()) / (1000 * 60 * 60 * 24);
+      const dayDelta = Math.abs(inn.date.getTime() - out.date.getTime()) / DAY_MS;
       if (dayDelta > TRANSFER_PAIR_DAY_WINDOW) continue;
       if (dayDelta < bestDelta) {
         bestDelta = dayDelta;

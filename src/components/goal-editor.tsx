@@ -7,7 +7,7 @@ import { parseBRLInput } from "@/lib/brazil";
 import { toDateInput, parseDateInput } from "@/lib/format";
 import { Card } from "./ui/card";
 
-export type GoalFormValue = {
+type GoalFormValue = {
   id: string;
   name: string;
   targetAmount: number;
@@ -17,7 +17,7 @@ export type GoalFormValue = {
   accountId: string | null;
 };
 
-export type AccountOption = { id: string; name: string; institution: string };
+type AccountOption = { id: string; name: string; institution: string };
 
 const COLORS = ["#00d28d", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#eab308"];
 const inputClass = "w-full bg-bg-elev border border-border rounded-lg px-4 py-2.5 focus:border-accent outline-none";

@@ -1,17 +1,18 @@
 import { prisma } from "./db";
+import { deleteConfig, getConfig, setConfig } from "./config";
 
 /**
  * Credentials the app needs. Saved from the setup screen into AppConfig (the local SQLite file);
  * `.env` values are the fallback, so existing installs keep working without the setup screen.
  */
-export const SETTINGS = {
-  pluggyClientId: { key: "setting:pluggy_client_id", env: "PLUGGY_CLIENT_ID" },
-  pluggyClientSecret: { key: "setting:pluggy_client_secret", env: "PLUGGY_CLIENT_SECRET" },
-  anthropicApiKey: { key: "setting:anthropic_api_key", env: "ANTHROPIC_API_KEY" },
+/** Each credential's AppConfig entry (see config.ts) and its .env fallback. */
+const SETTINGS = {
+  pluggyClientId: { env: "PLUGGY_CLIENT_ID" },
+  pluggyClientSecret: { env: "PLUGGY_CLIENT_SECRET" },
+  anthropicApiKey: { env: "ANTHROPIC_API_KEY" },
 } as const;
 
-export type SettingName = keyof typeof SETTINGS;
-export type SettingSource = "app" | "env" | null;
+type SettingName = keyof typeof SETTINGS;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -39,18 +40,15 @@ export function maskSecret(value: string | null) {
 }
 
 export async function getSetting(name: SettingName) {
-  const def = SETTINGS[name];
-  const row = await prisma.appConfig.findUnique({ where: { key: def.key } });
-  return resolveSetting(row?.value, process.env[def.env]);
+  return resolveSetting(await getConfig(name), process.env[SETTINGS[name].env]);
 }
 
 export async function saveSetting(name: SettingName, value: string) {
-  const key = SETTINGS[name].key;
-  await prisma.appConfig.upsert({ where: { key }, create: { key, value: value.trim() }, update: { value: value.trim() } });
+  await setConfig(name, value.trim());
 }
 
 export async function deleteSetting(name: SettingName) {
-  await prisma.appConfig.deleteMany({ where: { key: SETTINGS[name].key } });
+  await deleteConfig(name);
 }
 
 export async function getPluggyCredentials() {

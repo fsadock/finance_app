@@ -1,5 +1,6 @@
 import { getPluggy, pluggyErrorMessage } from "./client";
 import { prisma } from "../db";
+import { getConfig, setConfig } from "../config";
 import { detectTransfers } from "../transfers";
 import { categorizeAllPending } from "../ai/categorize";
 import { detectRecurrings, refreshRecurrings } from "../ai/recurrings";
@@ -22,7 +23,7 @@ function mapAccountType(pluggyType: string, subtype: string | undefined | null):
 }
 
 /** Pluggy's `type` is the direction (DEBIT = money out); the raw amount sign varies by account type. */
-export function signedAmount(type: string | null | undefined, amount: number) {
+function signedAmount(type: string | null | undefined, amount: number) {
   if (type === "DEBIT") return -Math.abs(amount);
   if (type === "CREDIT") return Math.abs(amount);
   return amount;
@@ -46,7 +47,7 @@ function mapInvestmentType(pluggyType: string): PrismaInvestmentType {
   }
 }
 
-export async function registerItem(itemId: string) {
+async function registerItem(itemId: string) {
   const pluggy = await getPluggy();
   const item = await withRetry(() => pluggy.fetchItem(itemId));
   const isNew = !(await prisma.pluggyItem.findUnique({ where: { pluggyId: item.id }, select: { id: true } }));
@@ -314,20 +315,15 @@ export async function syncItem(itemId: string) {
  * Cached in AppConfig and merged across items (e.g. a personal CPF plus a MEI CNPJ).
  */
 async function getOwnerDocuments(itemId: string): Promise<string[]> {
-  const config = await prisma.appConfig.findUnique({ where: { key: "owner_documents" } });
-  const known = new Set<string>(config ? (JSON.parse(config.value) as string[]) : []);
+  const saved = await getConfig("ownerDocuments");
+  const known = new Set<string>(saved ? (JSON.parse(saved) as string[]) : []);
   try {
     const identity = await (await getPluggy()).fetchIdentityByItemId(itemId);
     for (const doc of [identity.document, identity.taxNumber]) {
       const digits = onlyDigits(doc);
       if (digits.length === 11 || digits.length === 14) known.add(digits);
     }
-    const value = JSON.stringify([...known]);
-    await prisma.appConfig.upsert({
-      where: { key: "owner_documents" },
-      create: { key: "owner_documents", value },
-      update: { value },
-    });
+    await setConfig("ownerDocuments", JSON.stringify([...known]));
   } catch (e) {
     logger.warn("sync:identity_unavailable", { itemId, error: e instanceof Error ? e.message : String(e) });
   }

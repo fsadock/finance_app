@@ -10,6 +10,7 @@ import {
 import { withRetry } from "../retry";
 import { logger } from "../logger";
 import {
+  CADENCES,
   CADENCE_TO_MONTHLY,
   detectRecurringChange,
   matchUnnamedPayments,
@@ -22,13 +23,11 @@ import {
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 
-const CADENCES = ["WEEKLY", "BIWEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"] as const;
-
 type Sample = { id: string; description: string; counterpartyName?: string | null; amount: number; date: Date; categoryId: string | null };
 type Candidate = { key: string; pattern: string; samples: Sample[]; avgAmount: number; inferred: Cadence | null };
 
-/** Groups outflows and inflows by merchant, keeping groups with a stable amount. Pure — exported for tests. */
-export function buildRecurringCandidates(txs: Sample[], knownPatterns: Set<string>): Candidate[] {
+/** Groups outflows and inflows by merchant, keeping groups with a stable amount. */
+function buildRecurringCandidates(txs: Sample[], knownPatterns: Set<string>): Candidate[] {
   const groups = new Map<string, Sample[]>();
   for (const t of txs) {
     const pattern = groupingKey(t);

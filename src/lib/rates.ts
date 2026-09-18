@@ -8,8 +8,8 @@ const SERIES = {
   ipca12m: 13522, // IPCA acumulado 12 meses (%)
 } as const;
 
-export type Rate = { value: number; date: string } | null;
-export type BenchmarkRates = { cdi: Rate; selic: Rate; ipca12m: Rate };
+type Rate = { value: number; date: string } | null;
+type BenchmarkRates = { cdi: Rate; selic: Rate; ipca12m: Rate };
 
 async function fetchSeries(code: number): Promise<Rate> {
   try {

@@ -1,4 +1,4 @@
-export type Period = { year: number; month: number; date: Date; key: string };
+type Period = { year: number; month: number; date: Date; key: string };
 
 const MONTHS_PT = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
