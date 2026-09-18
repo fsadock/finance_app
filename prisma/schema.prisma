@@ -212,6 +212,12 @@ model Recurring {
   confidence   Float            @default(1.0)
   detectedByAI Boolean          @default(false)
   createdAt    DateTime         @default(now())
+  /// Set when the user edits it: their values win until a newer charge arrives
+  editedAt     DateTime?
+  /// JSON of the last automatic cadence/amount change (shown with an undo)
+  autoChange   String?
+  /// Key of an automatic change the user undid, so it isn't applied again
+  rejectedChange String?
   transactions Transaction[]
 }
 

@@ -68,6 +68,7 @@ export PATH="$NODE_DIR/bin:$PATH"
 export COREPACK_HOME="$ROOT/.runtime/corepack"
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 export NEXT_TELEMETRY_DISABLED=1
+export npm_config_update_notifier=false
 URL="http://127.0.0.1:$PORT"
 echo "$PORT" >"$PORT_FILE"
 

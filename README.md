@@ -39,6 +39,92 @@ The installer downloads a private copy of Node.js 24 into `.runtime/` (no admin 
 The scripts aren't signed. Read them first if you like; they only touch this folder.
 </details>
 
+### Docker (starts with the computer)
+
+If you have Docker, this runs the app in the background and brings it back every time the computer starts, with no terminal window to keep open. Docker itself must start at boot (on Linux: `sudo systemctl enable --now docker`; Docker Desktop: *Start Docker Desktop when you sign in*).
+
+```bash
+docker compose up -d --build    # build and start; open http://127.0.0.1:3100
+```
+
+The data lives in the Docker volume `financas_data` (`/data/finance.db` inside the container), not in `prisma/dev.db`. The port is published on `127.0.0.1` only, because the app has no login. It uses port 3100 (3000 is often taken by other tools); to change it: `FINANCAS_PORT=3200 docker compose up -d`. A `.env` file, if present, is passed to the container for credentials; its `DATABASE_URL` is ignored.
+
+| Task | Command |
+| --- | --- |
+| Logs | `docker compose logs -f` |
+| Update | `git pull && docker compose up -d --build` (migrations run on start; the database is backed up to `/data/backups/` first) |
+| Stop (won't come back on boot) | `docker compose stop` · start again with `docker compose up -d` |
+| Back up | `docker compose exec app node -e "require('better-sqlite3')('/data/finance.db',{readonly:true}).backup('/data/manual-backup.db')"` then `docker compose cp app:/data/manual-backup.db ./finance-backup.db` |
+| Remove the app **and its data** | `docker compose down -v` |
+
+<details>
+<summary>Moving an existing <code>prisma/dev.db</code> into Docker</summary>
+
+Stop the non-Docker app first (so the file isn't being written), then:
+
+```bash
+docker compose up --no-start --build                   # create the container and its empty volume
+docker compose cp -a prisma/dev.db app:/data/finance.db
+docker compose up -d
+```
+
+`prisma/dev.db` is left untouched; from now on the container's copy is the one in use.
+</details>
+
+<details>
+<summary>Daily backups to a folder outside Docker (optional)</summary>
+
+The container only backs up by itself before migrations, into the same volume as the data, so `docker compose down -v` or a lost volume takes both. To keep a daily copy in a normal folder (here `~/Backups/financas`, last 30 days), on Linux with systemd:
+
+1. Save this as `~/.local/bin/financas-backup` and run `chmod +x ~/.local/bin/financas-backup` (adjust the project path):
+
+   ```bash
+   #!/usr/bin/env bash
+   set -euo pipefail
+   cd ~/repos/finance_app                  # where compose.yaml is
+   dest=~/Backups/financas
+   mkdir -p "$dest"
+   docker compose exec -T app node -e "require('better-sqlite3')('/data/finance.db',{readonly:true}).backup('/data/daily-backup.db')"
+   docker compose cp app:/data/daily-backup.db "$dest/finance-$(date +%Y%m%d).db"
+   find "$dest" -name 'finance-*.db' -mtime +30 -delete
+   ```
+
+2. Save this as `~/.config/systemd/user/financas-backup.service`:
+
+   ```ini
+   [Unit]
+   Description=Back up the Finanças database
+
+   [Service]
+   Type=oneshot
+   ExecStart=%h/.local/bin/financas-backup
+   ```
+
+3. Save this as `~/.config/systemd/user/financas-backup.timer`:
+
+   ```ini
+   [Unit]
+   Description=Daily Finanças backup
+
+   [Timer]
+   OnCalendar=daily
+   Persistent=true
+
+   [Install]
+   WantedBy=timers.target
+   ```
+
+4. Enable it and run it once to check:
+
+   ```bash
+   systemctl --user daemon-reload
+   systemctl --user enable --now financas-backup.timer
+   systemctl --user start financas-backup.service && ls ~/Backups/financas
+   ```
+
+`Persistent=true` catches up on a missed day the next time you log in. Your user must be able to run `docker` without sudo (member of the `docker` group). The files contain your data and API keys: keep the folder private. To restore one, see [Backups](#backups) and copy it back with `docker compose cp -a <file> app:/data/finance.db` while the app is stopped (`docker compose stop`, then `docker compose start`).
+</details>
+
 The steps below are the manual install, for development or if you manage Node.js yourself.
 
 ### 1. Prerequisites

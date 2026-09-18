@@ -78,6 +78,7 @@ $env:COREPACK_HOME = Join-Path $Runtime 'corepack'
 $env:COREPACK_ENABLE_DOWNLOAD_PROMPT = '0'
 $env:NEXT_TELEMETRY_DISABLED = '1'
 $env:PRISMA_HIDE_UPDATE_MESSAGE = '1'
+$env:npm_config_update_notifier = 'false' # pnpm is pinned; its "update available" box only invites breaking that
 $Corepack = Join-Path $NodeDir 'corepack.cmd'
 function Pnpm { Invoke-Checked $Corepack (@('pnpm') + $args) }
 

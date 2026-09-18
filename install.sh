@@ -88,6 +88,7 @@ export COREPACK_HOME="$RUNTIME/corepack"
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 export NEXT_TELEMETRY_DISABLED=1
 export PRISMA_HIDE_UPDATE_MESSAGE=1
+export npm_config_update_notifier=false # pnpm is pinned; its "update available" box only invites breaking that
 pnpm() { corepack pnpm "$@"; }
 
 # ── 3. Dependencies ──────────────────────────────────────────────────────────

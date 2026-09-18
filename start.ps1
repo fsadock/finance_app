@@ -62,6 +62,7 @@ $env:Path = "$NodeDir;$env:Path"
 $env:COREPACK_HOME = Join-Path $Runtime 'corepack'
 $env:COREPACK_ENABLE_DOWNLOAD_PROMPT = '0'
 $env:NEXT_TELEMETRY_DISABLED = '1'
+$env:npm_config_update_notifier = 'false'
 $url = "http://127.0.0.1:$port"
 Set-Content -Path $PortFile -Value $port -NoNewline
 

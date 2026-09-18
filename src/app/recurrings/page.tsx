@@ -5,7 +5,8 @@ import { formatBRL, formatDate } from "@/lib/format";
 import { Sparkles, Receipt, TrendingUp, TrendingDown, AlertTriangle, Home, type LucideIcon } from "lucide-react";
 import { getActiveRecurrings } from "@/lib/queries";
 import { CADENCE_LABEL, type Cadence } from "@/lib/recurrence";
-import { RecurringActions } from "@/components/recurrings/recurring-actions";
+import { AutoChangeBadge, RecurringActions } from "@/components/recurrings/recurring-actions";
+import type { CategoryOption } from "@/components/recurrings/recurring-editor";
 import { cn } from "@/lib/utils";
 
 /** Categories treated as subscriptions (discretionary — the first place to look when cutting). */
@@ -15,9 +16,27 @@ const HOUSING_CATEGORIES = new Set(["Aluguel", "Contas de casa"]);
 type Item = Awaited<ReturnType<typeof getActiveRecurrings>>[number];
 
 const sum = (items: Item[], f: (i: Item) => number) => items.filter((r) => !r.likelyInactive).reduce((s, r) => s + f(r), 0);
+const dayMonthYear = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+/** Every charge the "Pago em 12 meses" sum includes, oldest first. */
+const chargesTooltip = (charges: { date: Date; amount: number }[]) =>
+  charges.length === 0
+    ? "Nenhuma cobrança ligada nos últimos 12 meses"
+    : charges.map((c) => `${dayMonthYear.format(c.date)}  ${formatBRL(Math.abs(c.amount))}`).join("\n");
 const shortMonth = (d: Date) => new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" }).format(d);
 
-function RecurringSection({ title, icon: Icon, items, hint }: { title: string; icon: LucideIcon; items: Item[]; hint?: string }) {
+function RecurringSection({
+  title,
+  icon: Icon,
+  items,
+  categories,
+  hint,
+}: {
+  title: string;
+  icon: LucideIcon;
+  items: Item[];
+  categories: CategoryOption[];
+  hint?: string;
+}) {
   const sorted = [...items].sort((a, b) => b.yearly - a.yearly);
   return (
     <Card className="p-0 overflow-x-auto">
@@ -39,7 +58,7 @@ function RecurringSection({ title, icon: Icon, items, hint }: { title: string; i
               <th className="px-6 py-2 font-medium">Item</th>
               <th className="px-6 py-2 font-medium text-right">Valor</th>
               <th className="px-6 py-2 font-medium text-right">Por ano</th>
-              <th className="px-6 py-2 font-medium text-right" title="Soma do que foi realmente cobrado nos últimos 12 meses">Pago em 12 meses</th>
+              <th className="px-6 py-2 font-medium text-right" title="Soma das cobranças ligadas a esta recorrência nos últimos 12 meses. Passe o mouse no valor para ver cada uma.">Pago em 12 meses</th>
               <th className="px-6 py-2 font-medium text-right">Próxima</th>
               <th className="px-2 py-2" />
             </tr>
@@ -63,6 +82,7 @@ function RecurringSection({ title, icon: Icon, items, hint }: { title: string; i
                         {Math.round(r.priceChange * 100)}% desde {shortMonth(r.firstCharge.date)}
                       </span>
                     )}
+                    {r.autoChange && <AutoChangeBadge id={r.id} change={r.autoChange} />}
                     {r.likelyInactive && (
                       <span
                         className="text-[10px] px-1.5 py-0.5 rounded bg-warn/15 text-warn flex items-center gap-1"
@@ -80,10 +100,18 @@ function RecurringSection({ title, icon: Icon, items, hint }: { title: string; i
                 </td>
                 <td className={cn("px-6 py-2.5 text-right whitespace-nowrap", r.amount > 0 && "text-accent")}>{formatBRL(r.amount)}</td>
                 <td className="px-6 py-2.5 text-right whitespace-nowrap font-medium">{formatBRL(r.yearly)}</td>
-                <td className="px-6 py-2.5 text-right whitespace-nowrap text-fg-muted">{formatBRL(r.paidLast12m)}</td>
+                <td
+                  className="px-6 py-2.5 text-right whitespace-nowrap text-fg-muted"
+                  title={chargesTooltip(r.chargesLast12m)}
+                >
+                  {formatBRL(r.paidLast12m)}
+                  <div className="text-[11px]">
+                    {r.chargesLast12m.length} {r.chargesLast12m.length === 1 ? "cobrança" : "cobranças"}
+                  </div>
+                </td>
                 <td className="px-6 py-2.5 text-right whitespace-nowrap text-fg-muted">{formatDate(r.upcoming)}</td>
                 <td className="px-2 py-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <RecurringActions id={r.id} active={r.active} />
+                  <RecurringActions recurring={r} active={r.active} categories={categories} />
                 </td>
               </tr>
             ))}
@@ -95,9 +123,10 @@ function RecurringSection({ title, icon: Icon, items, hint }: { title: string; i
 }
 
 export default async function RecurringsPage() {
-  const [recurrings, paused] = await Promise.all([
+  const [recurrings, paused, categories] = await Promise.all([
     getActiveRecurrings(),
     prisma.recurring.findMany({ where: { active: false }, orderBy: { lastDate: "desc" } }),
+    prisma.category.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
   const outflows = recurrings.filter((r) => r.amount < 0);
@@ -129,10 +158,16 @@ export default async function RecurringsPage() {
       </div>
 
       <div className="space-y-4">
-        <RecurringSection title="Assinaturas" icon={Sparkles} items={subscriptions} hint="Passe o mouse numa linha para pausar (cancelou) ou excluir." />
-        <RecurringSection title="Contas fixas" icon={Receipt} items={bills} />
-        <RecurringSection title="Moradia" icon={Home} items={housing} />
-        {incomes.length > 0 && <RecurringSection title="Receitas" icon={TrendingUp} items={incomes} />}
+        <RecurringSection
+          title="Assinaturas"
+          icon={Sparkles}
+          items={subscriptions}
+          categories={categories}
+          hint="Passe o mouse numa linha para editar, pausar (cancelou) ou excluir. Mudanças de plano e de preço são atualizadas sozinhas a cada sincronização."
+        />
+        <RecurringSection title="Contas fixas" icon={Receipt} items={bills} categories={categories} />
+        <RecurringSection title="Moradia" icon={Home} items={housing} categories={categories} />
+        {incomes.length > 0 && <RecurringSection title="Receitas" icon={TrendingUp} items={incomes} categories={categories} />}
         {paused.length > 0 && (
           <Card>
             <CardHeader>
@@ -147,7 +182,7 @@ export default async function RecurringsPage() {
                   </span>
                   <span className="flex items-center gap-2">
                     {formatBRL(r.amount)}
-                    <RecurringActions id={r.id} active={false} />
+                    <RecurringActions recurring={r} active={false} categories={categories} />
                   </span>
                 </li>
               ))}

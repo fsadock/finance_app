@@ -355,6 +355,7 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
     fromAI: 0,
     pendingReview: 0,
     recurringsLinked: 0,
+    recurringsChanged: 0,
     recurringsDetected: 0,
     aiError: null as string | null,
   };
@@ -382,7 +383,9 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
   out.aiError = c.error;
 
   try {
-    out.recurringsLinked = (await refreshRecurrings()).linked;
+    const refreshed = await refreshRecurrings();
+    out.recurringsLinked = refreshed.linked;
+    out.recurringsChanged = refreshed.changed;
     if (!out.aiError && c.aiConfigured) out.recurringsDetected = (await detectRecurrings()).detected;
   } catch (e) {
     out.aiError ??= aiErrorMessage(e);

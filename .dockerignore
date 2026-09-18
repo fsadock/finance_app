@@ -1,0 +1,21 @@
+# Built inside the image or machine-specific
+node_modules
+.next
+.runtime
+src/generated
+*.tsbuildinfo
+next-env.d.ts
+coverage
+
+# Secrets and data never go into the image (.env is passed at runtime by compose.yaml)
+.env
+.env.*
+!.env.example
+*.db
+*.db-journal
+prisma/backups
+
+# Not needed to build
+.git
+.github
+*.log

@@ -1,6 +1,6 @@
 import { getAnthropic, MODEL_FAST } from "./client";
 import { prisma } from "../db";
-import { groupingKey, normalizeForGrouping } from "./merchant";
+import { groupingKey, isUnnamedBillPayment, normalizeForGrouping } from "./merchant";
 import {
   RECURRING_LOOKBACK_MONTHS,
   RECURRING_CV_THRESHOLD,
@@ -9,8 +9,16 @@ import {
 } from "../constants";
 import { withRetry } from "../retry";
 import { logger } from "../logger";
-import { inferCadence, nextOccurrence, shiftByCadence, type Cadence } from "../recurrence";
-import { startOfDay } from "../format";
+import {
+  CADENCE_TO_MONTHLY,
+  detectRecurringChange,
+  matchUnnamedPayments,
+  inferCadence,
+  nextDueDate,
+  nextOccurrence,
+  type Cadence,
+  type AutoChangeRecord,
+} from "../recurrence";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 
@@ -18,11 +26,6 @@ const CADENCES = ["WEEKLY", "BIWEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"] as con
 
 type Sample = { id: string; description: string; counterpartyName?: string | null; amount: number; date: Date; categoryId: string | null };
 type Candidate = { key: string; pattern: string; samples: Sample[]; avgAmount: number; inferred: Cadence | null };
-
-/** Next due date after the last real occurrence. */
-function nextDueDate(lastDate: Date, cadence: Cadence) {
-  return nextOccurrence(shiftByCadence(lastDate, cadence, 1), cadence, startOfDay(new Date()));
-}
 
 /** Groups outflows and inflows by merchant, keeping groups with a stable amount. Pure — exported for tests. */
 export function buildRecurringCandidates(txs: Sample[], knownPatterns: Set<string>): Candidate[] {
@@ -172,27 +175,105 @@ export async function detectRecurrings() {
 }
 
 /**
- * No-AI maintenance for known recurrings: links new matching transactions (same merchant key, same
- * direction, amount within 50%) and moves lastDate/nextDate forward. Run after every sync.
+ * No-AI maintenance for known recurrings, run after every sync:
+ * 1. applies a detected cadence/price change (monthly plan that became yearly, new price), unless the
+ *    user undid that change or edited the recurring after its latest charge;
+ * 2. links new matching transactions (same merchant key, same direction, amount within 50%), and bill
+ *    payments the bank sent without a payee name when they clearly match one recurring;
+ * 3. moves lastDate/nextDate forward. A next date set by the user stands until a newer charge arrives.
  */
-export async function refreshRecurrings() {
+export async function refreshRecurrings(today = new Date()) {
   const recurrings = await prisma.recurring.findMany({ where: { pattern: { not: null } } });
-  if (recurrings.length === 0) return { linked: 0 };
+  if (recurrings.length === 0) return { linked: 0, changed: 0 };
 
-  const since = new Date();
-  since.setMonth(since.getMonth() - 3);
+  const linkSince = new Date(today);
+  linkSince.setMonth(linkSince.getMonth() - 3);
+  const historySince = new Date(today);
+  historySince.setMonth(historySince.getMonth() - 25);
+  const yearAgo = new Date(today);
+  yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+
   const txs = await prisma.transaction.findMany({
-    where: { date: { gte: since }, recurringId: null, transferPairId: null, totalInstallments: null },
-    select: { id: true, description: true, counterpartyName: true, amount: true, date: true },
+    where: { date: { gte: historySince, lte: today }, transferPairId: null, totalInstallments: null },
+    select: {
+      id: true,
+      description: true,
+      counterpartyName: true,
+      amount: true,
+      date: true,
+      accountId: true,
+      recurringId: true,
+      category: { select: { excludeFromBudget: true } },
+    },
   });
+  const byKey = new Map<string, typeof txs>();
+  for (const t of txs) {
+    const key = groupingKey(t);
+    if (key) byKey.set(key, [...(byKey.get(key) ?? []), t]);
+  }
 
   let linked = 0;
+  let changed = 0;
+
+  // 0. Bill payments without a payee name ("Utilities") can only be matched by amount, day and account.
+  const unnamed = txs.filter((t) => !t.recurringId && !t.category?.excludeFromBudget && isUnnamedBillPayment(t));
+  if (unnamed.length > 0) {
+    const candidates = recurrings
+      .filter((r) => r.active)
+      .map((r) => ({
+        id: r.id,
+        amount: r.amount,
+        cadence: r.cadence as Cadence,
+        charges: txs.filter((t) => t.recurringId === r.id),
+      }));
+    const matched = matchUnnamedPayments(unnamed, candidates);
+    for (const [txId, recurringId] of matched) {
+      await prisma.transaction.update({ where: { id: txId }, data: { isRecurring: true, recurringId } });
+      txs.find((t) => t.id === txId)!.recurringId = recurringId;
+    }
+    linked += matched.size;
+  }
+
   for (const r of recurrings) {
-    const matches = txs.filter(
-      (t) =>
-        Math.sign(t.amount) === Math.sign(r.amount) &&
-        Math.abs(t.amount - r.amount) <= Math.abs(r.amount) * 0.5 &&
-        groupingKey(t) === r.pattern
+    let cadence = r.cadence as Cadence;
+    let amount = r.amount;
+    const sameMerchant = (byKey.get(r.pattern!) ?? []).filter((t) => Math.sign(t.amount) === Math.sign(amount));
+
+    // 1. Automatic cadence/price change. Charges already linked always count (the bank may rename the
+    // merchant: "Disney Plus" → "The Walt Disney Compan"), plus same-merchant ones that weren't linked
+    // (a yearly charge far from the monthly amount). A merchant with many more charges than the
+    // recurring explains (iFood orders next to iFood Club) only counts the linked ones.
+    let changeDate: Date | null = null;
+    if (r.active) {
+      const linkedCharges = txs.filter((t) => t.recurringId === r.id);
+      const expectedPerYear = 12 * CADENCE_TO_MONTHLY[cadence];
+      const noisy = sameMerchant.filter((t) => t.date >= yearAgo).length > expectedPerYear * 1.5 + 1;
+      const charges = noisy
+        ? linkedCharges
+        : [...linkedCharges, ...sameMerchant.filter((t) => t.recurringId !== r.id)];
+      const change = detectRecurringChange({ cadence, amount }, charges);
+      if (change && change.key !== r.rejectedChange && !(r.editedAt && r.editedAt >= change.lastDate)) {
+        const record: AutoChangeRecord = {
+          key: change.key,
+          reason: change.reason,
+          from: { cadence, amount },
+          to: { cadence: change.cadence, amount: change.amount },
+          gapDays: change.gapDays,
+          at: today.toISOString(),
+        };
+        await prisma.recurring.update({
+          where: { id: r.id },
+          data: { cadence: change.cadence, amount: change.amount, autoChange: JSON.stringify(record) },
+        });
+        [cadence, amount, changeDate] = [change.cadence, change.amount, change.lastDate];
+        changed++;
+        logger.info("recurrings:auto-change", { name: r.name, from: record.from, to: record.to });
+      }
+    }
+
+    // 2. Link new charges.
+    const matches = sameMerchant.filter(
+      (t) => !t.recurringId && t.date >= linkSince && Math.abs(t.amount - amount) <= Math.abs(amount) * 0.5
     );
     if (matches.length > 0) {
       await prisma.transaction.updateMany({
@@ -202,14 +283,22 @@ export async function refreshRecurrings() {
       linked += matches.length;
     }
 
+    // 3. Dates.
+    // Card installments come with future dates (12/12 dated next year): only charges up to today count.
     const last = await prisma.transaction.findFirst({
-      where: { recurringId: r.id },
+      where: { recurringId: r.id, date: { lte: today } },
       orderBy: { date: "desc" },
       select: { date: true },
     });
-    const lastDate = last?.date ?? r.lastDate;
-    const nextDate = lastDate ? nextDueDate(lastDate, r.cadence as Cadence) : nextOccurrence(r.nextDate, r.cadence as Cadence, new Date());
+    let lastDate = last?.date ?? r.lastDate;
+    if (changeDate && (!lastDate || changeDate > lastDate)) lastDate = changeDate;
+    const pinnedByUser = r.editedAt && (!lastDate || lastDate <= r.editedAt);
+    const nextDate = pinnedByUser
+      ? r.nextDate
+      : lastDate
+        ? nextDueDate(lastDate, cadence, today)
+        : nextOccurrence(r.nextDate, cadence, today);
     await prisma.recurring.update({ where: { id: r.id }, data: { lastDate, nextDate } });
   }
-  return { linked };
+  return { linked, changed };
 }

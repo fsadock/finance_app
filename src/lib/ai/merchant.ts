@@ -80,3 +80,11 @@ export function groupingKey(t: PatternInput): string {
   const counterparty = t.counterpartyName ? normalizeForGrouping(t.counterpartyName) : "";
   return counterparty ? `${base} ${counterparty}`.trim() : "";
 }
+
+/** Descriptions some banks use for bill payments sent without the payee's name (BTG: "Utilities", "Bankslip"). */
+const UNNAMED_BILL_DESCRIPTIONS = new Set(["utilities", "bankslip", "boleto"]);
+
+/** A bill payment with no payee name: it can only be matched to a recurring by amount, day and account. */
+export function isUnnamedBillPayment(t: { description: string; counterpartyName?: string | null }) {
+  return !t.counterpartyName?.trim() && UNNAMED_BILL_DESCRIPTIONS.has(normalizeForGrouping(t.description));
+}

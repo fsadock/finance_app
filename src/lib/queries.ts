@@ -4,7 +4,7 @@ import { lastMonthKeys, monthBounds, monthKey, monthKeyToDate, localDayKey, star
 import { groupingKey, normalizeForGrouping } from "./ai/merchant";
 import { getBudgetsForMonth } from "./budgets";
 import { resolveBillingCycle } from "./billing";
-import { nextOccurrence, isLikelyInactive, CADENCE_TO_MONTHLY, type Cadence } from "./recurrence";
+import { nextOccurrence, isLikelyInactive, priceTrend, CADENCE_TO_MONTHLY, type AutoChangeRecord, type Cadence } from "./recurrence";
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -89,8 +89,9 @@ export async function getActiveRecurrings() {
   return recurrings
     .map((r) => {
       const charges = byRecurring.get(r.id) ?? [];
-      const first = charges[0];
-      const last = charges[charges.length - 1];
+      // After a user edit, their amount is the new baseline: only later charges are compared.
+      const trend = priceTrend(r.editedAt ? charges.filter((c) => c.date > r.editedAt!) : charges, r.cadence as Cadence);
+      const autoChange = r.autoChange ? (JSON.parse(r.autoChange) as AutoChangeRecord) : null;
       const monthly = Math.abs(r.amount) * CADENCE_TO_MONTHLY[r.cadence as Cadence];
       return {
         ...r,
@@ -99,9 +100,12 @@ export async function getActiveRecurrings() {
         monthly,
         yearly: monthly * 12,
         paidLast12m: charges.filter((c) => c.date >= yearAgo).reduce((s, c) => s + Math.abs(c.amount), 0),
-        firstCharge: first ? { amount: Math.abs(first.amount), date: first.date } : null,
-        // charge vs charge (an annual plan paid in installments must not read as +1100%)
-        priceChange: first && last && Math.abs(first.amount) > 0 ? Math.abs(last.amount) / Math.abs(first.amount) - 1 : 0,
+        chargesLast12m: charges.filter((c) => c.date >= yearAgo),
+        firstCharge: trend ? { amount: Math.abs(trend.first.amount), date: trend.first.date } : null,
+        // charge vs charge, only within the current plan (monthly → yearly must not read as +32%)
+        priceChange: trend?.change ?? 0,
+        // shown for 30 days, with an undo
+        autoChange: autoChange && today.getTime() - new Date(autoChange.at).getTime() < 30 * 86_400_000 ? autoChange : null,
       };
     })
     .sort((a, b) => a.upcoming.getTime() - b.upcoming.getTime());

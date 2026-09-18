@@ -1,0 +1,27 @@
+# Runs Finanças in the background and brings it back whenever Docker starts (i.e. on boot).
+#   docker compose up -d --build     install / update
+#   docker compose logs -f           see what it's doing
+#   docker compose down              stop (data stays in the "data" volume)
+name: financas
+
+services:
+  app:
+    build: .
+    image: financas:latest
+    restart: unless-stopped
+    init: true
+    ports:
+      # Only this computer can reach it: the app has no login. Change the port with FINANCAS_PORT=3200.
+      - "127.0.0.1:${FINANCAS_PORT:-3100}:3000"
+    env_file:
+      # Optional: credentials can also be entered on the setup screen.
+      - path: .env
+        required: false
+    environment:
+      # Must win over DATABASE_URL in .env (which points at the non-Docker database).
+      DATABASE_URL: file:/data/finance.db
+    volumes:
+      - data:/data
+
+volumes:
+  data:
