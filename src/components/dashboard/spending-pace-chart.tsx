@@ -37,7 +37,9 @@ export function SpendingPaceChart({ data, showCC = false }: { data: Row[]; showC
           <XAxis
             dataKey="label"
             {...CHART_AXIS_PROPS}
-            interval={4}
+            // Space labels by the room available: daily labels don't fit on a phone.
+            interval="preserveStartEnd"
+            minTickGap={36}
           />
           <YAxis
             tickFormatter={(v) => formatBRLCompact(v)}
