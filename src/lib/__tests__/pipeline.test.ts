@@ -143,6 +143,25 @@ describe("post-sync pipeline", () => {
     expect(out.recurringsChanged).toBe(1);
   });
 
+  it("removes date-only copies of card payments the connector sends twice", async () => {
+    claude({});
+    const at = (h: number, m: number) => {
+      const d = daysAgo(3);
+      d.setHours(h, m, 0, 0);
+      return d;
+    };
+    const copy = await tx("Pagamento recebido", 2383.73, { date: at(0, 0), status: "POSTED" });
+    const real = await tx("Pagamento recebido", 2383.73, { date: at(20, 33), status: "POSTED" });
+    const rides = [await tx("Uber", -12.9, { date: at(8, 44), status: "POSTED" }), await tx("Uber", -12.9, { date: at(20, 8), status: "POSTED" })];
+
+    const out = await runPostSyncJobs();
+
+    const left = new Set((await prisma.transaction.findMany({ select: { id: true } })).map((t) => t.id));
+    expect(left.has(copy.id)).toBe(false);
+    expect([real, ...rides].every((t) => left.has(t.id))).toBe(true);
+    expect(out.duplicatesRemoved).toBe(1);
+  });
+
   it("keeps rules working and reports the error when Claude fails", async () => {
     parse.mockRejectedValue(new Error("credit balance is too low"));
     const bakery = await tx("Padaria Pão Quente", -20);

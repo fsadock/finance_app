@@ -2,6 +2,7 @@ import { logger } from "@/lib/infra/logger";
 import { errorMessage } from "@/lib/utils";
 import { TRANSFER_DETECTION_DAYS_BACK } from "@/lib/domain/constants";
 import { applyDeterministicRules } from "@/lib/jobs/deterministic";
+import { removeDuplicateTransactions } from "@/lib/jobs/duplicates";
 import { detectTransfers } from "@/lib/jobs/transfers";
 import { categorizeAllPending } from "@/lib/jobs/categorize";
 import { refreshRecurrings } from "@/lib/jobs/recurrings";
@@ -14,6 +15,7 @@ import { aiErrorMessage } from "@/lib/ai/client";
  */
 export async function runPostSyncJobs({ fullHistory = false } = {}) {
   const out = {
+    duplicatesRemoved: 0,
     deterministic: 0,
     redated: 0,
     transfersPaired: 0,
@@ -27,6 +29,12 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
     aiError: null as string | null,
   };
   logger.info("post-sync:start");
+
+  try {
+    out.duplicatesRemoved = (await removeDuplicateTransactions()).removed;
+  } catch (e) {
+    logger.error("post-sync:duplicates_failed", { error: errorMessage(e) });
+  }
 
   try {
     const d = await applyDeterministicRules();

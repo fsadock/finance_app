@@ -50,6 +50,12 @@ export function formatMonthKeyShort(key: string) {
   return formatMonthShort(monthKeyToDate(key));
 }
 
+/** A date-only API value ("2026-08-20" or "2026-08-20T00:00:00Z") as local midnight of that calendar day. */
+export function dateOnly(value: string | Date) {
+  const d = new Date(value);
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
 /** "18/09" */
 export function formatDayMonth(d: Date) {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;

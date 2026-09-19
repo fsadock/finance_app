@@ -7,6 +7,8 @@ import { withRetry } from "@/lib/infra/retry";
 import { logger } from "@/lib/infra/logger";
 import type { AccountType as PrismaAccountType, InvestmentType as PrismaInvestmentType } from "@/generated/prisma/client";
 import { errorMessage } from "@/lib/utils";
+import { DAY_MS, dateOnly } from "@/lib/domain/format";
+import { dateOnlyDuplicates } from "@/lib/domain/duplicates";
 
 function mapAccountType(pluggyType: string, subtype: string | undefined | null): PrismaAccountType {
   if (subtype === "CREDIT_CARD" || pluggyType === "CREDIT") return "CREDIT_CARD";
@@ -116,8 +118,8 @@ export async function syncItem(itemId: string) {
       balance,
       creditLimit: a.creditData?.creditLimit ?? null,
       availableCreditLimit: a.creditData?.availableCreditLimit ?? null,
-      balanceCloseDate: a.creditData?.balanceCloseDate ? new Date(a.creditData.balanceCloseDate) : null,
-      balanceDueDate: a.creditData?.balanceDueDate ? new Date(a.creditData.balanceDueDate) : null,
+      balanceCloseDate: a.creditData?.balanceCloseDate ? dateOnly(a.creditData.balanceCloseDate) : null,
+      balanceDueDate: a.creditData?.balanceDueDate ? dateOnly(a.creditData.balanceDueDate) : null,
       minimumPayment: a.creditData?.minimumPayment ?? null,
       pluggyItemId: item.id,
       pluggyAccountId: a.id,
@@ -150,11 +152,12 @@ export async function syncItem(itemId: string) {
             create: {
               accountId: acct.id,
               pluggyBillId: bill.id,
-              dueDate: new Date(bill.dueDate),
+              dueDate: dateOnly(bill.dueDate),
               totalAmount: bill.totalAmount,
               minimumPayment: bill.minimumPaymentAmount ?? null,
             },
             update: {
+              dueDate: dateOnly(bill.dueDate),
               totalAmount: bill.totalAmount,
               minimumPayment: bill.minimumPaymentAmount ?? null,
             },
@@ -179,7 +182,7 @@ export async function syncItem(itemId: string) {
       });
       const byPluggyId = new Map(existing.map((e) => [e.pluggyTxId, e]));
 
-      const toCreate = [];
+      let toCreate = [];
       for (const t of txs.results) {
         const amount = signedAmount(t.type, t.amount);
         const card = t.creditCardMetadata;
@@ -240,6 +243,16 @@ export async function syncItem(itemId: string) {
           pluggyBillId: card?.billId ?? null,
           pluggyCategory: t.category ?? null,
         });
+      }
+      // Drop date-only copies of transactions that also come (or already exist) with their real time.
+      if (toCreate.length > 0) {
+        const days = toCreate.map((t) => t.date.getTime());
+        const known = await prisma.transaction.findMany({
+          where: { accountId: acct.id, date: { gte: new Date(Math.min(...days) - DAY_MS), lte: new Date(Math.max(...days) + DAY_MS) } },
+          select: { accountId: true, date: true, amount: true, description: true },
+        });
+        const duplicates = new Set<unknown>(dateOnlyDuplicates([...known, ...toCreate]));
+        toCreate = toCreate.filter((t) => !duplicates.has(t));
       }
       if (toCreate.length > 0) {
         await prisma.transaction.createMany({ data: toCreate });

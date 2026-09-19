@@ -188,17 +188,30 @@ export default async function AccountsPage() {
                         <div className="mt-6 pt-4 border-t border-border space-y-3">
                           {bill && (
                             <div className="space-y-1">
-                              <div className="flex items-center justify-between text-[10px] uppercase tracking-wider font-bold text-fg-muted">
-                                <span>Fatura aberta</span>
+                              {bill.missing && (
+                                <div className="mb-3 rounded-lg border border-warn/30 bg-warn/10 p-2.5 text-xs space-y-1">
+                                  <div className="font-medium text-warn">
+                                    Fatura fechada em {formatDate(bill.missing.closedOn)} · vence ~{formatDate(bill.missing.dueOn)}
+                                  </div>
+                                  <div className="text-fg-muted">
+                                    A Pluggy ainda não enviou o valor. Em aberto no cartão:{" "}
+                                    <span className="text-fg font-medium">{formatBRL(bill.outstanding)}</span> (fechada + atual, sem
+                                    parcelas futuras).
+                                  </div>
+                                </div>
+                              )}
+                              <div
+                                className="flex items-center justify-between text-[10px] uppercase tracking-wider font-bold text-fg-muted"
+                                title="Soma das compras com data neste ciclo. O banco pode lançar parcelas e compras em outra fatura."
+                              >
+                                <span>Fatura atual (estimada)</span>
                                 <span className="text-fg font-semibold text-sm normal-case">{formatBRL(bill.total)}</span>
                               </div>
                               <div className="flex items-center gap-3 text-xs text-fg-muted">
-                                <span>fecha {formatDate(bill.end)}</span>
-                                {a.balanceDueDate && (
-                                  <span className="flex items-center gap-1">
-                                    <CalendarClock className="size-3" /> vence {formatDate(a.balanceDueDate)}
-                                  </span>
-                                )}
+                                <span>fecha ~{formatDate(bill.end)}</span>
+                                <span className="flex items-center gap-1">
+                                  <CalendarClock className="size-3" /> vence ~{formatDate(bill.dueOn)}
+                                </span>
                               </div>
                             </div>
                           )}

@@ -37,3 +37,18 @@ export function resolveBillingCycle(opts: {
   }
   return null;
 }
+
+/** Banks set the due date about a week after the bill closes (same rule as the last-bill heuristic). */
+export const dueAfterClose = (close: Date) => addDays(close, 7);
+
+/**
+ * The bill that closed when the current cycle started, if the bank hasn't sent it yet: the last known
+ * bill closed well before that. Returns its close and (estimated) due dates, or null.
+ */
+export function missingClosedBill(lastBillDueDate: Date | null | undefined, currentCycleStart: Date) {
+  if (!lastBillDueDate) return null;
+  const lastClose = addDays(startOfDay(lastBillDueDate), -7);
+  if (currentCycleStart <= addDays(lastClose, 10)) return null;
+  return { closedOn: currentCycleStart, dueOn: dueAfterClose(currentCycleStart) };
+}
+

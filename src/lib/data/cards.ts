@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/infra/db";
 import { getConfigNumber } from "@/lib/infra/config";
-import { resolveBillingCycle } from "@/lib/domain/billing";
+import { dueAfterClose, missingClosedBill, resolveBillingCycle } from "@/lib/domain/billing";
+import { addDays } from "date-fns";
 import { FLOW_SELECT, SPEND_WHERE, spendDelta } from "@/lib/domain/flows";
 import { DAY_MS, monthBounds, monthKey, startOfDay } from "@/lib/domain/format";
 import { cumulativeSeries, sumByDay } from "@/lib/domain/series";
@@ -125,13 +126,26 @@ function currentCycles(cards: CardCycleInput[], closeDay: number | null, today: 
 type CardForBill = {
   id: string;
   type: string;
+  balance: number;
   balanceCloseDate: Date | null;
   creditCardBills: { dueDate: Date }[];
 };
 
-/** Open fatura per card: net spend inside the card's current billing cycle. */
+type OpenBill = {
+  /** Estimate: net spend dated inside the current cycle (the bank may place installments differently). */
+  total: number;
+  start: Date;
+  end: Date;
+  dueOn: Date;
+  /** A bill that already closed but the bank hasn't sent yet. */
+  missing: { closedOn: Date; dueOn: Date } | null;
+  /** What the card owes now, closed + current bills: the balance minus installments dated in the future. */
+  outstanding: number;
+};
+
+/** Current fatura per card, plus any closed bill Pluggy hasn't delivered yet. */
 export async function getOpenBills(accounts: CardForBill[], closeDay: number | null, today: Date) {
-  const openBill = new Map<string, { total: number; start: Date; end: Date }>();
+  const openBill = new Map<string, OpenBill>();
   const cards = accounts.filter((a) => a.type === "CREDIT_CARD");
   const cycles = [...currentCycles(cards, closeDay, today)].flatMap(([id, cycle]) => (cycle ? [{ id, cycle }] : []));
   if (cycles.length > 0) {
@@ -140,11 +154,25 @@ export async function getOpenBills(accounts: CardForBill[], closeDay: number | n
       where: { AND: [{ accountId: { in: cycles.map((c) => c.id) }, date: { gte: earliest } }, SPEND_WHERE] },
       select: { ...FLOW_SELECT, accountId: true, date: true },
     });
+    const future = await prisma.transaction.groupBy({
+      by: ["accountId"],
+      where: { accountId: { in: cycles.map((c) => c.id) }, date: { gte: addDays(startOfDay(today), 1) } },
+      _sum: { amount: true },
+    });
     for (const { id, cycle } of cycles) {
+      const card = cards.find((c) => c.id === id)!;
       const total = txs
         .filter((t) => t.accountId === id && t.date >= cycle.start && t.date < cycle.end)
         .reduce((s, t) => s + spendDelta(t), 0);
-      openBill.set(id, { total, ...cycle });
+      const futureCharges = -(future.find((f) => f.accountId === id)?._sum.amount ?? 0);
+      openBill.set(id, {
+        total,
+        start: cycle.start,
+        end: cycle.end,
+        dueOn: dueAfterClose(cycle.end),
+        missing: missingClosedBill(card.creditCardBills[0]?.dueDate, cycle.start),
+        outstanding: Math.max(0, -card.balance - futureCharges),
+      });
     }
   }
   return openBill;
