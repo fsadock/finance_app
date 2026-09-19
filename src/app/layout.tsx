@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { ServiceWorkerRegistration } from "@/components/layout/service-worker-registration";
 import { getLastSync } from "@/lib/data/connections";
 import { getPluggyCredentials } from "@/lib/infra/settings";
 import { SetupBanner } from "@/components/setup/setup-banner";
@@ -32,6 +33,7 @@ export default async function RootLayout({
     <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full bg-bg text-fg font-sans">
         <div className="flex min-h-screen">
+          <ServiceWorkerRegistration />
           <Sidebar lastSync={lastSync?.toISOString() ?? null} setupPending={!pluggy.configured} />
           <main className="flex-1 min-w-0">
             <MobileNav lastSync={lastSync?.toISOString() ?? null} setupPending={!pluggy.configured} />

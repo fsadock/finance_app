@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0b0d" />
+    <title>Finanças · sem conexão</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 24px; box-sizing: border-box;
+        background: #0a0b0d; color: #e8eaed; font: 15px/1.5 system-ui, -apple-system, sans-serif; text-align: center; }
+      .mark { width: 56px; height: 56px; border-radius: 14px; background: #00d28d; color: #0a0b0d; font: 700 32px/56px system-ui;
+        margin: 0 auto 20px; }
+      p { color: #9aa0a6; max-width: 320px; margin: 8px auto 24px; }
+      button { background: #00d28d; color: #0a0b0d; border: 0; border-radius: 10px; padding: 12px 20px; font-weight: 600; font-size: 15px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark">F</div>
+      <h1 style="font-size: 20px; margin: 0">Sem conexão com o Finanças</h1>
+      <p>O app só abre quando este aparelho está na sua rede Tailscale. Ative o Tailscale e tente de novo.</p>
+      <button onclick="location.reload()">Tentar de novo</button>
+    </main>
+  </body>
+</html>
