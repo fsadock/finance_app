@@ -2,18 +2,14 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { getTransactionFilterOptions, getTransactionsPage } from "@/lib/data/transactions";
 import { getCategoryOptions } from "@/lib/data/categories";
-import { formatBRL, formatDate } from "@/lib/domain/format";
-import { Search, Download, ChevronLeft, ChevronRight, Layers } from "lucide-react";
+import { formatBRL } from "@/lib/domain/format";
+import { Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { TransactionList } from "@/components/transactions/transaction-list";
 import { PeriodPicker } from "@/components/layout/period-picker";
-import { CategoryPicker } from "@/components/transactions/category-picker";
-import { TagPicker } from "@/components/transactions/tag-picker";
-import { TransferBadge } from "@/components/transactions/unpair-button";
-import { NotesEditor } from "@/components/transactions/notes-editor";
 import { buildTransactionWhere, filtersToSearchParams, TX_FILTER_KEYS, type TxFilterParams } from "@/lib/data/transaction-filters";
 import Link from "next/link";
 
 const PAGE_SIZE = 50;
-const COUNTERPARTY_LABEL: Record<string, string> = { SELF: "conta própria", CPF: "pessoa física", CNPJ: "empresa" };
 
 type Props = { searchParams: Promise<TxFilterParams & { page?: string }> };
 
@@ -57,9 +53,9 @@ export default async function TransactionsPage({ searchParams }: Props) {
       />
 
       <Card className="mb-6 p-4">
-        <form className="flex flex-wrap gap-3 items-center text-sm">
+        <form className="grid grid-cols-2 gap-2 items-center text-sm sm:flex sm:flex-wrap sm:gap-3">
           {filters.month && <input type="hidden" name="month" value={filters.month} />}
-          <div className="relative flex-1 min-w-[220px]">
+          <div className="relative col-span-2 flex-1 min-w-[220px]">
             <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" />
             <input
               name="q"
@@ -101,66 +97,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
       </Card>
 
       <Card className="p-0 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-fg-muted border-b border-border">
-              <th className="px-6 py-3 font-medium">Data</th>
-              <th className="px-6 py-3 font-medium">Descrição</th>
-              <th className="px-6 py-3 font-medium">Categoria</th>
-              <th className="px-6 py-3 font-medium">Conta</th>
-              <th className="px-6 py-3 font-medium text-right">Valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            {txs.map((t) => (
-              <tr key={t.id} className="group border-b border-border hover:bg-bg-hover/40 align-top">
-                <td className="px-6 py-3 text-fg-muted whitespace-nowrap">{formatDate(t.date)}</td>
-                <td className="px-6 py-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {t.transferPairId && <TransferBadge txId={t.id} />}
-                    {t.totalInstallments && (
-                      <span
-                        className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-warn/15 text-warn"
-                        title={t.purchaseAmount ? `Compra de ${formatBRL(t.purchaseAmount)}` : "Compra parcelada"}
-                      >
-                        <Layers className="size-3" /> {t.installmentNumber ?? "?"}/{t.totalInstallments}
-                      </span>
-                    )}
-                    <span className="font-medium">{t.merchantName ?? t.description}</span>
-                  </div>
-                  {(t.merchantName || t.counterpartyName || t.paymentMethod) && (
-                    <div className="text-xs text-fg-muted mt-0.5">
-                      {t.merchantName && t.merchantName !== t.description && <span>{t.description} · </span>}
-                      {t.paymentMethod && <span>{t.paymentMethod}</span>}
-                      {t.counterpartyName && (
-                        <span>
-                          {" "}→ {t.counterpartyName}
-                          {t.counterpartyType && ` (${COUNTERPARTY_LABEL[t.counterpartyType] ?? t.counterpartyType})`}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  <NotesEditor txId={t.id} notes={t.notes} />
-                  <TagPicker txId={t.id} currentTags={t.tags} allTags={allTags} />
-                </td>
-                <td className="px-6 py-3">
-                  <CategoryPicker
-                    txId={t.id}
-                    currentCategoryId={t.categoryId}
-                    currentCategoryName={t.category?.name ?? null}
-                    currentCategoryColor={t.category?.color ?? null}
-                    needsReview={t.status === "REVIEW"}
-                    categories={categories}
-                  />
-                </td>
-                <td className="px-6 py-3 text-fg-muted whitespace-nowrap">{t.account.name}</td>
-                <td className={`px-6 py-3 text-right whitespace-nowrap ${t.amount > 0 ? "text-accent" : ""}`}>
-                  {formatBRL(t.amount)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TransactionList txs={txs} categories={categories} allTags={allTags} />
         {txs.length === 0 && (
           <div className="p-12 text-center text-fg-muted">Sem transações para os filtros selecionados.</div>
         )}

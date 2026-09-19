@@ -5,6 +5,7 @@ import { formatBRL, formatDate, lastMonthKeys, formatMonthKeyShort } from "@/lib
 import { IRPF_EDUCATION_CAP, IRPF_PENSION_CAP_RATE, IRPF_TYPES, groupDeductions, summarizeIncome, type IrpfType } from "@/lib/domain/irpf";
 import { Info } from "lucide-react";
 import Link from "next/link";
+import { PayeeList } from "@/components/taxes/payee-list";
 
 type Props = { searchParams: Promise<{ year?: string }> };
 
@@ -122,26 +123,7 @@ export default async function TaxesPage({ searchParams }: Props) {
                 <div className="font-medium">{IRPF_TYPES[type].label} · {formatBRL(g.total)}</div>
                 <p className="text-xs text-fg-muted mt-1">{IRPF_TYPES[type].hint}</p>
               </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-fg-muted border-y border-border">
-                    <th className="px-6 py-2 font-medium">Beneficiário</th>
-                    <th className="px-6 py-2 font-medium">Documento</th>
-                    <th className="px-6 py-2 font-medium text-right">Lançamentos</th>
-                    <th className="px-6 py-2 font-medium text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payees.map((p) => (
-                    <tr key={`${p.name}|${p.doc}`} className="border-b border-border last:border-b-0">
-                      <td className="px-6 py-2">{p.name}</td>
-                      <td className="px-6 py-2 text-fg-muted text-xs">{p.doc ?? "— informe no recibo"}</td>
-                      <td className="px-6 py-2 text-right text-fg-muted">{p.count}</td>
-                      <td className="px-6 py-2 text-right">{formatBRL(p.total)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <PayeeList payees={payees} />
             </Card>
           );
         })}

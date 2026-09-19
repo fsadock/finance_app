@@ -4,6 +4,7 @@ import { getInstallmentPlans } from "@/lib/data/installments";
 import { formatBRL, formatMonthKeyLong, formatMonthKeyShort } from "@/lib/domain/format";
 import { committedByMonth } from "@/lib/domain/installments";
 import { Layers } from "lucide-react";
+import { InstallmentList } from "@/components/installments/installment-list";
 
 export default async function InstallmentsPage() {
   const plans = await getInstallmentPlans();
@@ -49,40 +50,7 @@ export default async function InstallmentsPage() {
       </Card>
 
       <Card className="p-0 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-fg-muted border-b border-border">
-              <th className="px-6 py-3 font-medium">Compra</th>
-              <th className="px-6 py-3 font-medium">Cartão</th>
-              <th className="px-6 py-3 font-medium">Progresso</th>
-              <th className="px-6 py-3 font-medium text-right">Parcela</th>
-              <th className="px-6 py-3 font-medium text-right">Total</th>
-              <th className="px-6 py-3 font-medium text-right">Restante</th>
-              <th className="px-6 py-3 font-medium text-right">Última</th>
-            </tr>
-          </thead>
-          <tbody>
-            {plans.map((p) => (
-              <tr key={p.key} className="border-b border-border last:border-b-0 hover:bg-bg-hover/40">
-                <td className="px-6 py-3">
-                  <div className="font-medium">{p.label}</div>
-                  <div className="text-xs text-fg-muted capitalize">comprado em {formatMonthKeyShort(p.purchaseMonth)}</div>
-                </td>
-                <td className="px-6 py-3 text-fg-muted">{p.accountName}</td>
-                <td className="px-6 py-3 min-w-[140px]">
-                  <div className="text-xs text-fg-muted mb-1">{p.paid}/{p.totalInstallments}</div>
-                  <div className="h-1.5 rounded-full bg-bg-hover overflow-hidden">
-                    <div className="h-full bg-accent" style={{ width: `${(p.paid / p.totalInstallments) * 100}%` }} />
-                  </div>
-                </td>
-                <td className="px-6 py-3 text-right whitespace-nowrap">{formatBRL(p.installmentAmount)}</td>
-                <td className="px-6 py-3 text-right whitespace-nowrap text-fg-muted">{formatBRL(p.total)}</td>
-                <td className="px-6 py-3 text-right whitespace-nowrap font-medium">{formatBRL(p.remainingAmount)}</td>
-                <td className="px-6 py-3 text-right whitespace-nowrap capitalize text-fg-muted">{formatMonthKeyShort(p.endMonth)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <InstallmentList plans={plans} />
         {plans.length === 0 && (
           <div className="p-12 text-center text-fg-muted">
             <Layers className="size-8 mx-auto mb-3" />

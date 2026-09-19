@@ -2,41 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Receipt,
-  PieChart,
-  TrendingUp,
-  Wallet,
-  Target,
-  LineChart,
-  Repeat,
-  Layers,
-  Landmark,
-  ListChecks,
-  Settings,
-} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/domain/format";
-
-const nav = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/transactions", label: "Transações", icon: Receipt },
-  { href: "/categories", label: "Categorias", icon: PieChart },
-  { href: "/cashflow", label: "Fluxo de Caixa", icon: TrendingUp },
-  { href: "/accounts", label: "Contas", icon: Wallet },
-  { href: "/goals", label: "Metas", icon: Target },
-  { href: "/investments", label: "Investimentos", icon: LineChart },
-  { href: "/recurrings", label: "Recorrentes", icon: Repeat },
-  { href: "/installments", label: "Parcelas", icon: Layers },
-  { href: "/taxes", label: "Imposto de Renda", icon: Landmark },
-  { href: "/rules", label: "Regras", icon: ListChecks },
-];
+import { NAV, SETTINGS_NAV, isActive } from "./nav";
 
 export function Sidebar({ lastSync, setupPending }: { lastSync: string | null; setupPending: boolean }) {
   const pathname = usePathname();
   return (
-    <aside className="w-64 shrink-0 border-r border-border bg-bg-elev px-4 py-6 flex flex-col gap-2 sticky top-0 h-screen">
+    <aside className="hidden lg:flex w-64 shrink-0 border-r border-border bg-bg-elev px-4 py-6 flex-col gap-2 sticky top-0 h-screen">
       <div className="px-3 mb-6 flex items-center gap-2">
         <div className="size-8 rounded-lg bg-accent grid place-items-center text-bg font-bold">F</div>
         <div>
@@ -45,9 +18,9 @@ export function Sidebar({ lastSync, setupPending }: { lastSync: string | null; s
         </div>
       </div>
       <nav className="flex flex-col gap-0.5">
-        {nav.map((item) => {
+        {NAV.map((item) => {
           const Icon = item.icon;
-          const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          const active = isActive(item.href, pathname);
           return (
             <Link
               key={item.href}
@@ -70,13 +43,13 @@ export function Sidebar({ lastSync, setupPending }: { lastSync: string | null; s
         href="/settings"
         className={cn(
           "mt-auto flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
-          pathname.startsWith("/settings") || pathname.startsWith("/setup")
+          isActive(SETTINGS_NAV.href, pathname)
             ? "bg-bg-hover text-fg"
             : "text-fg-muted hover:text-fg hover:bg-bg-hover/60"
         )}
       >
-        <Settings className="size-[18px]" strokeWidth={1.75} />
-        <span>Configurações</span>
+        <SETTINGS_NAV.icon className="size-[18px]" strokeWidth={1.75} />
+        <span>{SETTINGS_NAV.label}</span>
         {setupPending && <span className="ml-auto size-2 rounded-full bg-warn" title="Configuração pendente" />}
       </Link>
       <div className="px-3 pt-4 border-t border-border text-xs text-fg-subtle">

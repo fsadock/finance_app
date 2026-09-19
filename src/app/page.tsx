@@ -76,13 +76,13 @@ export default async function DashboardPage({ searchParams }: Props) {
       />
 
       <div className="grid grid-cols-12 gap-4">
-        <Card className="col-span-12 md:col-span-3">
+        <Card className="col-span-6 md:col-span-3 p-4 sm:p-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Wallet className="size-4 text-accent" /> Liberdade p/ gastar
             </CardTitle>
           </CardHeader>
-          <CardValue className="text-accent">{formatBRL(freeToSpend)}</CardValue>
+          <CardValue className="text-xl text-accent">{formatBRL(freeToSpend)}</CardValue>
           <div className="mt-3 text-xs text-fg-muted">
             {totalBudget > 0
               ? `Orçamento − gastos − ${formatBRLCompact(upcomingTotal)} em contas a vencer`
@@ -90,12 +90,12 @@ export default async function DashboardPage({ searchParams }: Props) {
           </div>
         </Card>
 
-        <Card className="col-span-12 md:col-span-3">
+        <Card className="col-span-6 md:col-span-3 p-4 sm:p-6">
           <CardHeader>
             <CardTitle>Gasto do mês</CardTitle>
             {totalBudget > 0 && <span className="text-xs text-fg-muted">{Math.round(budgetPct)}% do orçamento</span>}
           </CardHeader>
-          <CardValue>{formatBRL(monthSpend.spent)}</CardValue>
+          <CardValue className="text-xl">{formatBRL(monthSpend.spent)}</CardValue>
           <div className="mt-4 h-2 rounded-full bg-bg-hover overflow-hidden">
             <div
               className="h-full rounded-full transition-all"
@@ -107,11 +107,11 @@ export default async function DashboardPage({ searchParams }: Props) {
           </div>
         </Card>
 
-        <Card className="col-span-12 md:col-span-3">
+        <Card className="col-span-6 md:col-span-3 p-4 sm:p-6">
           <CardHeader>
             <CardTitle>Recebido no mês</CardTitle>
           </CardHeader>
-          <CardValue>{formatBRL(monthSpend.income)}</CardValue>
+          <CardValue className="text-xl">{formatBRL(monthSpend.income)}</CardValue>
           <div className="mt-3 text-xs">
             <span className={monthSpend.income - monthSpend.spent >= 0 ? "text-accent" : "text-danger"}>
               Saldo: {formatBRL(monthSpend.income - monthSpend.spent)}
@@ -119,11 +119,11 @@ export default async function DashboardPage({ searchParams }: Props) {
           </div>
         </Card>
 
-        <Card className="col-span-12 md:col-span-3">
+        <Card className="col-span-6 md:col-span-3 p-4 sm:p-6">
           <CardHeader>
             <CardTitle>Patrimônio líquido</CardTitle>
           </CardHeader>
-          <CardValue className="text-accent">{formatBRL(networth.net)}</CardValue>
+          <CardValue className="text-xl text-accent">{formatBRL(networth.net)}</CardValue>
           <div className="mt-3 text-xs text-fg-muted truncate">
             {formatBRLCompact(networth.assets)} Ativos · {formatBRLCompact(networth.debts)} Dívidas
           </div>

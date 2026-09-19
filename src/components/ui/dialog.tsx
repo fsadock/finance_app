@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
-/** Centered modal with a close button, a title and an optional description. */
+/** Modal with a close button, a title and an optional description: a bottom sheet on phones, centered from sm up. */
 export function Dialog({
   title,
   description,
@@ -16,8 +16,8 @@ export function Dialog({
   children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <Card className="w-full max-w-md p-6 relative text-left">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
+      <Card className="relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-b-none p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-left sm:rounded-2xl sm:pb-6">
         <button onClick={onClose} className="absolute right-4 top-4 text-fg-muted hover:text-fg" aria-label="Fechar">
           <X className="size-5" />
         </button>

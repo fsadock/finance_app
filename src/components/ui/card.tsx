@@ -14,7 +14,7 @@ export function Card({ className, ...props }: ComponentProps<"div">) {
 }
 
 export function CardHeader({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cn("mb-4 flex items-start justify-between gap-4", className)} {...props} />;
+  return <div className={cn("mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-1", className)} {...props} />;
 }
 
 export function CardTitle({ className, ...props }: ComponentProps<"h3">) {
@@ -22,5 +22,5 @@ export function CardTitle({ className, ...props }: ComponentProps<"h3">) {
 }
 
 export function CardValue({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cn("text-3xl font-semibold tracking-tight", className)} {...props} />;
+  return <div className={cn("text-2xl font-semibold tracking-tight sm:text-3xl", className)} {...props} />;
 }

@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
+import { MobileNav } from "@/components/layout/mobile-nav";
 import { getLastSync } from "@/lib/data/connections";
 import { getPluggyCredentials } from "@/lib/infra/settings";
 import { SetupBanner } from "@/components/setup/setup-banner";
@@ -13,6 +14,12 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: "Finanças",
   description: "Personal finance dashboard",
+  appleWebApp: { capable: true, title: "Finanças", statusBarStyle: "black-translucent" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0b0d",
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({
@@ -27,7 +34,8 @@ export default async function RootLayout({
         <div className="flex min-h-screen">
           <Sidebar lastSync={lastSync?.toISOString() ?? null} setupPending={!pluggy.configured} />
           <main className="flex-1 min-w-0">
-            <div className="mx-auto max-w-[1400px] px-8 py-8">
+            <MobileNav lastSync={lastSync?.toISOString() ?? null} setupPending={!pluggy.configured} />
+            <div className="mx-auto max-w-[1400px] px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:px-8 lg:py-8">
               {!pluggy.configured && <SetupBanner />}
               {children}
             </div>
