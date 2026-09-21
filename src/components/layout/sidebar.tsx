@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/domain/format";
 import { NAV, SETTINGS_NAV, isActive } from "./nav";
+import { NavLinkPending } from "./nav-link-pending";
 
 export function Sidebar({ lastSync, setupPending }: { lastSync: string | null; setupPending: boolean }) {
   const pathname = usePathname();
@@ -32,7 +33,9 @@ export function Sidebar({ lastSync, setupPending }: { lastSync: string | null; s
                   : "text-fg-muted hover:text-fg hover:bg-bg-hover/60"
               )}
             >
-              <Icon className="size-[18px]" strokeWidth={1.75} />
+              <NavLinkPending>
+                <Icon className="size-[18px]" strokeWidth={1.75} />
+              </NavLinkPending>
               <span>{item.label}</span>
               {active && <div className="ml-auto size-1.5 rounded-full bg-accent" />}
             </Link>

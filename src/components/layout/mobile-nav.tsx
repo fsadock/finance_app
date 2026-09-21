@@ -7,6 +7,7 @@ import { MoreHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/domain/format";
 import { MOBILE_TABS, NAV, SETTINGS_NAV, isActive } from "./nav";
+import { NavLinkPending } from "./nav-link-pending";
 
 /** Phone navigation (below lg): top bar, bottom tab bar and a "Mais" sheet with the other pages. */
 export function MobileNav({ lastSync, setupPending }: { lastSync: string | null; setupPending: boolean }) {
@@ -97,7 +98,9 @@ export function MobileNav({ lastSync, setupPending }: { lastSync: string | null;
 function TabLink({ href, label, icon: Icon, active }: { href: string; label: string; icon: typeof MoreHorizontal; active: boolean }) {
   return (
     <Link href={href} className={cn("flex flex-col items-center gap-1 py-2.5 text-[11px]", active ? "text-accent" : "text-fg-muted")}>
-      <Icon className="size-5" strokeWidth={1.75} />
+      <NavLinkPending>
+        <Icon className="size-5" strokeWidth={1.75} />
+      </NavLinkPending>
       {label}
     </Link>
   );
