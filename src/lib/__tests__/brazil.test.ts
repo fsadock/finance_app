@@ -115,7 +115,8 @@ describe("rates", () => {
   });
 });
 
-import { deterministicCategory, expectedInstallmentDate, planInstallmentRedates, type InstallmentRow } from "@/lib/domain/brazil";
+import { deterministicCategory } from "@/lib/domain/brazil";
+import { expectedInstallmentDate, planInstallmentRedates, type InstallmentRow } from "@/lib/domain/installments";
 
 describe("deterministicCategory", () => {
   const base = { amount: -100, accountType: "CHECKING", counterpartyType: null, paymentMethod: "OTHER" };

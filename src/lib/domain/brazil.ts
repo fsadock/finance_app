@@ -1,5 +1,3 @@
-import { DAY_MS } from "@/lib/domain/format";
-
 /**
  * Brazil-specific parsing of bank data: Pix/TED counterparties (CPF vs CNPJ), card installments
  * ("parcelado"), and pt-BR money input.
@@ -112,61 +110,4 @@ export function deterministicCategory(t: {
     return "Investimentos";
   }
   return null;
-}
-
-/** Installment n of a purchase made on `anchor` belongs ~n−1 months later (month-end clamped). */
-export function expectedInstallmentDate(anchor: Date, installmentNumber: number): Date {
-  const d = new Date(anchor.getFullYear(), anchor.getMonth() + installmentNumber - 1, 1, anchor.getHours(), anchor.getMinutes());
-  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  d.setDate(Math.min(anchor.getDate(), lastDay));
-  return d;
-}
-
-export type InstallmentRow = {
-  id: string;
-  accountId: string;
-  description: string;
-  merchantName: string | null;
-  amount: number;
-  date: Date;
-  installmentNumber: number | null;
-  totalInstallments: number | null;
-  purchaseDate: Date | null;
-};
-
-/**
- * Card connectors are inconsistent about installment dates: some stamp every future installment with the
- * purchase date, others set `purchaseDate` equal to the installment's own date. A single row can't tell
- * which, so this works per purchase: the earliest purchase/first-installment date in the group is the
- * anchor, and any installment more than 20 days from anchor + (n−1) months is re-dated.
- * Groups with a repeated installment number (two identical purchases) are skipped.
- */
-export function planInstallmentRedates(rows: InstallmentRow[]): { id: string; date: Date }[] {
-  const groups = new Map<string, InstallmentRow[]>();
-  for (const r of rows) {
-    if (!r.installmentNumber || !r.totalInstallments || r.totalInstallments < 2) continue;
-    const merchant = (r.merchantName ?? r.description)
-      .toLowerCase()
-      .replace(/\b(parc(ela)?\.?\s*)?\d{1,2}\s*(\/|de)\s*\d{1,2}\b/g, "")
-      .replace(/[^a-z]/g, "");
-    const key = [r.accountId, merchant, r.totalInstallments, Math.round(Math.abs(r.amount) * 100)].join("|");
-    groups.set(key, [...(groups.get(key) ?? []), r]);
-  }
-
-  const out: { id: string; date: Date }[] = [];
-  for (const list of groups.values()) {
-    const numbers = list.map((r) => r.installmentNumber!);
-    if (new Set(numbers).size !== numbers.length) continue;
-    const candidates = list.flatMap((r) => [
-      ...(r.purchaseDate ? [r.purchaseDate.getTime()] : []),
-      ...(r.installmentNumber === 1 ? [r.date.getTime()] : []),
-    ]);
-    if (candidates.length === 0) continue;
-    const anchor = new Date(Math.min(...candidates));
-    for (const r of list) {
-      const expected = expectedInstallmentDate(anchor, r.installmentNumber!);
-      if (Math.abs(r.date.getTime() - expected.getTime()) > 20 * DAY_MS) out.push({ id: r.id, date: expected });
-    }
-  }
-  return out;
 }

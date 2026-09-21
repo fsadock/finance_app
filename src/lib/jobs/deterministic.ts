@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/infra/db";
-import { deterministicCategory, planInstallmentRedates } from "@/lib/domain/brazil";
+import { deterministicCategory } from "@/lib/domain/brazil";
+import { planInstallmentRedates } from "@/lib/domain/installments";
 
 /**
  * Backfill for the no-AI rules: categorizes REVIEW transactions that match a deterministic rule
