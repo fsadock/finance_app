@@ -147,6 +147,14 @@ describe("installment purchases (real Nubank cases, dates as Open Finance sent t
     expect(p!.remainingAmount).toBeCloseTo(504.9);
   });
 
+  it("keeps a second installment posted on the next closing day (Nubank: 1ª 06/08, 2ª 13/08)", () => {
+    const prime = [1, 2, 3].map((n) =>
+      tx({ description: `Amazon Prime ${n}/12`, amount: -13.9, installmentNumber: n, date: [day(2026, 8, 6), day(2026, 8, 13), day(2026, 9, 13)][n - 1]! })
+    );
+    // 2ª is in the closed September bill (posted 13/08, before the open bill started on 13/09): settled
+    expect(buildInstallmentPlans(prime, nubank)[0]).toMatchObject({ paid: 2, remaining: 10 });
+  });
+
   it("keeps two similar purchases apart (Araujo Loja: two 3x purchases, both on 2/3)", () => {
     const araujo = [
       tx({ id: "x", description: "Araujo Loja 2/3", amount: -101.34, installmentNumber: 2, totalInstallments: 3 }),

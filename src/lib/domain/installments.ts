@@ -91,15 +91,16 @@ function purchaseAnchor(group: InstallmentRow[]): Date | null {
 /**
  * When each installment of a purchase is charged, read from the bank's data without changing it.
  * Some banks (BTG) date future installments with the purchase date: 7/10 dated on the purchase day
- * is charged six months later. An installment n > 1 dated within 20 days of the purchase is read as
- * purchase + (n − 1) months; every other date is the bank's.
+ * is charged six months later. An installment n > 1 dated on the purchase day (±2 days) is read as
+ * purchase + (n − 1) months; every other date is the bank's — including a second installment posted a
+ * week later on the closing day (Nubank), which is a real bill posting.
  */
 function chargeDates(group: InstallmentRow[]): Map<number, Date> {
   const anchor = purchaseAnchor(group);
   const out = new Map<number, Date>();
   for (const r of group) {
     const n = r.installmentNumber!;
-    const stampedWithPurchase = anchor !== null && n > 1 && Math.abs(r.date.getTime() - anchor.getTime()) <= 20 * DAY_MS;
+    const stampedWithPurchase = anchor !== null && n > 1 && Math.abs(r.date.getTime() - anchor.getTime()) <= 2 * DAY_MS;
     out.set(n, stampedWithPurchase ? addMonths(anchor, n - 1) : r.date);
   }
   return out;
