@@ -9,18 +9,7 @@ import { cumulativeSeries, sumByDay } from "@/lib/domain/series";
 /** Card spending pace against the monthly card goal, per-account billing cycles. */
 export async function getCCSpendingData(month = new Date()) {
   const { start: monthStart, end: monthEnd } = monthBounds(month);
-  const [limit, closeDay, cards] = await Promise.all([
-    getConfigNumber("ccMonthlyLimit"),
-    getConfigNumber("ccCycleCloseDay"),
-    prisma.account.findMany({
-      where: { type: "CREDIT_CARD", hidden: false },
-      select: {
-        id: true,
-        balanceCloseDate: true,
-        creditCardBills: { orderBy: { dueDate: "desc" }, take: 1, select: { dueDate: true } },
-      },
-    }),
-  ]);
+  const [limit, closeDay, cards] = await Promise.all([getConfigNumber("ccMonthlyLimit"), getConfigNumber("ccCycleCloseDay"), getCards()]);
   const totalBudget = limit ?? 0;
 
   const today = startOfDay(new Date());
@@ -176,5 +165,24 @@ export async function getOpenBills(accounts: CardForBill[], closeDay: number | n
     }
   }
   return openBill;
+}
+
+function getCards() {
+  return prisma.account.findMany({
+    where: { type: "CREDIT_CARD", hidden: false },
+    select: {
+      id: true,
+      balanceCloseDate: true,
+      creditCardBills: { orderBy: { dueDate: "desc" }, take: 1, select: { dueDate: true } },
+    },
+  });
+}
+
+/** When each card's open bill started: charges before it are in bills that already closed. */
+export async function getOpenBillStarts(today = startOfDay(new Date())) {
+  const [closeDay, cards] = await Promise.all([getConfigNumber("ccCycleCloseDay"), getCards()]);
+  const starts = new Map<string, Date>();
+  for (const [id, cycle] of currentCycles(cards, closeDay, today)) if (cycle) starts.set(id, cycle.start);
+  return starts;
 }
 

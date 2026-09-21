@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/infra/db";
 import { buildInstallmentPlans } from "@/lib/domain/installments";
+import { getOpenBillStarts } from "@/lib/data/cards";
 
 /** Card purchases in installments ("parcelado") from the last 4 years, grouped into plans. */
 export async function getInstallmentPlans() {
   const since = new Date();
   since.setMonth(since.getMonth() - 48);
-  const txs = await prisma.transaction.findMany({
+  const [txs, openBillStarts] = await Promise.all([
+    prisma.transaction.findMany({
     where: {
       totalInstallments: { gt: 1 },
       amount: { lt: 0 },
@@ -25,10 +27,12 @@ export async function getInstallmentPlans() {
       purchaseDate: true,
       account: { select: { name: true } },
     },
-  });
+    }),
+    getOpenBillStarts(),
+  ]);
 
-  const plans = buildInstallmentPlans(
-    txs.map((t) => ({ ...t, accountName: t.account.name, totalInstallments: t.totalInstallments! }))
+  return buildInstallmentPlans(
+    txs.map((t) => ({ ...t, accountName: t.account.name, totalInstallments: t.totalInstallments! })),
+    { openBillStarts }
   );
-  return plans;
 }

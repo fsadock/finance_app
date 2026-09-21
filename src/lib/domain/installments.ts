@@ -89,53 +89,73 @@ function purchaseAnchor(group: InstallmentRow[]): Date | null {
 }
 
 /**
- * Groups card installment charges ("parcelado sem juros") into purchases and projects the
- * remaining ones. Installments that should already have posted but weren't synced are treated
- * as paid, so the projection never contains past months.
+ * When each installment of a purchase is charged, read from the bank's data without changing it.
+ * Some banks (BTG) date future installments with the purchase date: 7/10 dated on the purchase day
+ * is charged six months later. An installment n > 1 dated within 20 days of the purchase is read as
+ * purchase + (n − 1) months; every other date is the bank's.
  */
-export function buildInstallmentPlans(txs: InstallmentTx[], today = new Date()): InstallmentPlan[] {
+function chargeDates(group: InstallmentRow[]): Map<number, Date> {
+  const anchor = purchaseAnchor(group);
+  const out = new Map<number, Date>();
+  for (const r of group) {
+    const n = r.installmentNumber!;
+    const stampedWithPurchase = anchor !== null && n > 1 && Math.abs(r.date.getTime() - anchor.getTime()) <= 20 * DAY_MS;
+    out.set(n, stampedWithPurchase ? addMonths(anchor, n - 1) : r.date);
+  }
+  return out;
+}
+
+/**
+ * Groups card installment charges ("parcelado") into purchases and projects what's left, the way the
+ * bank counts it: an installment is settled once its bill has closed (charged before the card's open
+ * bill started); the one in the open bill and the ones after are still to pay. Installments the bank
+ * hasn't sent yet are placed from the installment numbers of the ones it did.
+ * `openBillStarts`: per card; cards without one fall back to the start of the current month.
+ */
+export function buildInstallmentPlans(
+  txs: InstallmentTx[],
+  { today = new Date(), openBillStarts = new Map<string, Date>() }: { today?: Date; openBillStarts?: Map<string, Date> } = {}
+): InstallmentPlan[] {
   const charges = txs.filter((t) => t.amount < 0 && t.totalInstallments >= 2);
-  const groups = groupInstallmentPurchases(charges).map((list) => {
-    const anchor = purchaseAnchor(list) ?? addMonths(list[0]!.date, -((list[0]!.installmentNumber ?? 1) - 1));
-    return [[list[0]!.accountId, merchantOf(list[0]!), list[0]!.totalInstallments, monthKey(anchor)].join("|"), list] as const;
-  });
-
-  const currentMonth = monthKey(today);
   const plans: InstallmentPlan[] = [];
-  for (const [key, list] of groups) {
-    list.sort((a, b) => a.date.getTime() - b.date.getTime());
-    // Reference: the newest installment already charged. Banks also send the future ones up front,
-    // and taking the last of those would mark the whole purchase as paid.
-    const charged = list.filter((t) => t.date <= today);
-    const latest = charged.length > 0 ? charged[charged.length - 1]! : list[0]!;
-    const total = latest.totalInstallments;
-    const installmentAmount = Math.abs(latest.amount);
-    const latestNumber = charged.length > 0 ? (latest.installmentNumber ?? charged.length) : (latest.installmentNumber ?? 1) - 1;
-    const latestMonth = monthKeyToDate(monthKey(charged.length > 0 ? latest.date : addMonths(latest.date, -1)));
+  for (const list of groupInstallmentPurchases(charges)) {
+    const known = new Map(list.map((t) => [t.installmentNumber!, t]));
+    const charged = chargeDates(list);
+    const numbers = [...known.keys()].sort((a, b) => a - b);
+    const total = list[0]!.totalInstallments;
+    // Date of installment k: when it's charged, or projected from the nearest one the bank sent.
+    const dateOf = (k: number) => {
+      if (charged.has(k)) return charged.get(k)!;
+      const nearest = numbers.reduce((best, n) => (Math.abs(n - k) < Math.abs(best - k) ? n : best));
+      return addMonths(charged.get(nearest)!, k - nearest);
+    };
+    const settledBefore = openBillStarts.get(list[0]!.accountId) ?? new Date(today.getFullYear(), today.getMonth(), 1);
 
+    const reference = known.get(numbers[numbers.length - 1]!)!; // later installments don't carry the rounding
+    const installmentAmount = Math.abs(reference.amount);
     const schedule = new Map<string, number>();
-    let paid = latestNumber;
-    for (let k = 1; k <= total - latestNumber; k++) {
-      const month = monthKey(addMonths(latestMonth, k));
-      if (month < currentMonth) paid++;
-      else schedule.set(month, installmentAmount);
+    let paid = 0;
+    for (let k = 1; k <= total; k++) {
+      const date = dateOf(k);
+      if (date < settledBefore) paid++;
+      else schedule.set(monthKey(date), (schedule.get(monthKey(date)) ?? 0) + installmentAmount);
     }
     const remaining = total - paid;
     if (remaining <= 0) continue;
 
-    const purchaseMonth = monthKey(addMonths(latestMonth, -(latestNumber - 1)));
+    const purchase = purchaseAnchor(list) ?? dateOf(1);
     plans.push({
-      key,
-      label: latest.merchantName ?? latest.description.replace(/\s*(parc(ela)?\.?\s*)?\d{1,2}\s*(\/|de)\s*\d{1,2}\s*/i, " ").trim(),
-      accountName: latest.accountName,
+      key: [reference.accountId, merchantOf(reference), total, monthKey(purchase)].join("|"),
+      label: reference.merchantName ?? reference.description.replace(/\s*(parc(ela)?\.?\s*)?\d{1,2}\s*(\/|de)\s*\d{1,2}\s*/i, " ").trim(),
+      accountName: reference.accountName,
       installmentAmount,
-      total: latest.purchaseAmount ?? installmentAmount * total,
+      total: reference.purchaseAmount ?? installmentAmount * total,
       totalInstallments: total,
       paid,
       remaining,
       remainingAmount: remaining * installmentAmount,
-      purchaseMonth,
-      endMonth: monthKey(addMonths(latestMonth, total - latestNumber)),
+      purchaseMonth: monthKey(purchase),
+      endMonth: monthKey(dateOf(total)),
       schedule,
     });
   }
