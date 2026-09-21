@@ -14,7 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type NavItem = { href: string; label: string; short?: string; icon: LucideIcon };
+type NavItem = { href: string; label: string; short?: string; icon: LucideIcon };
 
 export const NAV: NavItem[] = [
   { href: "/", label: "Dashboard", short: "Início", icon: LayoutDashboard },

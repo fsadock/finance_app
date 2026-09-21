@@ -38,7 +38,7 @@ export default async function RootLayout({
           <Sidebar lastSync={lastSync?.toISOString() ?? null} setupPending={!pluggy.configured} />
           <main className="flex-1 min-w-0">
             <MobileNav lastSync={lastSync?.toISOString() ?? null} setupPending={!pluggy.configured} />
-            <PullToRefresh />
+            <PullToRefresh lastSync={lastSync?.toISOString() ?? null} />
             <div className="mx-auto max-w-[1400px] px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:px-8 lg:py-8">
               {!pluggy.configured && <SetupBanner />}
               {children}

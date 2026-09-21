@@ -8,7 +8,7 @@ import { AutoChangeBadge, RecurringActions } from "@/components/recurrings/recur
 import type { CategoryOption } from "@/components/recurrings/recurring-editor";
 import { cn } from "@/lib/utils";
 
-export type Item = Awaited<ReturnType<typeof getActiveRecurrings>>[number];
+type Item = Awaited<ReturnType<typeof getActiveRecurrings>>[number];
 
 export const sum = (items: Item[], f: (i: Item) => number) => items.filter((r) => !r.likelyInactive).reduce((s, r) => s + f(r), 0);
 /** Every charge the "Pago em 12 meses" sum includes, oldest first. */

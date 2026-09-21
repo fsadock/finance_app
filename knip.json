@@ -3,5 +3,8 @@
   "ignoreDependencies": [
     "@prisma/client",
     "postcss"
+  ],
+  "ignore": [
+    "public/sw.js"
   ]
 }

@@ -6,6 +6,8 @@ import { Plug, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { CategorizePendingButton } from "@/components/transactions/categorize-pending-button";
 import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { readJson } from "@/lib/client/api";
+import { describeSync, syncAllAccounts } from "@/lib/client/sync";
 
 declare global {
   interface Window {
@@ -42,12 +44,6 @@ function loadScript(): Promise<void> {
     s.onerror = () => reject(new Error("Falha ao carregar o Pluggy Connect"));
     document.body.appendChild(s);
   });
-}
-
-async function readJson(res: Response) {
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? `Erro ${res.status}`);
-  return data;
 }
 
 type Busy = null | "connect" | "sync";
@@ -128,17 +124,7 @@ export function PluggyConnectButton() {
     setBusy("sync");
     setMsg("Sincronizando todas as contas…");
     try {
-      const data = await readJson(await fetch("/api/pluggy/sync", { method: "POST" }));
-      const failed = (data.items ?? []).filter((it: { ok: boolean }) => !it.ok).length;
-      const total = (data.items ?? []).reduce(
-        (s: number, it: { stats?: { transactions?: number } }) => s + (it.stats?.transactions ?? 0),
-        0
-      );
-      const post = data.post ?? {};
-      setMsg(
-        `✓ ${total} transações novas${failed ? ` · ${failed} conexão(ões) com erro` : ""}` +
-          (post.aiError ? ` · ⚠ ${post.aiError}` : ` · ${post.pendingReview ?? 0} para revisar`)
-      );
+      setMsg(describeSync(await syncAllAccounts()));
       startTransition(() => router.refresh());
     } catch (e) {
       setMsg(errorMessage(e, "Erro"));
