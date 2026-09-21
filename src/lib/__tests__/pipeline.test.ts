@@ -82,10 +82,13 @@ beforeEach(async () => {
   await prisma.merchantRule.create({ data: { pattern: "padaria pao quente", categoryId: ids.mercado, source: "USER" } });
 });
 
-const tx = (description: string, amount: number, extra: Record<string, unknown> = {}) =>
-  prisma.transaction.create({
-    data: { accountId: ids.btg!, date: daysAgo(5), description, amount, status: "REVIEW", ...extra },
+const tx = (description: string, amount: number, extra: Record<string, unknown> = {}) => {
+  const date = (extra.date as Date | undefined) ?? daysAgo(5);
+  // like the sync: chargeDate starts as the bank's date
+  return prisma.transaction.create({
+    data: { accountId: ids.btg!, date, chargeDate: date, description, amount, status: "REVIEW", ...extra },
   });
+};
 
 describe("post-sync pipeline", () => {
   it("categorizes with deterministic rules, user rules and Claude, pairs transfers and learns rules", async () => {
@@ -160,6 +163,24 @@ describe("post-sync pipeline", () => {
     expect(left.has(copy.id)).toBe(false);
     expect([real, ...rides].every((t) => left.has(t.id))).toBe(true);
     expect(out.duplicatesRemoved).toBe(1);
+  });
+
+  it("reads installments dated with the purchase day as charged in their month, keeping the bank's date", async () => {
+    claude({});
+    const purchase = daysAgo(200);
+    const later = new Date(purchase.getTime() + 86_400_000);
+    const first = await tx("Loja 1/3", -100, { date: purchase, installmentNumber: 1, totalInstallments: 3, purchaseDate: purchase, status: "POSTED" });
+    const third = await tx("Loja 3/3", -100, { date: later, installmentNumber: 3, totalInstallments: 3, purchaseDate: purchase, status: "POSTED" });
+
+    const out = await runPostSyncJobs();
+
+    const [a, b] = await Promise.all([first, third].map((t) => prisma.transaction.findUniqueOrThrow({ where: { id: t.id } })));
+    expect(a.chargeDate).toEqual(purchase);
+    const expected = new Date(purchase);
+    expected.setMonth(expected.getMonth() + 2);
+    expect(b.chargeDate).toEqual(expected);
+    expect(b.date).toEqual(later); // the bank's date is untouched
+    expect(out.chargeDatesUpdated).toBe(1);
   });
 
   it("keeps rules working and reports the error when Claude fails", async () => {

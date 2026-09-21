@@ -136,8 +136,8 @@ export default async function TaxesPage({ searchParams }: Props) {
       </div>
       {deductibleTx.length > 0 && (
         <p className="text-[11px] text-fg-subtle mt-4">
-          {deductibleTx.length} lançamentos dedutíveis entre {formatDate(deductibleTx[0]!.date)} e{" "}
-          {formatDate(deductibleTx[deductibleTx.length - 1]!.date)}.
+          {deductibleTx.length} lançamentos dedutíveis entre {formatDate(deductibleTx[0]!.chargeDate)} e{" "}
+          {formatDate(deductibleTx[deductibleTx.length - 1]!.chargeDate)}.
         </p>
       )}
     </>

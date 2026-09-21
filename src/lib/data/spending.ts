@@ -6,7 +6,7 @@ import { cumulativeSeries, sumByDay } from "@/lib/domain/series";
 /** Spent = expenses − refunds (estornos); income = income categories / uncategorized deposits. */
 export async function getMonthSpend(month = new Date()) {
   const { start, end } = monthBounds(month);
-  const range = { date: { gte: start, lt: end } };
+  const range = { chargeDate: { gte: start, lt: end } };
   const [spend, inc] = await Promise.all([
     prisma.transaction.findMany({ where: { AND: [range, SPEND_WHERE] }, select: FLOW_SELECT }),
     prisma.transaction.aggregate({ where: { AND: [range, INCOME_WHERE] }, _sum: { amount: true } }),
@@ -20,7 +20,7 @@ export async function getCategorySpend(month = new Date()) {
   const { start, end } = monthBounds(month);
   const grouped = await prisma.transaction.groupBy({
     by: ["categoryId"],
-    where: { AND: [{ date: { gte: start, lt: end } }, SPEND_WHERE] },
+    where: { AND: [{ chargeDate: { gte: start, lt: end } }, SPEND_WHERE] },
     _sum: { amount: true },
   });
   return new Map(grouped.map((g) => [g.categoryId, Math.max(0, -(g._sum.amount ?? 0))]));
@@ -44,8 +44,8 @@ export async function getSpendingPace(month: Date, totalBudget: number, chartSta
   const to = chartEnd ?? monthEnd;
 
   const txs = await prisma.transaction.findMany({
-    where: { AND: [{ date: { gte: monthStart, lt: monthEnd } }, SPEND_WHERE] },
-    select: { ...FLOW_SELECT, date: true },
+    where: { AND: [{ chargeDate: { gte: monthStart, lt: monthEnd } }, SPEND_WHERE] },
+    select: { ...FLOW_SELECT, chargeDate: true },
   });
 
   const monthDays = Math.round((monthEnd.getTime() - monthStart.getTime()) / DAY_MS);
@@ -56,7 +56,7 @@ export async function getSpendingPace(month: Date, totalBudget: number, chartSta
     from,
     days: chartDays,
     today: startOfDay(new Date()),
-    byDay: sumByDay(txs, spendDelta),
+    byDay: sumByDay(txs, (t) => t.chargeDate, spendDelta),
     counts: inMonth,
     ideal: (d) => (inMonth(d) && totalBudget > 0 ? (totalBudget / monthDays) * d.getDate() : null),
   });

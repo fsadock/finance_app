@@ -30,7 +30,7 @@ export async function GET(req: Request) {
 
   const lines = [
     row(
-      "Data", "Descrição", "Valor (BRL)", "Categoria", "Grupo", "Conta", "Tipo conta", "Status",
+      "Data", "Data da cobrança", "Descrição", "Valor (BRL)", "Categoria", "Grupo", "Conta", "Tipo conta", "Status",
       "Método", "Contraparte", "Tipo contraparte", "Comerciante", "CNPJ comerciante", "Parcela", "Notas", "Tags", "ID"
     ),
   ];
@@ -38,6 +38,7 @@ export async function GET(req: Request) {
     lines.push(
       row(
         localDayKey(t.date),
+        localDayKey(t.chargeDate),
         t.description,
         t.amount.toFixed(2),
         t.category?.name,

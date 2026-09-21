@@ -138,27 +138,27 @@ describe("dates", () => {
 describe("transaction filters", () => {
   it("makes `to` inclusive of the whole day", () => {
     const where = buildTransactionWhere({ from: "2026-09-01", to: "2026-09-10" });
-    expect(where).toEqual({ AND: [{ date: { gte: day(2026, 9, 1), lt: day(2026, 9, 11) } }] });
+    expect(where).toEqual({ AND: [{ chargeDate: { gte: day(2026, 9, 1), lt: day(2026, 9, 11) } }] });
   });
 
   it("applies every status, not just REVIEW", () => {
     const today = day(2026, 9, 21);
-    const upToToday = { date: { lt: day(2026, 9, 22) } };
+    const upToToday = { chargeDate: { lt: day(2026, 9, 22) } };
     expect(buildTransactionWhere({ status: "POSTED" }, today)).toEqual({ AND: [{ status: "POSTED" }, upToToday] });
     expect(buildTransactionWhere({ status: "bogus" }, today)).toEqual({ AND: [upToToday] });
   });
 
   it("stops at today: installments dated in the future stay on the Parcelas page", () => {
     const today = day(2026, 9, 21);
-    expect(buildTransactionWhere({}, today)).toEqual({ AND: [{ date: { lt: day(2026, 9, 22) } }] });
-    expect(buildTransactionWhere({ month: "2026-09" }, today)).toEqual({ AND: [{ date: { gte: day(2026, 9, 1), lt: day(2026, 9, 22) } }] });
-    expect(buildTransactionWhere({ month: "2026-08" }, today)).toEqual({ AND: [{ date: { gte: day(2026, 8, 1), lt: day(2026, 9, 1) } }] });
-    expect(futureTransactionsWhere({ account: "nu" }, today)).toEqual({ AND: [{ accountId: "nu" }, { date: { gte: day(2026, 9, 22) } }] });
+    expect(buildTransactionWhere({}, today)).toEqual({ AND: [{ chargeDate: { lt: day(2026, 9, 22) } }] });
+    expect(buildTransactionWhere({ month: "2026-09" }, today)).toEqual({ AND: [{ chargeDate: { gte: day(2026, 9, 1), lt: day(2026, 9, 22) } }] });
+    expect(buildTransactionWhere({ month: "2026-08" }, today)).toEqual({ AND: [{ chargeDate: { gte: day(2026, 8, 1), lt: day(2026, 9, 1) } }] });
+    expect(futureTransactionsWhere({ account: "nu" }, today)).toEqual({ AND: [{ accountId: "nu" }, { chargeDate: { gte: day(2026, 9, 22) } }] });
   });
 
   it("shows the future when a date range asks for it", () => {
     const today = day(2026, 9, 21);
-    expect(buildTransactionWhere({ from: "2026-10-01" }, today)).toEqual({ AND: [{ date: { gte: day(2026, 10, 1) } }] });
+    expect(buildTransactionWhere({ from: "2026-10-01" }, today)).toEqual({ AND: [{ chargeDate: { gte: day(2026, 10, 1) } }] });
     expect(futureTransactionsWhere({ from: "2026-10-01" }, today)).toBeNull();
   });
 
@@ -167,12 +167,12 @@ describe("transaction filters", () => {
     expect(where.AND).toEqual([
       { categoryId: null },
       { OR: [{ description: { contains: "uber" } }, { merchantRaw: { contains: "uber" } }, { notes: { contains: "uber" } }] },
-      { date: { lt: day(2026, 9, 22) } },
+      { chargeDate: { lt: day(2026, 9, 22) } },
     ]);
   });
 
   it("explicit date range wins over month", () => {
     const where = buildTransactionWhere({ month: "2026-01", from: "2026-09-01" });
-    expect(where).toEqual({ AND: [{ date: { gte: day(2026, 9, 1) } }] });
+    expect(where).toEqual({ AND: [{ chargeDate: { gte: day(2026, 9, 1) } }] });
   });
 });

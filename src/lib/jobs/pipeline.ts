@@ -3,6 +3,7 @@ import { errorMessage } from "@/lib/utils";
 import { TRANSFER_DETECTION_DAYS_BACK } from "@/lib/domain/constants";
 import { applyDeterministicRules } from "@/lib/jobs/deterministic";
 import { removeDuplicateTransactions } from "@/lib/jobs/duplicates";
+import { updateChargeDates } from "@/lib/jobs/charge-dates";
 import { detectTransfers } from "@/lib/jobs/transfers";
 import { categorizeAllPending } from "@/lib/jobs/categorize";
 import { refreshRecurrings } from "@/lib/jobs/recurrings";
@@ -16,6 +17,7 @@ import { aiErrorMessage } from "@/lib/ai/client";
 export async function runPostSyncJobs({ fullHistory = false } = {}) {
   const out = {
     duplicatesRemoved: 0,
+    chargeDatesUpdated: 0,
     deterministic: 0,
     transfersPaired: 0,
     categorized: 0,
@@ -33,6 +35,12 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
     out.duplicatesRemoved = (await removeDuplicateTransactions()).removed;
   } catch (e) {
     logger.error("post-sync:duplicates_failed", { error: errorMessage(e) });
+  }
+
+  try {
+    out.chargeDatesUpdated = (await updateChargeDates()).updated;
+  } catch (e) {
+    logger.error("post-sync:charge_dates_failed", { error: errorMessage(e) });
   }
 
   try {

@@ -7,12 +7,12 @@ export async function getMonthlyCashflow(monthsBack = 6, anchor = new Date()) {
   const start = monthKeyToDate(keys[0]!);
   const { end } = monthBounds(anchor);
   const txs = await prisma.transaction.findMany({
-    where: { AND: [{ date: { gte: start, lt: end } }, BUDGET_RELEVANT] },
-    select: { ...FLOW_SELECT, date: true },
+    where: { AND: [{ chargeDate: { gte: start, lt: end } }, BUDGET_RELEVANT] },
+    select: { ...FLOW_SELECT, chargeDate: true },
   });
   const buckets = new Map(keys.map((k) => [k, { income: 0, spend: 0 }]));
   for (const t of txs) {
-    const b = buckets.get(monthKey(t.date));
+    const b = buckets.get(monthKey(t.chargeDate));
     if (!b) continue;
     if (classifyFlow(t) === "income") b.income += t.amount;
     else b.spend += spendDelta(t);
@@ -23,7 +23,7 @@ export async function getMonthlyCashflow(monthsBack = 6, anchor = new Date()) {
 export async function getSankeyData(month = new Date()) {
   const { start, end } = monthBounds(month);
   const txs = await prisma.transaction.findMany({
-    where: { AND: [{ date: { gte: start, lt: end } }, BUDGET_RELEVANT] },
+    where: { AND: [{ chargeDate: { gte: start, lt: end } }, BUDGET_RELEVANT] },
     select: { ...FLOW_SELECT, recurringId: true, category: { select: { isIncome: true, name: true } } },
   });
 

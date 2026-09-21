@@ -33,6 +33,17 @@ function Badges({ t }: { t: Tx }) {
   );
 }
 
+/** The bank's date, plus when it's charged if that's another day (installments some banks date with the purchase day). */
+function TxDate({ t }: { t: Tx }) {
+  const differs = t.chargeDate.getTime() !== t.date.getTime();
+  return (
+    <>
+      {formatDate(t.date)}
+      {differs && <span className="block text-[11px] text-fg-subtle">cobrada em {formatDate(t.chargeDate)}</span>}
+    </>
+  );
+}
+
 function Category({ t, categories }: { t: Tx; categories: Props["categories"] }) {
   return (
     <CategoryPicker
@@ -63,7 +74,9 @@ export function TransactionList({ txs, categories, allTags }: Props) {
         <tbody>
           {txs.map((t) => (
             <tr key={t.id} className="group border-b border-border hover:bg-bg-hover/40 align-top">
-              <td className="px-6 py-3 text-fg-muted whitespace-nowrap">{formatDate(t.date)}</td>
+              <td className="px-6 py-3 text-fg-muted whitespace-nowrap">
+                <TxDate t={t} />
+              </td>
               <td className="px-6 py-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badges t={t} />
@@ -109,7 +122,9 @@ export function TransactionList({ txs, categories, allTags }: Props) {
             meta={
               <>
                 <Category t={t} categories={categories} />
-                <span>{formatDate(t.date)}</span>
+                <span>
+                  <TxDate t={t} />
+                </span>
                 <span>{t.account.name}</span>
                 {t.notes && <span className="w-full italic">{t.notes}</span>}
               </>

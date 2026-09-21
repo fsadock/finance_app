@@ -6,7 +6,7 @@ export async function getReviewTransactions(limit = 8) {
     prisma.transaction.findMany({
       where: { status: "REVIEW" },
       include: { account: true, category: true },
-      orderBy: { date: "desc" },
+      orderBy: { chargeDate: "desc" },
       take: limit,
     }),
     prisma.transaction.count({ where: { status: "REVIEW" } }),
@@ -20,7 +20,7 @@ export async function getTransactionsPage(where: Prisma.TransactionWhereInput, p
     prisma.transaction.findMany({
       where,
       include: { account: true, category: true, tags: true },
-      orderBy: [{ date: "desc" }, { id: "asc" }],
+      orderBy: [{ chargeDate: "desc" }, { id: "asc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
@@ -45,7 +45,7 @@ export function getTransactionsForExport(where: Prisma.TransactionWhereInput) {
   return prisma.transaction.findMany({
     where,
     include: { account: true, category: true, tags: true },
-    orderBy: { date: "desc" },
+    orderBy: { chargeDate: "desc" },
   });
 }
 

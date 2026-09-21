@@ -106,6 +106,16 @@ function chargeDates(group: InstallmentRow[]): Map<number, Date> {
   return out;
 }
 
+/** When each installment is charged (see chargeDates), for every installment row that has one; by row id. */
+export function installmentChargeDates<T extends InstallmentRow>(rows: T[]): Map<string, Date> {
+  const out = new Map<string, Date>();
+  for (const group of groupInstallmentPurchases(rows)) {
+    const byNumber = chargeDates(group);
+    for (const r of group) out.set(r.id, byNumber.get(r.installmentNumber!)!);
+  }
+  return out;
+}
+
 /**
  * Groups card installment charges ("parcelado") into purchases and projects what's left, the way the
  * bank counts it: an installment is settled once its bill has closed (charged before the card's open

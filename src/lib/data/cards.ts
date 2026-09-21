@@ -38,22 +38,22 @@ export async function getCCSpendingData(month = new Date()) {
             AND: [
               {
                 accountId: { in: cards.map((c) => c.id) },
-                date: { gte: billingStart < chartStart ? billingStart : chartStart, lt: chartEnd },
+                chargeDate: { gte: billingStart < chartStart ? billingStart : chartStart, lt: chartEnd },
               },
               SPEND_WHERE,
             ],
           },
-          select: { ...FLOW_SELECT, date: true, accountId: true },
+          select: { ...FLOW_SELECT, chargeDate: true, accountId: true },
         })
       : [];
 
   // Spend before the chart window (cycle started last month) is folded into day one.
   const inCycle = txs.filter((t) => {
     const cycle = cycles.get(t.accountId)!;
-    return t.date >= cycle.start && t.date < cycle.end;
+    return t.chargeDate >= cycle.start && t.chargeDate < cycle.end;
   });
-  const carriedIn = inCycle.filter((t) => t.date < chartStart).reduce((s, t) => s + spendDelta(t), 0);
-  const byDay = sumByDay(inCycle.filter((t) => t.date >= chartStart), spendDelta);
+  const carriedIn = inCycle.filter((t) => t.chargeDate < chartStart).reduce((s, t) => s + spendDelta(t), 0);
+  const byDay = sumByDay(inCycle.filter((t) => t.chargeDate >= chartStart), (t) => t.chargeDate, spendDelta);
 
   const cycleDays = Math.max(1, Math.round((chartEnd.getTime() - billingStart.getTime()) / DAY_MS));
   const chartDays = Math.max(1, Math.round((chartEnd.getTime() - chartStart.getTime()) / DAY_MS));
@@ -140,18 +140,18 @@ export async function getOpenBills(accounts: CardForBill[], closeDay: number | n
   if (cycles.length > 0) {
     const earliest = cycles.reduce((min, c) => (c.cycle.start < min ? c.cycle.start : min), cycles[0]!.cycle.start);
     const txs = await prisma.transaction.findMany({
-      where: { AND: [{ accountId: { in: cycles.map((c) => c.id) }, date: { gte: earliest } }, SPEND_WHERE] },
-      select: { ...FLOW_SELECT, accountId: true, date: true },
+      where: { AND: [{ accountId: { in: cycles.map((c) => c.id) }, chargeDate: { gte: earliest } }, SPEND_WHERE] },
+      select: { ...FLOW_SELECT, accountId: true, chargeDate: true },
     });
     const future = await prisma.transaction.groupBy({
       by: ["accountId"],
-      where: { accountId: { in: cycles.map((c) => c.id) }, date: { gte: addDays(startOfDay(today), 1) } },
+      where: { accountId: { in: cycles.map((c) => c.id) }, chargeDate: { gte: addDays(startOfDay(today), 1) } },
       _sum: { amount: true },
     });
     for (const { id, cycle } of cycles) {
       const card = cards.find((c) => c.id === id)!;
       const total = txs
-        .filter((t) => t.accountId === id && t.date >= cycle.start && t.date < cycle.end)
+        .filter((t) => t.accountId === id && t.chargeDate >= cycle.start && t.chargeDate < cycle.end)
         .reduce((s, t) => s + spendDelta(t), 0);
       const futureCharges = -(future.find((f) => f.accountId === id)?._sum.amount ?? 0);
       openBill.set(id, {

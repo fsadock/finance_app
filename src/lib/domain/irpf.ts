@@ -25,14 +25,14 @@ function isIrpfType(v: string | null | undefined): v is IrpfType {
 const DOC_LABEL: Record<string, string> = { CNPJ: "CNPJ", CPF: "CPF", SELF: "próprio" };
 
 /** Income per category and per month ("YYYY-MM"). */
-export function summarizeIncome(incomeTx: { amount: number; date: Date; category: { name: string } | null }[]) {
+export function summarizeIncome(incomeTx: { amount: number; chargeDate: Date; category: { name: string } | null }[]) {
   // Income by category and month
   const incomeByCategory = new Map<string, number>();
   const incomeByMonth = new Map<string, number>();
   for (const t of incomeTx) {
     const name = t.category?.name ?? "Sem categoria";
     incomeByCategory.set(name, (incomeByCategory.get(name) ?? 0) + t.amount);
-    incomeByMonth.set(monthKey(t.date), (incomeByMonth.get(monthKey(t.date)) ?? 0) + t.amount);
+    incomeByMonth.set(monthKey(t.chargeDate), (incomeByMonth.get(monthKey(t.chargeDate)) ?? 0) + t.amount);
   }
   const totalIncome = [...incomeByCategory.values()].reduce((s, v) => s + v, 0);
   return { incomeByCategory, incomeByMonth, totalIncome };

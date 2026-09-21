@@ -43,7 +43,7 @@ const tomorrow = (today: Date) => new Date(today.getFullYear(), today.getMonth()
 
 /**
  * Single source of truth for transaction filters — used by the list page and the CSV export.
- * The list is history: it stops at today. Card installments the bank already sent with future
+ * The list is history: it stops at today (by charge date). Card installments the bank already sent with future
  * dates live on the Parcelas page; they only appear here when a from/to range asks for them.
  */
 export function buildTransactionWhere(p: TxFilterParams, today = new Date()): Prisma.TransactionWhereInput {
@@ -56,13 +56,13 @@ export function buildTransactionWhere(p: TxFilterParams, today = new Date()): Pr
     if (from) date.gte = from;
     // `to` is inclusive: everything before the next local midnight
     if (to) date.lt = new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1);
-    and.push({ date });
+    and.push({ chargeDate: date });
   } else if (p.month) {
     const { start, end } = monthBounds(parsePeriod(p.month).date);
     const cap = tomorrow(today);
-    and.push({ date: { gte: start, lt: end < cap ? end : cap } });
+    and.push({ chargeDate: { gte: start, lt: end < cap ? end : cap } });
   } else {
-    and.push({ date: { lt: tomorrow(today) } });
+    and.push({ chargeDate: { lt: tomorrow(today) } });
   }
 
   return and.length > 0 ? { AND: and } : {};
@@ -71,7 +71,7 @@ export function buildTransactionWhere(p: TxFilterParams, today = new Date()): Pr
 /** The future-dated transactions the list leaves out for these filters, or null when a range includes them. */
 export function futureTransactionsWhere(p: TxFilterParams, today = new Date()): Prisma.TransactionWhereInput | null {
   if (hasExplicitRange(p)) return null;
-  return { AND: [...attributeFilters(p), { date: { gte: tomorrow(today) } }] };
+  return { AND: [...attributeFilters(p), { chargeDate: { gte: tomorrow(today) } }] };
 }
 
 /** Carries the active filters into a URLSearchParams (for pagination/export links). */

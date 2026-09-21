@@ -5,18 +5,18 @@ import { INCOME_WHERE } from "@/lib/domain/flows";
 export async function getTaxYear(year: number) {
   const start = new Date(year, 0, 1);
   const end = new Date(year + 1, 0, 1);
-  const range = { date: { gte: start, lt: end } };
+  const range = { chargeDate: { gte: start, lt: end } };
 
   const [incomeTx, deductibleTx] = await Promise.all([
     prisma.transaction.findMany({
       where: { AND: [range, INCOME_WHERE] },
-      select: { amount: true, date: true, category: { select: { name: true } } },
+      select: { amount: true, chargeDate: true, category: { select: { name: true } } },
     }),
     prisma.transaction.findMany({
       where: { ...range, category: { irpfType: { not: null } } },
       select: {
         id: true,
-        date: true,
+        chargeDate: true,
         amount: true,
         description: true,
         merchantName: true,
@@ -25,7 +25,7 @@ export async function getTaxYear(year: number) {
         counterpartyType: true,
         category: { select: { name: true, irpfType: true } },
       },
-      orderBy: { date: "asc" },
+      orderBy: { chargeDate: "asc" },
     }),
   ]);
   return { incomeTx, deductibleTx };

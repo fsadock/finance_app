@@ -1,10 +1,10 @@
 import { formatDayMonth, localDayKey } from "./format";
 
-/** Adds `value(item)` per local day ("YYYY-MM-DD"). */
-export function sumByDay<T extends { date: Date }>(items: T[], value: (item: T) => number) {
+/** Adds `value(item)` per local day ("YYYY-MM-DD") of `dateOf(item)`. */
+export function sumByDay<T>(items: T[], dateOf: (item: T) => Date, value: (item: T) => number) {
   const byDay = new Map<string, number>();
   for (const t of items) {
-    const key = localDayKey(t.date);
+    const key = localDayKey(dateOf(t));
     byDay.set(key, (byDay.get(key) ?? 0) + value(t));
   }
   return byDay;

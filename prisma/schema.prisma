@@ -129,6 +129,9 @@ model Transaction {
   accountId         String
   account           Account    @relation(fields: [accountId], references: [id])
   date              DateTime
+  /// The day it hits the account or card bill. Same as `date` except installments some banks date with
+  /// the purchase day (read as purchase + (n − 1) months). Months and totals use this; `date` stays as sent.
+  chargeDate        DateTime
   amount            Float
   currency          String     @default("BRL")
   description       String
@@ -166,6 +169,8 @@ model Transaction {
   @@index([accountId, date])
   @@index([date])
   @@index([date, excludeFromBudget])
+  @@index([accountId, chargeDate])
+  @@index([chargeDate, excludeFromBudget])
   @@index([categoryId])
   @@index([status])
   @@index([transferPairId])

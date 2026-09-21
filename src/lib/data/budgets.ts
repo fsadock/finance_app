@@ -55,13 +55,13 @@ export async function getCategorySpendByMonth(categoryIds: string[], keys: strin
   const last = monthKeyToDate(keys[keys.length - 1]!);
   const end = new Date(last.getFullYear(), last.getMonth() + 1, 1);
   const txs = await prisma.transaction.findMany({
-    where: { AND: [{ categoryId: { in: categoryIds }, date: { gte: start, lt: end } }, SPEND_WHERE] },
-    select: { ...FLOW_SELECT, date: true },
+    where: { AND: [{ categoryId: { in: categoryIds }, chargeDate: { gte: start, lt: end } }, SPEND_WHERE] },
+    select: { ...FLOW_SELECT, chargeDate: true },
   });
   const out = new Map<string, Map<string, number>>();
   for (const t of txs) {
     if (!t.categoryId) continue;
-    const k = monthKey(t.date);
+    const k = monthKey(t.chargeDate);
     if (!out.has(t.categoryId)) out.set(t.categoryId, new Map());
     const m = out.get(t.categoryId)!;
     m.set(k, (m.get(k) ?? 0) + spendDelta(t));

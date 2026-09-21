@@ -193,7 +193,7 @@ export async function syncItem(itemId: string) {
           // Pending charges often settle with a different amount or date; Pluggy's latest is kept as is.
           const dateChanged = prev.date.getTime() !== date.getTime();
           if (prev.amount !== amount || dateChanged) {
-            await prisma.transaction.update({ where: { id: prev.id }, data: dateChanged ? { amount, date } : { amount } });
+            await prisma.transaction.update({ where: { id: prev.id }, data: dateChanged ? { amount, date, chargeDate: date } : { amount } });
             stats.updated++;
           }
           continue;
@@ -219,6 +219,7 @@ export async function syncItem(itemId: string) {
         toCreate.push({
           accountId: acct.id,
           date,
+          chargeDate: date,
           amount,
           currency: t.currencyCode ?? "BRL",
           description: t.description || t.descriptionRaw || "Sem descrição",
