@@ -49,3 +49,7 @@ export function getTransactionsForExport(where: Prisma.TransactionWhereInput) {
   });
 }
 
+export function countTransactions(where: Prisma.TransactionWhereInput) {
+  return prisma.transaction.count({ where });
+}
+

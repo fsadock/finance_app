@@ -16,8 +16,8 @@ export type TxFilterParams = {
 
 export const TX_FILTER_KEYS = ["status", "q", "cat", "account", "tag", "from", "to", "month", "type"] as const;
 
-/** Single source of truth for transaction filters — used by the list page and the CSV export. */
-export function buildTransactionWhere(p: TxFilterParams): Prisma.TransactionWhereInput {
+/** Filters other than the period (status, category, account, tag, type, search). */
+function attributeFilters(p: TxFilterParams): Prisma.TransactionWhereInput[] {
   const and: Prisma.TransactionWhereInput[] = [];
 
   if (p.status === "REVIEW" || p.status === "POSTED" || p.status === "PENDING") and.push({ status: p.status });
@@ -35,6 +35,19 @@ export function buildTransactionWhere(p: TxFilterParams): Prisma.TransactionWher
       OR: [{ description: { contains: q } }, { merchantRaw: { contains: q } }, { notes: { contains: q } }],
     });
   }
+  return and;
+}
+
+const hasExplicitRange = (p: TxFilterParams) => Boolean(parseDateInput(p.from) || parseDateInput(p.to));
+const tomorrow = (today: Date) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+
+/**
+ * Single source of truth for transaction filters — used by the list page and the CSV export.
+ * The list is history: it stops at today. Card installments the bank already sent with future
+ * dates live on the Parcelas page; they only appear here when a from/to range asks for them.
+ */
+export function buildTransactionWhere(p: TxFilterParams, today = new Date()): Prisma.TransactionWhereInput {
+  const and = attributeFilters(p);
 
   const from = parseDateInput(p.from);
   const to = parseDateInput(p.to);
@@ -46,10 +59,19 @@ export function buildTransactionWhere(p: TxFilterParams): Prisma.TransactionWher
     and.push({ date });
   } else if (p.month) {
     const { start, end } = monthBounds(parsePeriod(p.month).date);
-    and.push({ date: { gte: start, lt: end } });
+    const cap = tomorrow(today);
+    and.push({ date: { gte: start, lt: end < cap ? end : cap } });
+  } else {
+    and.push({ date: { lt: tomorrow(today) } });
   }
 
   return and.length > 0 ? { AND: and } : {};
+}
+
+/** The future-dated transactions the list leaves out for these filters, or null when a range includes them. */
+export function futureTransactionsWhere(p: TxFilterParams, today = new Date()): Prisma.TransactionWhereInput | null {
+  if (hasExplicitRange(p)) return null;
+  return { AND: [...attributeFilters(p), { date: { gte: tomorrow(today) } }] };
 }
 
 /** Carries the active filters into a URLSearchParams (for pagination/export links). */

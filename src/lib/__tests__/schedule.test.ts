@@ -6,7 +6,7 @@ import { nextOccurrence, inferCadence, isLikelyInactive, shiftByCadence } from "
 import { resolveBillingCycle, cycleContaining } from "@/lib/domain/billing";
 import { limitInEffect, effectiveWithRollover } from "@/lib/domain/budgets";
 import { parseDateInput, lastMonthKeys, formatMonthKeyLong } from "@/lib/domain/format";
-import { buildTransactionWhere } from "@/lib/data/transaction-filters";
+import { buildTransactionWhere, futureTransactionsWhere } from "@/lib/data/transaction-filters";
 
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d);
 
@@ -142,15 +142,32 @@ describe("transaction filters", () => {
   });
 
   it("applies every status, not just REVIEW", () => {
-    expect(buildTransactionWhere({ status: "POSTED" })).toEqual({ AND: [{ status: "POSTED" }] });
-    expect(buildTransactionWhere({ status: "bogus" })).toEqual({});
+    const today = day(2026, 9, 21);
+    const upToToday = { date: { lt: day(2026, 9, 22) } };
+    expect(buildTransactionWhere({ status: "POSTED" }, today)).toEqual({ AND: [{ status: "POSTED" }, upToToday] });
+    expect(buildTransactionWhere({ status: "bogus" }, today)).toEqual({ AND: [upToToday] });
+  });
+
+  it("stops at today: installments dated in the future stay on the Parcelas page", () => {
+    const today = day(2026, 9, 21);
+    expect(buildTransactionWhere({}, today)).toEqual({ AND: [{ date: { lt: day(2026, 9, 22) } }] });
+    expect(buildTransactionWhere({ month: "2026-09" }, today)).toEqual({ AND: [{ date: { gte: day(2026, 9, 1), lt: day(2026, 9, 22) } }] });
+    expect(buildTransactionWhere({ month: "2026-08" }, today)).toEqual({ AND: [{ date: { gte: day(2026, 8, 1), lt: day(2026, 9, 1) } }] });
+    expect(futureTransactionsWhere({ account: "nu" }, today)).toEqual({ AND: [{ accountId: "nu" }, { date: { gte: day(2026, 9, 22) } }] });
+  });
+
+  it("shows the future when a date range asks for it", () => {
+    const today = day(2026, 9, 21);
+    expect(buildTransactionWhere({ from: "2026-10-01" }, today)).toEqual({ AND: [{ date: { gte: day(2026, 10, 1) } }] });
+    expect(futureTransactionsWhere({ from: "2026-10-01" }, today)).toBeNull();
   });
 
   it("supports uncategorized filter and multi-field search", () => {
-    const where = buildTransactionWhere({ cat: "none", q: " uber " });
+    const where = buildTransactionWhere({ cat: "none", q: " uber " }, day(2026, 9, 21));
     expect(where.AND).toEqual([
       { categoryId: null },
       { OR: [{ description: { contains: "uber" } }, { merchantRaw: { contains: "uber" } }, { notes: { contains: "uber" } }] },
+      { date: { lt: day(2026, 9, 22) } },
     ]);
   });
 

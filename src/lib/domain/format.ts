@@ -17,11 +17,13 @@ export function formatBRLCompact(value: number) {
   return formatBRL(value);
 }
 
-export function formatDate(d: Date | string) {
+/** "05 de jul." — with the year ("05 de jul. de 27") when it isn't the current one. */
+export function formatDate(d: Date | string, today = new Date()) {
   const date = typeof d === "string" ? new Date(d) : d;
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
     month: "short",
+    ...(date.getFullYear() !== today.getFullYear() ? { year: "2-digit" } : {}),
   }).format(date);
 }
 

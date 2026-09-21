@@ -1,12 +1,18 @@
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
-import { getTransactionFilterOptions, getTransactionsPage } from "@/lib/data/transactions";
+import { countTransactions, getTransactionFilterOptions, getTransactionsPage } from "@/lib/data/transactions";
 import { getCategoryOptions } from "@/lib/data/categories";
 import { formatBRL } from "@/lib/domain/format";
 import { Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { TransactionList } from "@/components/transactions/transaction-list";
 import { PeriodPicker } from "@/components/layout/period-picker";
-import { buildTransactionWhere, filtersToSearchParams, TX_FILTER_KEYS, type TxFilterParams } from "@/lib/data/transaction-filters";
+import {
+  buildTransactionWhere,
+  filtersToSearchParams,
+  futureTransactionsWhere,
+  TX_FILTER_KEYS,
+  type TxFilterParams,
+} from "@/lib/data/transaction-filters";
 import Link from "next/link";
 
 const PAGE_SIZE = 50;
@@ -21,10 +27,12 @@ export default async function TransactionsPage({ searchParams }: Props) {
   const where = buildTransactionWhere(filters);
   const page = Math.max(1, Number(sp.page) || 1);
 
-  const [{ txs, count, outflow, inflow }, categories, { accounts, tags: allTags }] = await Promise.all([
+  const futureWhere = futureTransactionsWhere(filters);
+  const [{ txs, count, outflow, inflow }, categories, { accounts, tags: allTags }, futureCount] = await Promise.all([
     getTransactionsPage(where, page, PAGE_SIZE),
     getCategoryOptions(),
     getTransactionFilterOptions(),
+    futureWhere ? countTransactions(futureWhere) : 0,
   ]);
 
   const pages = Math.max(1, Math.ceil(count / PAGE_SIZE));
@@ -52,6 +60,14 @@ export default async function TransactionsPage({ searchParams }: Props) {
         }
       />
 
+      {futureCount > 0 && (
+        <p className="-mt-3 mb-4 text-xs text-fg-muted lg:-mt-5">
+          {futureCount} {futureCount === 1 ? "parcela futura já lançada pelo banco não aparece" : "parcelas futuras já lançadas pelo banco não aparecem"} aqui ·{" "}
+          <Link href="/installments" className="text-accent hover:underline">
+            ver em Parcelas
+          </Link>
+        </p>
+      )}
       <Card className="mb-6 p-4">
         <form className="grid grid-cols-2 gap-2 items-center text-sm sm:flex sm:flex-wrap sm:gap-3">
           {filters.month && <input type="hidden" name="month" value={filters.month} />}
