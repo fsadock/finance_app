@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildInstallmentPlans, committedByMonth, groupInstallmentPurchases, planInstallmentRedates, type InstallmentTx } from "@/lib/domain/installments";
+import { buildInstallmentPlans, committedByMonth, groupInstallmentPurchases, type InstallmentTx } from "@/lib/domain/installments";
 
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d);
 const today = day(2026, 9, 15);
@@ -104,52 +104,28 @@ describe("committedByMonth", () => {
   });
 });
 
-describe("installment purchases (real Nubank cases)", () => {
-  // Amazon 5x: the first installment carries the rounding (77,32, the rest 77,29). The connector sent each
-  // installment's own date as its purchase date, and 3/5–5/5 had been wrongly pushed two months ahead.
+describe("installment purchases (real Nubank cases, dates as Open Finance sent them)", () => {
+  // Amazon 5x: the first installment carries the rounding (77,32, the rest 77,29) and each installment
+  // arrives with its own date as its purchase date. 2/5 hasn't been synced yet.
   const amazon = [
-    tx({ id: "a1", description: "Amazon 1/5", amount: -77.32, installmentNumber: 1, totalInstallments: 5, date: day(2026, 8, 2), purchaseDate: day(2026, 8, 2) }),
-    tx({ id: "a3", description: "Amazon 3/5", amount: -77.29, installmentNumber: 3, totalInstallments: 5, date: day(2026, 12, 3), purchaseDate: day(2026, 10, 3) }),
-    tx({ id: "a4", description: "Amazon 4/5", amount: -77.29, installmentNumber: 4, totalInstallments: 5, date: day(2027, 1, 3), purchaseDate: day(2026, 11, 3) }),
-    tx({ id: "a5", description: "Amazon 5/5", amount: -77.29, installmentNumber: 5, totalInstallments: 5, date: day(2027, 2, 3), purchaseDate: day(2026, 12, 3) }),
+    tx({ description: "Amazon 1/5", amount: -77.32, installmentNumber: 1, totalInstallments: 5, date: day(2026, 8, 2), purchaseDate: day(2026, 8, 2) }),
+    tx({ description: "Amazon 3/5", amount: -77.29, installmentNumber: 3, totalInstallments: 5, date: day(2026, 10, 3), purchaseDate: day(2026, 10, 3) }),
+    tx({ description: "Amazon 4/5", amount: -77.29, installmentNumber: 4, totalInstallments: 5, date: day(2026, 11, 3), purchaseDate: day(2026, 11, 3) }),
+    tx({ description: "Amazon 5/5", amount: -77.29, installmentNumber: 5, totalInstallments: 5, date: day(2026, 12, 3), purchaseDate: day(2026, 12, 3) }),
   ];
 
   it("groups a purchase whose first installment has different cents", () => {
     expect(groupInstallmentPurchases(amazon)).toHaveLength(1);
   });
 
-  it("moves wrongly shifted installments back to their month", () => {
-    expect(planInstallmentRedates(amazon)).toEqual([
-      { id: "a3", date: day(2026, 10, 2) },
-      { id: "a4", date: day(2026, 11, 2) },
-      { id: "a5", date: day(2026, 12, 2) },
-    ]);
+  it("shows one plan per purchase", () => {
+    const plans = buildInstallmentPlans(amazon, day(2026, 9, 21));
+    expect(plans).toHaveLength(1);
+    expect(plans[0]).toMatchObject({ paid: 1, remaining: 4, purchaseMonth: "2026-08", endMonth: "2026-12" });
   });
 
-  it("finds the purchase even without installment 1, from each installment's own date", () => {
-    const withoutFirst = amazon.slice(1).map((t) => ({ ...t, date: t.purchaseDate! }));
-    expect(planInstallmentRedates(withoutFirst)).toEqual([]);
-  });
-
-  it("anchors on installment 1 when a later one carries its own date (Amazonmktplc 2x)", () => {
-    const mktplc = [
-      tx({ id: "m1", description: "Amazonmktplc 1/2", amount: -145.91, installmentNumber: 1, totalInstallments: 2, date: day(2026, 8, 17), purchaseDate: null }),
-      tx({ id: "m2", description: "Amazonmktplc 2/2", amount: -145.91, installmentNumber: 2, totalInstallments: 2, date: day(2026, 9, 17), purchaseDate: day(2026, 9, 16) }),
-    ];
-    expect(planInstallmentRedates(mktplc)).toEqual([]);
-  });
-
-  it("repairs a second installment the old rule pushed a month ahead (Rd Saude 2x)", () => {
-    const rd = [
-      tx({ id: "r1", description: "Rd Saude Online 1/2", amount: -152.61, installmentNumber: 1, totalInstallments: 2, date: day(2026, 8, 22), purchaseDate: null }),
-      tx({ id: "r2", description: "Rd Saude Online 2/2", amount: -152.6, installmentNumber: 2, totalInstallments: 2, date: day(2026, 10, 21), purchaseDate: day(2026, 9, 21) }),
-    ];
-    expect(planInstallmentRedates(rd)).toEqual([{ id: "r2", date: day(2026, 9, 22) }]);
-  });
-
-  it("leaves a lone installment with an ambiguous purchase date alone", () => {
-    const lone = [tx({ id: "l", installmentNumber: 3, totalInstallments: 5, date: day(2026, 12, 3), purchaseDate: day(2026, 10, 3) })];
-    expect(planInstallmentRedates(lone)).toEqual([]);
+  it("finds the purchase month without installment 1, from each installment's own date", () => {
+    expect(buildInstallmentPlans(amazon.slice(1), day(2026, 9, 21))[0]).toMatchObject({ purchaseMonth: "2026-08" });
   });
 
   it("keeps two similar purchases apart (Araujo Loja: two 3x purchases, both on 2/3)", () => {
@@ -159,15 +135,4 @@ describe("installment purchases (real Nubank cases)", () => {
     ];
     expect(groupInstallmentPurchases(araujo)).toHaveLength(2);
   });
-
-  it("shows one plan per purchase after the dates are fixed", () => {
-    const fixed = amazon.map((t) => {
-      const redate = planInstallmentRedates(amazon).find((r) => r.id === t.id);
-      return redate ? { ...t, date: redate.date } : t;
-    });
-    const plans = buildInstallmentPlans(fixed, day(2026, 9, 21));
-    expect(plans).toHaveLength(1);
-    expect(plans[0]).toMatchObject({ paid: 1, remaining: 4, purchaseMonth: "2026-08", endMonth: "2026-12" });
-  });
 });
-

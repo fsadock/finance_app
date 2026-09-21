@@ -16,5 +16,5 @@ export async function POST() {
   const deterministic = await applyDeterministicRules();
   const result = await categorizeAllPending();
   revalidatePath("/", "layout");
-  return NextResponse.json({ deterministic: deterministic.categorized, redated: deterministic.redated, ...result });
+  return NextResponse.json({ deterministic: deterministic.categorized, ...result });
 }

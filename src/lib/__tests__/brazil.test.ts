@@ -116,7 +116,6 @@ describe("rates", () => {
 });
 
 import { deterministicCategory } from "@/lib/domain/brazil";
-import { expectedInstallmentDate, planInstallmentRedates, type InstallmentRow } from "@/lib/domain/installments";
 
 describe("deterministicCategory", () => {
   const base = { amount: -100, accountType: "CHECKING", counterpartyType: null, paymentMethod: "OTHER" };
@@ -150,45 +149,5 @@ describe("deterministicCategory", () => {
     expect(deterministicCategory({ ...base, accountType: "CREDIT_CARD", amount: 1200, description: "PAGAMENTO" })).toBe("Pagamento de fatura");
     expect(deterministicCategory({ ...base, accountType: "CREDIT_CARD", amount: 90, description: "PAGAMENTO UBER" })).toBeNull();
     expect(deterministicCategory({ ...base, accountType: "CREDIT_CARD", amount: -50, description: "Aplicação RDB" })).toBeNull();
-  });
-});
-
-describe("planInstallmentRedates", () => {
-  const row = (n: number, date: Date, purchaseDate: Date | null, over: Partial<InstallmentRow> = {}): InstallmentRow => ({
-    id: `i${n}`, accountId: "card", description: `Amazon Prime ${n}/12`, merchantName: null, amount: -13.9,
-    date, installmentNumber: n, totalInstallments: 12, purchaseDate, ...over,
-  });
-
-  it("spreads future installments stamped with the purchase date", () => {
-    const p = new Date(2026, 2, 1);
-    const plan = planInstallmentRedates([row(1, p, p), row(7, new Date(2026, 2, 2), p)]);
-    expect(plan).toEqual([{ id: "i7", date: new Date(2026, 8, 1) }]);
-  });
-
-  it("repairs installments whose purchaseDate mirrors their own date (double shift)", () => {
-    const purchase = new Date(2026, 7, 5);
-    const plan = planInstallmentRedates([
-      row(1, purchase, purchase),
-      row(3, new Date(2026, 11, 5), new Date(2026, 9, 5)), // wrongly pushed to December
-      row(12, new Date(2028, 5, 5), new Date(2027, 6, 5)), // wrongly pushed to June 2028
-    ]);
-    expect(plan).toEqual([
-      { id: "i3", date: new Date(2026, 9, 5) },
-      { id: "i12", date: new Date(2027, 6, 5) },
-    ]);
-  });
-
-  it("keeps installments already near their bill date", () => {
-    const p = new Date(2026, 2, 1);
-    expect(planInstallmentRedates([row(1, p, p), row(4, new Date(2026, 5, 14), p)])).toEqual([]);
-  });
-
-  it("skips groups with repeated installment numbers", () => {
-    const p = new Date(2026, 2, 1);
-    expect(planInstallmentRedates([row(2, p, p, { id: "a" }), row(2, p, p, { id: "b" })])).toEqual([]);
-  });
-
-  it("clamps month-end anchors", () => {
-    expect(expectedInstallmentDate(new Date(2026, 0, 31), 2)).toEqual(new Date(2026, 1, 28));
   });
 });

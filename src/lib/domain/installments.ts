@@ -37,14 +37,6 @@ export type InstallmentRow = {
   purchaseDate: Date | null;
 };
 
-/** Anchor + (n − 1) months, clamped to the month's last day (31/01 → 28/02). */
-export function expectedInstallmentDate(anchor: Date, installmentNumber: number): Date {
-  const d = new Date(anchor.getFullYear(), anchor.getMonth() + installmentNumber - 1, 1, anchor.getHours(), anchor.getMinutes());
-  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  d.setDate(Math.min(anchor.getDate(), lastDay));
-  return d;
-}
-
 const merchantOf = (r: InstallmentRow) => normalizeMerchant(r.merchantName ?? r.description) || r.description;
 const cents = (amount: number) => Math.round(Math.abs(amount) * 100);
 /** Brazilian cards put the rounding in the first installment (1/5 = 77,32, the rest 77,29). */
@@ -94,25 +86,6 @@ function purchaseAnchor(group: InstallmentRow[]): Date | null {
   const times = withPurchase.map((r) => r.purchaseDate!.getTime());
   if (Math.max(...times) - Math.min(...times) <= 20 * DAY_MS) return new Date(Math.min(...times));
   return new Date(Math.min(...withPurchase.map((r) => addMonths(r.purchaseDate!, -(r.installmentNumber! - 1)).getTime())));
-}
-
-/**
- * Card connectors are inconsistent about installment dates: some stamp every future installment with
- * the purchase date. Per purchase, installments more than 20 days from anchor + (n − 1) months are
- * re-dated. Groups with repeated installment numbers or no anchor are left alone.
- */
-export function planInstallmentRedates(rows: InstallmentRow[]): { id: string; date: Date }[] {
-  const out: { id: string; date: Date }[] = [];
-  for (const group of groupInstallmentPurchases(rows)) {
-    if (!uniqueNumbers(group)) continue;
-    const anchor = purchaseAnchor(group);
-    if (!anchor) continue;
-    for (const r of group) {
-      const expected = expectedInstallmentDate(anchor, r.installmentNumber!);
-      if (Math.abs(r.date.getTime() - expected.getTime()) > 20 * DAY_MS) out.push({ id: r.id, date: expected });
-    }
-  }
-  return out;
 }
 
 /**

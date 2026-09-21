@@ -17,7 +17,6 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
   const out = {
     duplicatesRemoved: 0,
     deterministic: 0,
-    redated: 0,
     transfersPaired: 0,
     categorized: 0,
     fromRules: 0,
@@ -39,7 +38,6 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
   try {
     const d = await applyDeterministicRules();
     out.deterministic = d.categorized;
-    out.redated = d.redated;
   } catch (e) {
     logger.error("post-sync:deterministic_failed", { error: errorMessage(e) });
   }

@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/infra/db";
 import { deterministicCategory } from "@/lib/domain/brazil";
-import { planInstallmentRedates } from "@/lib/domain/installments";
 
 /**
  * Backfill for the no-AI rules: categorizes REVIEW transactions that match a deterministic rule
- * (own-account Pix, card bill payments, investment moves, balance yield) and re-dates installments
- * that the connector stamped with the purchase date. Idempotent; never touches user-categorized rows.
+ * (own-account Pix, card bill payments, investment moves, balance yield). Idempotent; never touches
+ * user-categorized rows.
  */
 export async function applyDeterministicRules() {
   const categories = await prisma.category.findMany({
@@ -38,24 +37,6 @@ export async function applyDeterministicRules() {
     );
   }
 
-  const installments = await prisma.transaction.findMany({
-    where: { totalInstallments: { gt: 1 }, installmentNumber: { not: null } },
-    select: {
-      id: true,
-      accountId: true,
-      description: true,
-      merchantName: true,
-      amount: true,
-      date: true,
-      installmentNumber: true,
-      totalInstallments: true,
-      purchaseDate: true,
-    },
-  });
-  const redates = planInstallmentRedates(installments);
-  const redated = redates.length;
-  for (const r of redates) updates.push(prisma.transaction.update({ where: { id: r.id }, data: { date: r.date } }));
-
   if (updates.length > 0) await prisma.$transaction(updates);
-  return { categorized: updates.length - redated, redated };
+  return { categorized: updates.length };
 }

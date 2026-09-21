@@ -188,12 +188,10 @@ export async function syncItem(itemId: string) {
         const card = t.creditCardMetadata;
         const purchaseDate = card?.purchaseDate ? new Date(card.purchaseDate) : null;
         const date = new Date(t.date);
-        const isInstallment = (card?.totalInstallments ?? 0) > 1;
         const prev = byPluggyId.get(t.id);
         if (prev) {
-          // pending charges often settle with a different amount/date. Installment dates are owned by
-          // planInstallmentRedates (post-sync) — comparing with Pluggy's raw date would undo that fix.
-          const dateChanged = !isInstallment && prev.date.getTime() !== date.getTime();
+          // Pending charges often settle with a different amount or date; Pluggy's latest is kept as is.
+          const dateChanged = prev.date.getTime() !== date.getTime();
           if (prev.amount !== amount || dateChanged) {
             await prisma.transaction.update({ where: { id: prev.id }, data: dateChanged ? { amount, date } : { amount } });
             stats.updated++;
