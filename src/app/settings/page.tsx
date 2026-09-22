@@ -4,12 +4,16 @@ import { Card } from "@/components/ui/card";
 import { getSetupStatus } from "@/lib/infra/settings";
 import { AiForm, PluggyForm, SourceBadge } from "@/components/setup/credential-forms";
 import { TestSettingsButton } from "@/components/setup/test-settings-button";
+import { Devices } from "@/components/auth/devices";
+import { getDevices } from "@/lib/data/devices";
+import { currentSession } from "@/lib/auth/session";
 
 export default async function SettingsPage() {
-  const status = await getSetupStatus();
+  const [status, session] = await Promise.all([getSetupStatus(), currentSession()]);
+  const devices = await getDevices(session?.passkeyId);
   return (
     <>
-      <PageHeader title="Configurações" subtitle="Credenciais da Pluggy e da IA" actions={<TestSettingsButton />} />
+      <PageHeader title="Configurações" subtitle="Credenciais e dispositivos" actions={<TestSettingsButton />} />
 
       <div className="max-w-2xl space-y-4">
         <Card className="space-y-4">
@@ -40,6 +44,14 @@ export default async function SettingsPage() {
             </span>
           </div>
           <AiForm status={status.ai} />
+        </Card>
+
+        <Card className="space-y-3">
+          <div>
+            <h2 className="font-semibold">Dispositivos</h2>
+            <p className="text-xs text-fg-muted">Cada dispositivo entra com a própria passkey (Face ID, Touch ID ou PIN).</p>
+          </div>
+          <Devices devices={devices} />
         </Card>
 
         <Card className="text-sm text-fg-muted space-y-2">

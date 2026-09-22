@@ -272,3 +272,28 @@ model AppConfig {
   key   String @id
   value String
 }
+
+/// A device's passkey. Signing in needs one; registering one needs a one-time code (see lib/auth/enrollment.ts).
+model Passkey {
+  /// WebAuthn credential id, base64url
+  id         String    @id
+  publicKey  Bytes
+  counter    Int
+  /// Comma-separated WebAuthn transports (internal, hybrid…)
+  transports String?
+  name       String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  sessions   Session[]
+}
+
+/// A signed-in browser. Its cookie holds a random token; only the token's SHA-256 is stored here.
+model Session {
+  id        String   @id
+  passkeyId String
+  passkey   Passkey  @relation(fields: [passkeyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([passkeyId])
+}

@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      # Only this computer can reach it: the app has no login. Change the port with FINANCAS_PORT=3200.
+      # Only this computer can reach it (use Tailscale Serve for your other devices). Change the port with FINANCAS_PORT=3200.
       - "127.0.0.1:${FINANCAS_PORT:-3100}:3000"
     env_file:
       # Optional: credentials can also be entered on the setup screen.

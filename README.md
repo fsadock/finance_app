@@ -2,7 +2,7 @@
 
 Personal finance app for Brazil. It syncs bank accounts, credit cards and investments through **Open Finance (Pluggy)**, categorizes transactions (deterministic Brazilian rules → your merchant rules → optional AI with Claude), and gives you budgets, cash flow, card installments ("parcelas"), recurring bills and subscriptions, goals, investments vs CDI/IPCA and an IRPF helper.
 
-It is a **single-user app that runs on your machine**: one SQLite file, no login. The UI is in Portuguese (pt-BR, BRL).
+It is a **single-user app that runs on your machine**: one SQLite file, and sign-in with a passkey (Face ID, Touch ID or the device PIN; no passwords). The UI is in Portuguese (pt-BR, BRL).
 
 - [Installation](#installation)
 - [Usage](#usage)
@@ -47,7 +47,7 @@ If you have Docker, this runs the app in the background and brings it back every
 docker compose up -d --build    # build and start; open http://127.0.0.1:3100
 ```
 
-The data lives in the Docker volume `financas_data` (`/data/finance.db` inside the container), not in `prisma/dev.db`. The port is published on `127.0.0.1` only, because the app has no login. It uses port 3100 (3000 is often taken by other tools); to change it: `FINANCAS_PORT=3200 docker compose up -d`. A `.env` file, if present, is passed to the container for credentials; its `DATABASE_URL` is ignored.
+The data lives in the Docker volume `financas_data` (`/data/finance.db` inside the container), not in `prisma/dev.db`. The port is published on `127.0.0.1` only; reach it from other devices through something like Tailscale (see [Signing in](#signing-in-passkeys)). It uses port 3100 (3000 is often taken by other tools); to change it: `FINANCAS_PORT=3200 docker compose up -d`. A `.env` file, if present, is passed to the container for credentials; its `DATABASE_URL` is ignored.
 
 | Task | Command |
 | --- | --- |
@@ -198,7 +198,16 @@ Open <http://127.0.0.1:3000>. On first run the app opens **/setup**, a three-ste
 
 Change or re-test credentials anytime in **Configurações** (sidebar). They are stored in the local database, so a **database backup also contains your keys** — keep backups private.
 
-Both bind to `127.0.0.1` on purpose: the app has **no authentication**, and its server actions are plain POST endpoints. Don't expose it to your network or the internet. To use it from your phone, put it behind something that authenticates you, e.g. `tailscale serve 3000` (reachable only inside your tailnet).
+Both bind to `127.0.0.1` on purpose. To use it from your phone, serve it inside your tailnet, e.g. `tailscale serve 3000`, rather than exposing it to your network or the internet.
+
+### Signing in (passkeys)
+
+Every page needs a signed-in device; there are no passwords.
+
+- **First passkey:** open the app, and the sign-in page asks for a one-time code. It's printed in the server log (`docker compose logs app`, or the terminal running the app) and lasts 15 minutes. Type it, confirm with Face ID / Touch ID / PIN, and you're in.
+- **More devices:** on a signed-in device, open **Configurações → Dispositivos → Adicionar dispositivo** and type the code it shows on the new device ("Dispositivo novo? Use um código"). iPhone, iPad and Mac share passkeys through iCloud Keychain, so often one is enough; a computer without its own passkey can also sign in by scanning a QR code with the phone.
+- **Passkeys belong to the address** the browser used: one created at `localhost` doesn't work at your tailnet name, and moving the app to another address means registering again (with a code from the log).
+- Each device stays signed in for a year. **Configurações → Dispositivos** lists the passkeys; removing one signs its devices out. No passkeys left means the next visit asks for a code from the log again.
 
 ---
 
@@ -351,7 +360,7 @@ Keep copies outside the project folder. To restore, stop the app and put the bac
 
 ## Known limitations
 
-- **Single user, no login.** Don't share one running instance: whoever opens it sees everything. Each person should run their own copy with their own Pluggy credentials and database.
+- **Single user.** Every passkey opens the same data. Don't share one running instance; each person should run their own copy with their own Pluggy credentials and database.
 - **Salary received in an unconnected bank** arrives as a Pix from your own CPF, indistinguishable from moving your own money. It goes to *Revisar* unless it pairs with an outflow. Connecting that bank fixes it.
 - **One card closing day** is shared by all cards.
 - **Duplicate transactions** can appear when a bank recreates a pending transaction with a new ID.
@@ -384,6 +393,7 @@ src/lib/jobs/        processing that writes derived data; pipeline.ts runs after
 src/lib/pluggy/      Pluggy client and data import
 src/lib/ai/          Claude calls only: category suggestions and recurring detection
 src/lib/infra/       database, config and credentials, logger, retry, rate limit
+src/lib/auth/        passkey sign-in and sessions; src/proxy.ts sends signed-out requests to /login
 src/lib/__tests__/   unit tests for the pure logic
 ```
 
