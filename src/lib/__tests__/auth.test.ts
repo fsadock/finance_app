@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CODE_LENGTH, deviceName, formatCode, isPublicPath, newCode, normalizeCode, publicOrigin } from "@/lib/auth/rules";
 
 describe("isPublicPath", () => {
@@ -40,5 +40,18 @@ describe("publicOrigin", () => {
     expect(publicOrigin(new Headers({ host: "127.0.0.1:3000", "x-forwarded-host": "fedora.tailnet.ts.net", "x-forwarded-proto": "https" }))).toBe(
       "https://fedora.tailnet.ts.net"
     );
+  });
+});
+
+describe("instance name", () => {
+  it("turns a name into a key for the cookie and the passkey identity", async () => {
+    vi.resetModules();
+    vi.stubEnv("FINANCAS_INSTANCE", " Maria Júlia ");
+    const { APP_NAME, INSTANCE_KEY } = await import("@/lib/infra/app");
+    expect(APP_NAME).toBe("Finanças · Maria Júlia");
+    expect(INSTANCE_KEY).toBe("maria_julia");
+    vi.unstubAllEnvs();
+    vi.resetModules();
+    expect((await import("@/lib/infra/app")).APP_NAME).toBe("Finanças");
   });
 });

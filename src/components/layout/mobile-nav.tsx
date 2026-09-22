@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -10,7 +11,7 @@ import { MOBILE_TABS, NAV, SETTINGS_NAV, isActive } from "./nav";
 import { NavLinkPending } from "./nav-link-pending";
 
 /** Phone navigation (below lg): top bar, bottom tab bar and a "Mais" sheet with the other pages. */
-export function MobileNav({ lastSync, setupPending }: { lastSync: string | null; setupPending: boolean }) {
+export function MobileNav({ appName, lastSync, setupPending }: { appName: string; lastSync: string | null; setupPending: boolean }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -24,7 +25,7 @@ export function MobileNav({ lastSync, setupPending }: { lastSync: string | null;
         <div className="h-12 px-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <div className="size-7 rounded-lg bg-accent grid place-items-center text-bg text-sm font-bold">F</div>
-            <span className="font-semibold">Finanças</span>
+            <span className="font-semibold">{appName}</span>
           </Link>
           <span className="text-[11px] text-fg-subtle">
             {lastSync ? `Sincronizado ${formatDateTime(lastSync)}` : "Nenhuma sincronização ainda"}

@@ -209,6 +209,22 @@ Every page needs a signed-in device; there are no passwords.
 - **Passkeys belong to the address** the browser used: one created at `localhost` doesn't work at your tailnet name. An address with no passkey of its own (another hostname, or the app moved to a new server) asks for a code from the log, like the first run.
 - Each device stays signed in for a year. **Configurações → Dispositivos** lists the passkeys; removing one signs its devices out. No passkeys left means the next visit asks for a code from the log again.
 
+### Running a second copy (one per person)
+
+The app holds one person's finances. For a second person, run the same image again with its own database — no second copy of the code. In another folder, next to a copy of `compose.yaml`, put a `.env` with:
+
+```bash
+COMPOSE_PROJECT_NAME=financas-maria   # own containers and own database volume
+FINANCAS_PORT=3200                    # own port
+FINANCAS_INSTANCE=Maria               # shows as "Finanças · Maria"
+```
+
+`FINANCAS_INSTANCE` matters when both copies answer on the same hostname: cookies are shared across ports, and a password manager would otherwise treat both passkeys as the same account. With it, each copy has its own session cookie and its own passkey identity. Everything else is separate already, since each copy has its own database: banks, categories, rules and settings.
+
+Each person then connects their own banks (their own Meu Pluggy account) and creates their own passkey with a code from *their* copy's log.
+
+> Whoever administers the server can read every copy's data. For real privacy, the other person should run their own install (see [Install](#install)).
+
 ---
 
 ## Usage

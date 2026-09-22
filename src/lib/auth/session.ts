@@ -2,8 +2,10 @@ import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/infra/db";
 import { DAY_MS } from "@/lib/domain/format";
+import { INSTANCE_KEY } from "@/lib/infra/app";
 
-export const SESSION_COOKIE = "financas_session";
+// Cookies are shared by every port of a hostname, so two instances there need different names
+export const SESSION_COOKIE = INSTANCE_KEY ? `financas_session_${INSTANCE_KEY}` : "financas_session";
 const SESSION_DAYS = 365;
 
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");

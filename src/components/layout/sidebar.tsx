@@ -1,5 +1,6 @@
 "use client";
 
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -7,14 +8,14 @@ import { formatDateTime } from "@/lib/domain/format";
 import { NAV, SETTINGS_NAV, isActive } from "./nav";
 import { NavLinkPending } from "./nav-link-pending";
 
-export function Sidebar({ lastSync, setupPending }: { lastSync: string | null; setupPending: boolean }) {
+export function Sidebar({ appName, lastSync, setupPending }: { appName: string; lastSync: string | null; setupPending: boolean }) {
   const pathname = usePathname();
   return (
     <aside className="hidden lg:flex w-64 shrink-0 border-r border-border bg-bg-elev px-4 py-6 flex-col gap-2 sticky top-0 h-screen">
       <div className="px-3 mb-6 flex items-center gap-2">
         <div className="size-8 rounded-lg bg-accent grid place-items-center text-bg font-bold">F</div>
         <div>
-          <div className="font-semibold leading-tight">Finanças</div>
+          <div className="font-semibold leading-tight">{appName}</div>
           <div className="text-xs text-fg-muted">Personal</div>
         </div>
       </div>

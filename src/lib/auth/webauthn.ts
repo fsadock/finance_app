@@ -9,6 +9,7 @@ import {
 } from "@simplewebauthn/server";
 import { prisma } from "@/lib/infra/db";
 import { checkCode } from "./enrollment";
+import { APP_NAME, INSTANCE_KEY } from "@/lib/infra/app";
 import { publicOrigin } from "./rules";
 
 export class AuthError extends Error {}
@@ -16,7 +17,9 @@ export class AuthError extends Error {}
 type RelyingParty = { origin: string; rpID: string };
 type Ceremony = "login" | "register";
 
-const USER_ID = new TextEncoder().encode("financas-owner");
+// The account a passkey belongs to, as the password manager sees it: one per instance, so two people on the
+// same address don't overwrite each other's passkey.
+const USER_ID = new TextEncoder().encode(INSTANCE_KEY ? `financas-owner-${INSTANCE_KEY}` : "financas-owner");
 const CHALLENGE_TTL_MS = 5 * 60_000;
 
 // Held on globalThis for the same reason as the enrollment codes.
@@ -47,9 +50,9 @@ export async function registrationOptions(rp: RelyingParty, code: unknown) {
   if (!checkCode(code)) throw new AuthError("Código inválido ou expirado.");
   const existing = await prisma.passkey.findMany({ select: { id: true, transports: true } });
   const options = await generateRegistrationOptions({
-    rpName: "Finanças",
+    rpName: APP_NAME,
     rpID: rp.rpID,
-    userName: "Finanças",
+    userName: APP_NAME,
     userID: USER_ID,
     excludeCredentials: existing.map((p) => ({ id: p.id, transports: transportsOf(p.transports) })),
     authenticatorSelection: { residentKey: "required", userVerification: "required" },

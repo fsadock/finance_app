@@ -20,6 +20,8 @@ services:
     environment:
       # Must win over DATABASE_URL in .env (which points at the non-Docker database).
       DATABASE_URL: file:/data/finance.db
+      # Name of this copy, when more than one runs on the same address (see README → Running a second copy).
+      FINANCAS_INSTANCE: ${FINANCAS_INSTANCE:-}
     volumes:
       - data:/data
 
