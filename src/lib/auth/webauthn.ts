@@ -75,6 +75,7 @@ export async function register(rp: RelyingParty, code: unknown, response: Regist
       publicKey: credential.publicKey,
       counter: credential.counter,
       transports: credential.transports?.join(",") || null,
+      rpId: rp.rpID,
       name,
     },
   });

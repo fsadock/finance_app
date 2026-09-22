@@ -6,7 +6,7 @@ import { createDeviceCode, removeDevice, signOut } from "@/app/actions/auth";
 import { formatDate } from "@/lib/domain/format";
 import { Button } from "@/components/ui/button";
 
-type Device = { id: string; name: string; createdAt: Date; lastUsedAt: Date | null; current: boolean };
+type Device = { id: string; name: string; rpId: string | null; createdAt: Date; lastUsedAt: Date | null; current: boolean };
 
 /** Registered passkeys: add a device with a one-time code, remove one, sign out. */
 export function Devices({ devices }: { devices: Device[] }) {
@@ -29,7 +29,7 @@ export function Devices({ devices }: { devices: Device[] }) {
                 {d.current && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-accent/15 text-accent">este dispositivo</span>}
               </p>
               <p className="text-xs text-fg-muted">
-                Criada em {formatDate(d.createdAt)}
+                {d.rpId && `${d.rpId} · `}Criada em {formatDate(d.createdAt)}
                 {d.lastUsedAt && ` · último acesso ${formatDate(d.lastUsedAt)}`}
               </p>
             </div>

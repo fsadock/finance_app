@@ -281,6 +281,8 @@ model Passkey {
   counter    Int
   /// Comma-separated WebAuthn transports (internal, hybrid…)
   transports String?
+  /// The address it was created on: a passkey only works there. Null for ones made before this was recorded.
+  rpId       String?
   name       String
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?

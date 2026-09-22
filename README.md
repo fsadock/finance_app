@@ -206,7 +206,7 @@ Every page needs a signed-in device; there are no passwords.
 
 - **First passkey:** open the app, and the sign-in page asks for a one-time code. It's printed in the server log (`docker compose logs app`, or the terminal running the app) and lasts 15 minutes. Type it, confirm with Face ID / Touch ID / PIN, and you're in.
 - **More devices:** on a signed-in device, open **Configurações → Dispositivos → Adicionar dispositivo** and type the code it shows on the new device ("Dispositivo novo? Use um código"). iPhone, iPad and Mac share passkeys through iCloud Keychain, so often one is enough; a computer without its own passkey can also sign in by scanning a QR code with the phone.
-- **Passkeys belong to the address** the browser used: one created at `localhost` doesn't work at your tailnet name, and moving the app to another address means registering again (with a code from the log).
+- **Passkeys belong to the address** the browser used: one created at `localhost` doesn't work at your tailnet name. An address with no passkey of its own (another hostname, or the app moved to a new server) asks for a code from the log, like the first run.
 - Each device stays signed in for a year. **Configurações → Dispositivos** lists the passkeys; removing one signs its devices out. No passkeys left means the next visit asks for a code from the log again.
 
 ---

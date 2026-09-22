@@ -1,12 +1,15 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/auth/login-form";
 import { logSetupCode } from "@/lib/auth/enrollment";
 import { currentSession } from "@/lib/auth/session";
-import { hasPasskeys } from "@/lib/data/devices";
+import { hasPasskeysFor } from "@/lib/data/devices";
+import { publicOrigin } from "@/lib/auth/rules";
 
 export default async function LoginPage() {
   if (await currentSession()) redirect("/");
-  const registered = await hasPasskeys();
+  // A new address (another hostname, or after moving servers) starts with a code from the log, like the first run
+  const registered = await hasPasskeysFor(new URL(publicOrigin(await headers())).hostname);
   if (!registered) logSetupCode();
   return (
     <div className="flex min-h-[80vh] items-center justify-center">
