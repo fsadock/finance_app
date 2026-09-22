@@ -16,6 +16,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Static assets and what installing the app needs (manifest, icons, service worker, offline page) stay open.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icon|apple-icon|sw.js|offline.html).*)"],
+  // Static assets, what installing the app needs (manifest, icons, service worker, offline page) and robots.txt stay open.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icon|apple-icon|sw.js|offline.html|robots.txt).*)"],
 };
