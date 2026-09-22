@@ -30,5 +30,5 @@ ENV NODE_ENV=production \
 VOLUME /data
 EXPOSE 3000
 HEALTHCHECK --interval=60s --timeout=10s --start-period=60s \
-  CMD node -e "fetch('http://127.0.0.1:3000/').then((r) => process.exit(r.status < 500 ? 0 : 1), () => process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:3000/', { redirect: 'manual' }).then((r) => process.exit(r.status < 500 ? 0 : 1), () => process.exit(1))"
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
