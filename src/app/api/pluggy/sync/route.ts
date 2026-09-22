@@ -1,6 +1,7 @@
 import { PluggyConfigError, pluggyErrorMessage } from "@/lib/pluggy/client";
-import { syncAllItems, syncItem, markSyncFailed } from "@/lib/pluggy/sync";
+import { syncItem, markSyncFailed } from "@/lib/pluggy/sync";
 import { runPostSyncJobs } from "@/lib/jobs/pipeline";
+import { syncEverything } from "@/lib/jobs/sync";
 import { NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/infra/rate-limit";
 
@@ -29,9 +30,7 @@ export async function POST(req: Request) {
     }
 
     // No itemId → sync all known items
-    const results = await syncAllItems();
-    const post = await runPostSyncJobs();
-    return NextResponse.json({ items: results, post });
+    return NextResponse.json(await syncEverything());
   } catch (e) {
     const status = e instanceof PluggyConfigError ? 400 : 502;
     return NextResponse.json({ error: pluggyErrorMessage(e) }, { status });
