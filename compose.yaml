@@ -7,7 +7,7 @@ name: financas
 services:
   app:
     build: .
-    image: financas:latest
+    image: ghcr.io/fsadock/finance_app:latest
     restart: unless-stopped
     init: true
     ports:
