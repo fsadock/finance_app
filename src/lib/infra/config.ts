@@ -13,6 +13,8 @@ const CONFIG_KEYS = {
   pluggyClientId: "setting:pluggy_client_id",
   pluggyClientSecret: "setting:pluggy_client_secret",
   anthropicApiKey: "setting:anthropic_api_key",
+  resendApiKey: "setting:resend_api_key",
+  recoveryEmail: "setting:recovery_email",
 } as const;
 
 type ConfigName = keyof typeof CONFIG_KEYS;

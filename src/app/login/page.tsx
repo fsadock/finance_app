@@ -4,13 +4,17 @@ import { LoginForm } from "@/components/auth/login-form";
 import { logSetupCode } from "@/lib/auth/enrollment";
 import { currentSession } from "@/lib/auth/session";
 import { hasPasskeysFor } from "@/lib/data/devices";
+import { getEmailSettings, maskEmail } from "@/lib/infra/settings";
 import { APP_NAME } from "@/lib/infra/app";
 import { publicOrigin } from "@/lib/auth/rules";
 
 export default async function LoginPage() {
   if (await currentSession()) redirect("/");
   // A new address (another hostname, or after moving servers) starts with a code from the log, like the first run
-  const registered = await hasPasskeysFor(new URL(publicOrigin(await headers())).hostname);
+  const [registered, email] = await Promise.all([
+    hasPasskeysFor(new URL(publicOrigin(await headers())).hostname),
+    getEmailSettings(),
+  ]);
   if (!registered) logSetupCode();
   return (
     <div className="flex min-h-[80vh] items-center justify-center">
@@ -22,7 +26,7 @@ export default async function LoginPage() {
             <p className="text-sm text-fg-muted">{registered ? "Entre com Face ID, Touch ID ou o PIN do dispositivo." : "Crie a passkey deste dispositivo."}</p>
           </div>
         </div>
-        <LoginForm hasPasskeys={registered} />
+        <LoginForm hasPasskeys={registered} emailTo={email.configured ? maskEmail(email.to) : null} />
       </div>
     </div>
   );

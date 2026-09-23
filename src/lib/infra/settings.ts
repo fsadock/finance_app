@@ -10,6 +10,8 @@ const SETTINGS = {
   pluggyClientId: { env: "PLUGGY_CLIENT_ID" },
   pluggyClientSecret: { env: "PLUGGY_CLIENT_SECRET" },
   anthropicApiKey: { env: "ANTHROPIC_API_KEY" },
+  resendApiKey: { env: "RESEND_API_KEY" },
+  recoveryEmail: { env: "RECOVERY_EMAIL" },
 } as const;
 
 type SettingName = keyof typeof SETTINGS;
@@ -57,11 +59,25 @@ export async function getPluggyCredentials() {
   return { clientId: id.value, clientSecret: secret.value, configured, source: id.source ?? secret.source };
 }
 
+/** Shows enough of an address to recognize it, not enough to learn it: "fe***@gmail.com". */
+export function maskEmail(email: string | null) {
+  if (!email) return null;
+  const [user = "", domain = ""] = email.split("@");
+  return `${user.slice(0, 2)}${"*".repeat(Math.max(1, user.length - 2))}@${domain}`;
+}
+
+/** Where the app may send a sign-in code, and the key it sends with. */
+export async function getEmailSettings() {
+  const [key, to] = await Promise.all([getSetting("resendApiKey"), getSetting("recoveryEmail")]);
+  return { apiKey: key.value, to: to.value, configured: Boolean(key.value && to.value), source: key.source ?? to.source };
+}
+
 /** What the setup/settings screens may show — never the secrets themselves. */
 export async function getSetupStatus() {
-  const [pluggy, anthropic, connections] = await Promise.all([
+  const [pluggy, anthropic, email, connections] = await Promise.all([
     getPluggyCredentials(),
     getSetting("anthropicApiKey"),
+    getEmailSettings(),
     prisma.pluggyItem.count(),
   ]);
   return {
@@ -72,6 +88,7 @@ export async function getSetupStatus() {
       clientSecretMasked: maskSecret(pluggy.clientSecret),
     },
     ai: { configured: Boolean(anthropic.value), source: anthropic.source, keyMasked: maskSecret(anthropic.value) },
+    email: { configured: email.configured, source: email.source, to: email.to, keyMasked: maskSecret(email.apiKey) },
     connections,
   };
 }

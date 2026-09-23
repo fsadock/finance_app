@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { deleteSetting, getPluggyCredentials, getSetting, saveSetting } from "@/lib/infra/settings";
+import { deleteSetting, getEmailSettings, getPluggyCredentials, getSetting, saveSetting } from "@/lib/infra/settings";
+import { sendToOwner } from "@/lib/email/send";
 import { testPluggyCredentials } from "@/lib/pluggy/client";
 import { testAnthropicKey } from "@/lib/ai/client";
 
@@ -53,4 +54,35 @@ export async function testCurrentSettings() {
     anthropic.value ? testAnthropicKey(anthropic.value) : null,
   ]);
   return { pluggyError, aiError, aiConfigured: Boolean(anthropic.value) };
+}
+
+/**
+ * Where the app sends a sign-in code when no device is at hand. Saved only if a real email goes through, so a
+ * wrong key doesn't leave you locked out on the day you need it.
+ */
+export async function saveEmailSettings(email: string, apiKey: string): Promise<Result> {
+  const to = z.email({ error: "E-mail inválido." }).parse(text.parse(email).trim().toLowerCase());
+  const key = text.parse(apiKey).trim() || (await getEmailSettings()).apiKey || "";
+  if (!key) return { ok: false, error: "Cole a API key do Resend." };
+
+  const previous = await getEmailSettings();
+  await Promise.all([saveSetting("recoveryEmail", to), saveSetting("resendApiKey", key)]);
+  try {
+    await sendToOwner("teste de configuração", "Funcionou: é neste endereço que o código de acesso vai chegar.");
+  } catch (e) {
+    // put back what was there, so a failed test never replaces working settings
+    await Promise.all([
+      previous.to ? saveSetting("recoveryEmail", previous.to) : deleteSetting("recoveryEmail"),
+      previous.apiKey ? saveSetting("resendApiKey", previous.apiKey) : deleteSetting("resendApiKey"),
+    ]);
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  revalidatePath("/", "layout");
+  return { ok: true, message: `Enviamos um e-mail de teste para ${to}. Se chegou, está pronto.` };
+}
+
+export async function removeEmailSettings(): Promise<Result> {
+  await Promise.all([deleteSetting("recoveryEmail"), deleteSetting("resendApiKey")]);
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Removido. O código volta a sair só no log do servidor." };
 }

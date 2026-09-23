@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
-import { Fingerprint, KeyRound, Loader2 } from "lucide-react";
+import { Fingerprint, KeyRound, Loader2, Mail } from "lucide-react";
 import { readJson } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 
@@ -16,11 +16,24 @@ function message(e: unknown) {
 }
 
 /** Sign in with a passkey, or register this device's passkey with a one-time code. */
-export function LoginForm({ hasPasskeys }: { hasPasskeys: boolean }) {
+export function LoginForm({ hasPasskeys, emailTo }: { hasPasskeys: boolean; emailTo: string | null }) {
   const [registering, setRegistering] = useState(!hasPasskeys);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  function sendCode() {
+    setError(null);
+    setPending(true);
+    post("send-code")
+      .then((r: { to: string }) => {
+        setSent(r.to);
+        setRegistering(true);
+      })
+      .catch((e) => setError(message(e)))
+      .finally(() => setPending(false));
+  }
 
   async function run(ceremony: () => Promise<unknown>) {
     setError(null);
@@ -55,9 +68,13 @@ export function LoginForm({ hasPasskeys }: { hasPasskeys: boolean }) {
       {registering ? (
         <form onSubmit={create} className="space-y-3">
           <p className="text-sm text-fg-muted">
-            {hasPasskeys
-              ? "Em um dispositivo já conectado, abra Configurações → Dispositivos → Adicionar dispositivo e digite o código aqui."
-              : "Primeiro acesso: o código está no log do servidor (docker compose logs app, ou o terminal onde o app roda)."}
+            {sent
+              ? `Código enviado para ${sent}. Ele vale 15 minutos.`
+              : emailTo
+                ? "Digite o código que você recebeu por e-mail, ou peça um novo abaixo."
+                : hasPasskeys
+                  ? "Em um dispositivo já conectado, abra Configurações → Dispositivos → Adicionar dispositivo e digite o código aqui."
+                  : "Primeiro acesso: o código está no log do servidor (docker compose logs app, ou o terminal onde o app roda)."}
           </p>
           <input
             value={code}
@@ -79,6 +96,17 @@ export function LoginForm({ hasPasskeys }: { hasPasskeys: boolean }) {
         </Button>
       )}
       {error && <p className="text-sm text-danger text-center">{error}</p>}
+      {emailTo && (
+        <button
+          type="button"
+          onClick={sendCode}
+          disabled={pending}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm hover:bg-bg-hover disabled:opacity-50"
+        >
+          {pending ? spinner : <Mail className="size-4" />}
+          {sent ? "Enviar outro código" : `Receber código em ${emailTo}`}
+        </button>
+      )}
       {hasPasskeys && (
         <button
           type="button"

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { getSetupStatus } from "@/lib/infra/settings";
-import { AiForm, PluggyForm, SourceBadge } from "@/components/setup/credential-forms";
+import { AiForm, EmailForm, PluggyForm, SourceBadge } from "@/components/setup/credential-forms";
 import { TestSettingsButton } from "@/components/setup/test-settings-button";
 import { Devices } from "@/components/auth/devices";
 import { getDevices } from "@/lib/data/devices";
@@ -44,6 +44,22 @@ export default async function SettingsPage() {
             </span>
           </div>
           <AiForm status={status.ai} />
+        </Card>
+
+        <Card className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">Entrar por e-mail</h2>
+              <p className="text-xs text-fg-muted">Recebe o código de acesso quando nenhum dispositivo está à mão.</p>
+            </div>
+            <span className="flex items-center gap-2 text-xs">
+              <SourceBadge source={status.email.source} />
+              <span className={status.email.configured ? "text-accent" : "text-fg-muted"}>
+                {status.email.configured ? "Configurado" : "Desligado"}
+              </span>
+            </span>
+          </div>
+          <EmailForm status={status.email} />
         </Card>
 
         <Card className="space-y-3">

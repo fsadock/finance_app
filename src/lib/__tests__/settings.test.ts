@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/infra/db", () => ({ prisma: {} }));
 
-import { isPlaceholder, isValidPluggyClientId, maskSecret, resolveSetting } from "@/lib/infra/settings";
+import { isPlaceholder, isValidPluggyClientId, maskSecret, resolveSetting, maskEmail } from "@/lib/infra/settings";
 
 describe("settings", () => {
   it("prefers the value saved in the app over .env", () => {
@@ -25,5 +25,13 @@ describe("settings", () => {
   it("never exposes more than the last 4 characters", () => {
     expect(maskSecret("fake-test-key-1234")).toBe("••••••1234");
     expect(maskSecret(null)).toBeNull();
+  });
+});
+
+describe("maskEmail", () => {
+  it("shows enough to recognize the address, not enough to learn it", () => {
+    expect(maskEmail("felipe@gmail.com")).toBe("fe****@gmail.com");
+    expect(maskEmail("ab@x.com")).toBe("ab*@x.com");
+    expect(maskEmail(null)).toBeNull();
   });
 });

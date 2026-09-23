@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ExternalLink, Loader2, XCircle } from "lucide-react";
-import { removeAnthropicKey, saveAnthropicKey, savePluggyCredentials } from "@/app/actions/settings";
+import { removeAnthropicKey, removeEmailSettings, saveAnthropicKey, saveEmailSettings, savePluggyCredentials } from "@/app/actions/settings";
 import type { SetupStatus } from "@/lib/infra/settings";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -162,6 +162,89 @@ export function AiForm({ status, onSaved }: { status: SetupStatus["ai"]; onSaved
         {status.configured && status.source === "app" && (
           <button type="button" onClick={remove} disabled={pending} className="text-sm text-fg-muted hover:text-danger">
             Remover chave
+          </button>
+        )}
+        <Feedback result={result} />
+      </div>
+    </form>
+  );
+}
+
+/** The address that receives a sign-in code when no device is at hand, through Resend. */
+export function EmailForm({ status }: { status: SetupStatus["email"] }) {
+  const router = useRouter();
+  const [email, setEmail] = useState(status.to ?? "");
+  const [key, setKey] = useState("");
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setResult(null);
+    startTransition(async () => {
+      const r = await saveEmailSettings(email, key);
+      setResult(r.ok ? { ok: true, text: r.message } : { ok: false, text: r.error });
+      if (r.ok) {
+        setKey("");
+        router.refresh();
+      }
+    });
+  }
+
+  function remove() {
+    if (!confirm("Remover? Sem e-mail, o código de acesso só aparece no log do servidor.")) return;
+    startTransition(async () => {
+      const r = await removeEmailSettings();
+      setResult(r.ok ? { ok: true, text: r.message } : { ok: false, text: r.error });
+      router.refresh();
+    });
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <ol className="text-sm text-fg-muted space-y-1.5 list-decimal list-inside">
+        <li>
+          Crie uma conta em{" "}
+          <a href="https://resend.com" target="_blank" rel="noreferrer" className="text-accent hover:underline inline-flex items-center gap-0.5">
+            resend.com <ExternalLink className="size-3" />
+          </a>{" "}
+          (grátis até 3.000 e-mails por mês)
+        </li>
+        <li>Em <strong className="text-fg">API Keys</strong>, crie uma chave e cole abaixo</li>
+        <li>Sem domínio próprio verificado no Resend, o e-mail só chega no endereço dono da conta</li>
+      </ol>
+      <div>
+        <label className={label} htmlFor="recovery-email">E-mail que recebe o código</label>
+        <input
+          id="recovery-email"
+          type="email"
+          className={input}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="voce@exemplo.com"
+          autoComplete="email"
+        />
+      </div>
+      <div>
+        <label className={label} htmlFor="resend-key">API key do Resend</label>
+        <input
+          id="resend-key"
+          type="password"
+          className={input}
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          placeholder={status.keyMasked ? `${status.keyMasked} (deixe vazio para manter)` : "re_..."}
+          autoComplete="off"
+        />
+      </div>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button type="submit" disabled={pending || !email.trim() || (!key.trim() && !status.configured)}>
+          {pending && <Loader2 className="size-4 animate-spin" />}
+          Salvar e enviar teste
+        </Button>
+        {status.configured && (
+          <button type="button" onClick={remove} disabled={pending} className="text-sm text-fg-muted hover:text-danger">
+            Remover
           </button>
         )}
         <Feedback result={result} />
