@@ -21,6 +21,7 @@ export async function applyDeterministicRules() {
       amount: true,
       counterpartyType: true,
       paymentMethod: true,
+      excludeOverride: true,
       account: { select: { type: true } },
     },
   });
@@ -32,7 +33,7 @@ export async function applyDeterministicRules() {
     updates.push(
       prisma.transaction.update({
         where: { id: t.id },
-        data: { categoryId: cat.id, status: "POSTED", excludeFromBudget: cat.excludeFromBudget },
+        data: { categoryId: cat.id, status: "POSTED", excludeFromBudget: t.excludeOverride ?? cat.excludeFromBudget },
       })
     );
   }

@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { findCounterpart } from "@/lib/domain/pass-through";
+import { DAY_MS } from "@/lib/domain/format";
 import { prisma } from "@/lib/infra/db";
 import { merchantPattern } from "@/lib/domain/merchant";
 import { unpairTransfer } from "@/lib/jobs/transfers";
@@ -146,4 +148,50 @@ export async function removeTransactionTag(txId: string, tagId: string) {
   revalidatePath("/transactions");
   revalidatePath("/");
   return { ok: true };
+}
+
+const PASS_THROUGH_SELECT = {
+  id: true,
+  accountId: true,
+  description: true,
+  merchantRaw: true,
+  counterpartyName: true,
+  amount: true,
+  chargeDate: true,
+  excludeOverride: true,
+  category: { select: { excludeFromBudget: true } },
+} as const;
+
+/**
+ * Marks (or unmarks) money that only passes through the account — a bill someone else sends you the money for.
+ * It stays in the list and in the balance, and stops counting in spending and budgets. The other side of the
+ * pair moves with it, and the mark survives recategorization; `jobs/pass-through.ts` applies it to the next ones.
+ */
+export async function setPassThrough(txId: string, isPassThrough: boolean) {
+  const id = txIdSchema.parse(txId);
+  const tx = await prisma.transaction.findUnique({ where: { id }, select: PASS_THROUGH_SELECT });
+  if (!tx) throw new Error("Transação não encontrada");
+
+  const window = await prisma.transaction.findMany({
+    where: {
+      accountId: tx.accountId,
+      chargeDate: { gte: new Date(tx.chargeDate.getTime() - 5 * DAY_MS), lte: new Date(tx.chargeDate.getTime() + 5 * DAY_MS) },
+    },
+    select: PASS_THROUGH_SELECT,
+  });
+  const counterpart = findCounterpart(tx, window);
+
+  await prisma.$transaction(
+    [tx, ...(counterpart ? [counterpart] : [])].map((t) =>
+      prisma.transaction.update({
+        where: { id: t.id },
+        data: isPassThrough
+          ? { excludeOverride: true, excludeFromBudget: true }
+          : { excludeOverride: null, excludeFromBudget: t.category?.excludeFromBudget ?? false },
+      })
+    )
+  );
+
+  revalidatePath("/", "layout");
+  return { changed: counterpart ? 2 : 1 };
 }

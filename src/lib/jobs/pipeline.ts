@@ -4,6 +4,7 @@ import { TRANSFER_DETECTION_DAYS_BACK } from "@/lib/domain/constants";
 import { applyDeterministicRules } from "@/lib/jobs/deterministic";
 import { removeDuplicateTransactions } from "@/lib/jobs/duplicates";
 import { updateChargeDates } from "@/lib/jobs/charge-dates";
+import { applyPassThroughs } from "@/lib/jobs/pass-through";
 import { detectTransfers } from "@/lib/jobs/transfers";
 import { categorizeAllPending } from "@/lib/jobs/categorize";
 import { refreshRecurrings } from "@/lib/jobs/recurrings";
@@ -18,6 +19,7 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
   const out = {
     duplicatesRemoved: 0,
     chargeDatesUpdated: 0,
+    passThroughs: 0,
     deterministic: 0,
     transfersPaired: 0,
     categorized: 0,
@@ -55,6 +57,8 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
   } catch (e) {
     logger.error("post-sync:transfers_failed", { error: errorMessage(e) });
   }
+
+  out.passThroughs = (await applyPassThroughs()).marked;
 
   const c = await categorizeAllPending();
   out.categorized = c.applied;

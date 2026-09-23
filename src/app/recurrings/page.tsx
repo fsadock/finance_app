@@ -52,7 +52,6 @@ export default async function RecurringsPage() {
           icon={Sparkles}
           items={subscriptions}
           categories={categories}
-          hint="Passe o mouse numa linha para editar, pausar (cancelou) ou excluir. Mudanças de plano e de preço são atualizadas sozinhas a cada sincronização."
         />
         <RecurringSection title="Contas fixas" icon={Receipt} items={bills} categories={categories} />
         <RecurringSection title="Moradia" icon={Home} items={housing} categories={categories} />

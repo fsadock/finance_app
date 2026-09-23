@@ -98,9 +98,14 @@ export async function runReclassify(confirmation: string) {
   await prisma.$transaction([
     setConfig("reclassifyBackup", value),
     prisma.merchantRule.deleteMany({ where: { source: "AI" } }),
+    // excludeFromBudget follows the category, except where the owner marked the transaction (excludeOverride)
     prisma.transaction.updateMany({
-      where: { id: { in: plan.toReset.map((t) => t.id) } },
+      where: { id: { in: plan.toReset.map((t) => t.id) }, excludeOverride: null },
       data: { status: "REVIEW", categoryId: null, excludeFromBudget: false },
+    }),
+    prisma.transaction.updateMany({
+      where: { id: { in: plan.toReset.map((t) => t.id) }, NOT: { excludeOverride: null } },
+      data: { status: "REVIEW", categoryId: null },
     }),
   ]);
 

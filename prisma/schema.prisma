@@ -146,6 +146,9 @@ model Transaction {
   tags              Tag[]
   pluggyTxId        String?    @unique
   excludeFromBudget Boolean    @default(false)
+  /// The owner's own decision about the budget, which survives recategorization: true never counts (money that
+  /// only passes through, like a bill someone else sends you the money for), null follows the category.
+  excludeOverride   Boolean?
   transferPairId    String?
   /// Pluggy structured data (Brazil): PIX | TED | DOC | BOLETO | …
   paymentMethod     String?

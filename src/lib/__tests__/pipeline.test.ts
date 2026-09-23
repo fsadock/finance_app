@@ -183,6 +183,40 @@ describe("post-sync pipeline", () => {
     expect(out.chargeDatesUpdated).toBe(1);
   });
 
+  it("learns a pass-through: next month's bill and the money that funds it stop counting", async () => {
+    claude({});
+    const at = (daysBack: number) => daysAgo(daysBack);
+    // the owner marked August's pair: a boleto someone else sends the money for
+    await tx("Bankslip", -2279, { date: at(62), status: "POSTED", excludeOverride: true, excludeFromBudget: true });
+    await tx("Pix", 2279, { date: at(64), status: "POSTED", excludeOverride: true, excludeFromBudget: true });
+    // September's pair arrived with the sync, still counting
+    const boleto = await tx("Bankslip", -2279, { date: at(32), status: "POSTED" });
+    const pix = await tx("Pix", 2280, { date: at(33), status: "POSTED" });
+    const grocery = await tx("Mercado Dia", -2279, { date: at(31), status: "POSTED" });
+
+    const out = await runPostSyncJobs();
+
+    const get = (id: string) => prisma.transaction.findUniqueOrThrow({ where: { id } });
+    expect(await get(boleto.id)).toMatchObject({ excludeOverride: true, excludeFromBudget: true });
+    expect(await get(pix.id)).toMatchObject({ excludeOverride: true, excludeFromBudget: true });
+    // same amount, but a real purchase on another day: untouched
+    expect(await get(grocery.id)).toMatchObject({ excludeOverride: null, excludeFromBudget: false });
+    expect(out.passThroughs).toBe(2);
+  });
+
+  it("keeps the owner's pass-through mark when a rule categorizes the transaction", async () => {
+    claude({});
+    const marked = await tx("Padaria Pão Quente", -20, { excludeOverride: true, excludeFromBudget: true });
+
+    await runPostSyncJobs();
+
+    // the user rule assigns Mercado (which counts), but the owner's mark wins
+    expect(await prisma.transaction.findUniqueOrThrow({ where: { id: marked.id } })).toMatchObject({
+      categoryId: ids.mercado,
+      excludeFromBudget: true,
+    });
+  });
+
   it("keeps rules working and reports the error when Claude fails", async () => {
     parse.mockRejectedValue(new Error("credit balance is too low"));
     const bakery = await tx("Padaria Pão Quente", -20);

@@ -4,6 +4,7 @@ import { CategoryPicker } from "@/components/transactions/category-picker";
 import { TagPicker } from "@/components/transactions/tag-picker";
 import { TransferBadge } from "@/components/transactions/unpair-button";
 import { NotesEditor } from "@/components/transactions/notes-editor";
+import { PassThroughToggle } from "@/components/transactions/pass-through-toggle";
 import { ListRow, MobileList } from "@/components/ui/list-row";
 import type { getTransactionsPage, getTransactionFilterOptions } from "@/lib/data/transactions";
 import type { getCategoryOptions } from "@/lib/data/categories";
@@ -21,6 +22,7 @@ function Badges({ t }: { t: Tx }) {
   return (
     <>
       {t.transferPairId && <TransferBadge txId={t.id} />}
+      {!t.transferPairId && <PassThroughToggle txId={t.id} isPassThrough={t.excludeOverride === true} />}
       {t.totalInstallments && (
         <span
           className="inline-flex shrink-0 items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-warn/15 text-warn"
