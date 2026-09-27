@@ -67,6 +67,21 @@ export function inferCadence(dates: Date[]): Cadence | null {
   return cadenceForGap(gaps[Math.floor(gaps.length / 2)]!);
 }
 
+/**
+ * A cadência só quando os intervalos se repetem: ao menos 3 datas e todos os intervalos compatíveis com a
+ * cadência. Duas compras no mesmo restaurante com 30 dias de distância não são uma assinatura.
+ */
+export function regularCadence(dates: Date[]): Cadence | null {
+  if (dates.length < 3) return null;
+  const cadence = inferCadence(dates);
+  if (!cadence) return null;
+  const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
+  for (let i = 1; i < sorted.length; i++) {
+    if (!fitsCadence(differenceInCalendarDays(sorted[i]!, sorted[i - 1]!), cadence)) return null;
+  }
+  return cadence;
+}
+
 /** True when the last charge is more than ~2 periods old — the subscription was probably cancelled. */
 export function isLikelyInactive(lastDate: Date | null, cadence: Cadence, today = new Date()): boolean {
   if (!lastDate) return false;

@@ -14,6 +14,7 @@ import {
   inferCadence,
   nextDueDate,
   type Cadence,
+  regularCadence,
 } from "@/lib/domain/recurrence";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
@@ -35,6 +36,9 @@ function buildRecurringCandidates(txs: Sample[], knownPatterns: Set<string>): Ca
   const candidates: Candidate[] = [];
   for (const [key, list] of groups) {
     if (list.length < RECURRING_MIN_OCCURRENCES) continue;
+    // sem intervalos regulares não é recorrência: é o mesmo lugar visitado de novo
+    const cadence = regularCadence(list.map((l) => l.date));
+    if (!cadence) continue;
     const amts = list.map((l) => l.amount);
     const avg = amts.reduce((s, x) => s + x, 0) / amts.length;
     const stddev = Math.sqrt(amts.reduce((s, x) => s + (x - avg) ** 2, 0) / amts.length);
@@ -44,7 +48,7 @@ function buildRecurringCandidates(txs: Sample[], knownPatterns: Set<string>): Ca
       pattern: key.slice(key.indexOf(":") + 1),
       samples: list,
       avgAmount: avg,
-      inferred: inferCadence(list.map((l) => l.date)),
+      inferred: cadence,
     });
   }
   return candidates;
@@ -115,7 +119,10 @@ export async function detectRecurrings() {
           text:
             "Você analisa grupos de transações bancárias brasileiras para detectar lançamentos recorrentes: " +
             "assinaturas, contas fixas (aluguel, luz, internet, escola, seguros) e receitas recorrentes (salário, aluguel recebido). " +
-            "Compras repetidas no mesmo comerciante sem periodicidade (mercado, restaurante, Uber) NÃO são recorrentes. " +
+            "NÃO são recorrentes, mesmo repetindo: compras em restaurante, delivery, mercado, posto, farmácia, loja ou " +
+            "shopping; Pix para pessoas físicas (nome de gente no lugar do serviço); compras em marketplace (Amazon, " +
+            "Mercado Livre). Recorrente é um contrato que cobra sozinho, sempre o mesmo valor aproximado, no mesmo " +
+            "intervalo. Na dúvida, omita: uma recorrência errada atrapalha mais do que uma que falta. " +
             "Para cada candidato realmente recorrente, retorne: candidate = o número do candidato; name = nome amigável " +
             "do serviço ou conta; cadence; categoryName da lista (ou null); confidence entre 0 e 1. " +
             "Omita candidatos que não são recorrentes.\n\nCategorias disponíveis:\n" +

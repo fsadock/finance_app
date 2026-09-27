@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/infra/db", () => ({ prisma: {} }));
 
-import { nextOccurrence, inferCadence, isLikelyInactive, shiftByCadence } from "@/lib/domain/recurrence";
+import { nextOccurrence, inferCadence, isLikelyInactive, regularCadence, shiftByCadence } from "@/lib/domain/recurrence";
 import { resolveBillingCycle, cycleContaining } from "@/lib/domain/billing";
 import { limitInEffect, effectiveWithRollover } from "@/lib/domain/budgets";
 import { parseDateInput, lastMonthKeys, formatMonthKeyLong } from "@/lib/domain/format";
@@ -174,5 +174,21 @@ describe("transaction filters", () => {
   it("explicit date range wins over month", () => {
     const where = buildTransactionWhere({ month: "2026-01", from: "2026-09-01" });
     expect(where).toEqual({ AND: [{ chargeDate: { gte: day(2026, 9, 1) } }] });
+  });
+});
+
+describe("regularCadence", () => {
+  const d = (y: number, m: number, day: number) => new Date(y, m - 1, day);
+
+  it("aceita cobranças mensais, mesmo com alguns dias de folga", () => {
+    expect(regularCadence([d(2026, 6, 5), d(2026, 7, 3), d(2026, 8, 8)])).toBe("MONTHLY");
+  });
+
+  it("recusa duas ocorrências: duas visitas não são assinatura", () => {
+    expect(regularCadence([d(2026, 7, 10), d(2026, 8, 9)])).toBeNull();
+  });
+
+  it("recusa intervalos irregulares (o mesmo restaurante, quando dá vontade)", () => {
+    expect(regularCadence([d(2026, 5, 2), d(2026, 5, 20), d(2026, 8, 30)])).toBeNull();
   });
 });

@@ -16,4 +16,4 @@ export const CATEGORIZE_CACHE_RULE_MIN_CONFIDENCE = 0.8;
 export const RECURRING_LOOKBACK_MONTHS = 6;
 export const RECURRING_CV_THRESHOLD = 0.30; // max coefficient of variation for amount grouping
 export const RECURRING_MIN_CONFIDENCE = 0.7;
-export const RECURRING_MIN_OCCURRENCES = 2;
+export const RECURRING_MIN_OCCURRENCES = 3;
