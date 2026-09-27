@@ -34,10 +34,14 @@ export async function testPluggyCredentials(clientId: string, clientSecret: stri
   }
 }
 
-/** Pluggy SDK errors carry the useful message in the response body ("clientId must be a UUID", "Invalid credentials"…). */
+/**
+ * Pluggy SDK errors carry the useful message in the response body ("clientId must be a UUID", "Invalid
+ * credentials", "This endpoint is deprecated…"). The SDK rejects with that body itself, not with an Error,
+ * so a message here is worth more than the generic fallback.
+ */
 export function pluggyErrorMessage(e: unknown): string {
-  if (e && typeof e === "object") {
-    const body = (e as { response?: { body?: unknown } }).response?.body;
+  if (e && typeof e === "object" && !(e instanceof Error)) {
+    const body = (e as { response?: { body?: unknown } }).response?.body ?? e;
     const parsed = typeof body === "string" ? safeJson(body) : body;
     const message = (parsed as { message?: string } | undefined)?.message;
     if (message) return `Pluggy: ${message}`;
