@@ -26,6 +26,71 @@ type TxForAI = {
 };
 
 /**
+ * Regras de classificação. Mandado como system com cache_control, então cresce de graça na segunda chamada —
+ * mas cada regra aqui é uma que o usuário não precisa corrigir à mão depois.
+ */
+const SYSTEM_PROMPT = (categoryList: string) => `Você é um classificador de transações bancárias brasileiras.
+Para cada transação, escolha a categoria mais apropriada da lista no fim. Valores negativos são saídas; positivos, entradas.
+Cada linha traz contexto estruturado (método, contraparte CPF/CNPJ, comerciante, CNAE, MCC, parcela, categoria do banco) — use-o antes da descrição.
+
+COMO LER A DESCRIÇÃO (o nome do comerciante costuma estar escondido):
+- Prefixos do banco não significam nada: "COMPRA DEBITO APP VISA - X - DOCTO: 123" e "COMPRA CARTAO VISA - X" são a compra em X. Ignore o "DOCTO: n" no fim.
+- Marcadores de adquirente/subadquirente vêm antes do comerciante real, separados por "*": EBN*, ZIG*, CAPPTA*, DL*, SPG*, PAG*, MP*, PICPAY*, SUMUP*, STONE*, GLOBO*, AMAZONMKTPLC*. Classifique pelo que vem DEPOIS do "*" (ex.: "EBN*SPOTIFY" é Spotify).
+- "IFD*" é iFood. "PIX RECEBIDO - REM FULANO - 12/05" é um Pix recebido de Fulano.
+- Sem nome reconhecível (só números, "COBRANCA", "DEBITO AUTORIZADO"), prefira "Outros" com confidence baixa a chutar.
+
+APP DE ENTREGA: quem decide é a LOJA, não o aplicativo.
+- iFood/Rappi/Daki + restaurante, lanchonete, pizzaria, hamburgueria: "Delivery"
+- iFood/Rappi/Daki + drogaria ou farmácia: "Farmácia"
+- iFood/Rappi/Daki + petshop ou ração: "Pets"
+- Daki/Rappi + mercado, hortifruti, bebidas: "Mercado"
+- Assinatura do app (iFood Clube, Rappi Prime): "Assinaturas"
+
+PIX / TED / DOC — o método NÃO define a categoria, o destinatário define:
+- Saída para o próprio titular (mesma titularidade): "Transferências"
+- Entrada vinda do próprio titular, inclusive quando o remetente tem o MESMO NOME do dono da conta: "Transferências" (é dinheiro trazido de outro banco dele, não receita)
+- Contraparte é empresa (CNPJ): é compra/pagamento — classifique pelo nome do comerciante
+- Saída para pessoa física (CPF): use o nome/descrição (aluguel → Aluguel, diarista → Contas de casa, professor → Educação, médico/psicólogo → Saúde); sem pista, "Pagamentos a pessoas"
+- Entrada de pessoa física (CPF): geralmente "Reembolsos" (divisão de conta, devolução), salvo indício de salário
+- Sem contraparte identificada: só é "Transferências" se a descrição indicar conta própria; caso contrário trate como pagamento pelo nome
+
+CARTÃO DE CRÉDITO:
+- Pagamento de fatura ("PAGAMENTO RECEBIDO", "PAG FATURA", "InvoiceCreditCardBankslip", débito automático da fatura): "Pagamento de fatura"
+- Estorno/crédito de compra: mesma categoria da compra original; cashback: "Reembolsos"
+- Compras parceladas: categoria do comerciante, como qualquer compra
+- IOF, juros, encargos de rotativo, "PARC.FACIL", multa, anuidade, tarifa, cesta de serviços ("Cesta Exclusive"), seguro do cartão: "Tarifas & Juros"
+
+CONTA / INVESTIMENTOS / RENDA:
+- Aplicação, resgate, RDB, CDB, caixinha, porquinho, poupança, Tesouro, corretora: "Investimentos"
+- PGBL, VGBL, previdência: "Previdência privada"
+- Rendimento de saldo em conta ("RENTAB.INVEST", "rendimento"), juros recebidos, dividendos, JCP: "Rendimentos"
+- Salário, folha, proventos, férias, 13º, PLR: "Salário"
+- Boleto: classifique pelo beneficiário (condomínio, luz, água, gás → Contas de casa; escola → Educação)
+
+COMERCIANTES COMUNS:
+- Apple, apple.com/bill, iCloud, Microsoft 365, Google One, ChatGPT, Notion, GitHub: "Tecnologia & Software"; cobranças pequenas e repetidas da Apple/Google costumam ser "Assinaturas"
+- Netflix, Spotify, Disney+, HBO/Max, Globoplay, Prime Video, YouTube Premium, Deezer: "Streaming"
+- Barbearia, cabeleireiro, salão, estética, cosmético, manicure, Beleza na Web: "Cuidados pessoais"
+- Supermercado (Pão de Açúcar, Carrefour, Extra, Atacadão, Assaí, EPA, Verdemar), padaria de bairro: "Mercado"
+- Uber, 99, InDriver, Cabify: "Apps de mobilidade"; metrô, BRT, ônibus, bilhete único: "Transporte"
+- Posto de combustível (Shell, Ipiranga, BR, Petrobras): "Combustível"; Sem Parar, ConectCar, Veloe, estacionamento, administradora de shopping em valor pequeno: "Estacionamento & Pedágio"
+- Drogasil, Drogaria São Paulo, Pague Menos, Araújo, Raia: "Farmácia"; plano de saúde, clínica, laboratório, hospital, ótica: "Saúde"
+- Smartfit, Bluefit, Gympass/Wellhub: "Academia"
+- Cinema, Ingresso.com, Sympla, boate, bar dançante, parque: "Lazer"
+- Mercado Livre, Amazon, Shopee, Magalu, Casas Bahia: olhe o item se descrito; sem pista, "Outros" com confidence baixa
+- eSIM (Airalo), operadora (Vivo, Claro, TIM), internet: "Internet & Telefone"
+- Aeroporto, companhia aérea, hotel, Booking, Airbnb: "Viagem"
+- IPVA, IPTU, DARF, DAS, Receita Federal, licenciamento: "Impostos & Taxas"
+- Porto Seguro, SulAmérica, seguro auto/vida/residencial: "Seguros"
+- Petshop, ração, veterinário: "Pets"
+
+Retorne uma sugestão por transação, com o id exatamente como recebido e confidence entre 0 e 1.
+Confidence alta (>0.8) só quando o comerciante estiver claro; na dúvida use "Outros" com confidence baixa (<0.5) — é melhor deixar para o usuário do que categorizar errado com confiança.
+
+Categorias disponíveis:
+${categoryList}`;
+
+/**
  * Asks Claude for a category per transaction (Brazilian rules in the system prompt, cached).
  * Only talks to the API: applying the suggestions is up to the caller (jobs/categorize.ts).
  * Throws on API errors and on unparseable output.
@@ -58,14 +123,10 @@ export async function suggestCategories(remaining: TxForAI[], categories: { name
     })
     .join("\n");
 
+  // categoryName como texto livre, validado depois: uma resposta fora da lista descartava o lote inteiro
+  // de 40 transações, e bastava um Pix para isso acontecer.
   const SuggestionsSchema = z.object({
-    suggestions: z.array(
-      z.object({
-        txId: z.string(),
-        categoryName: z.enum(categoryNames as [string, ...string[]]),
-        confidence: z.number(),
-      })
-    ),
+    suggestions: z.array(z.object({ txId: z.string(), categoryName: z.string(), confidence: z.number() })),
   });
 
   const client = await getAnthropic();
@@ -76,48 +137,7 @@ export async function suggestCategories(remaining: TxForAI[], categories: { name
       system: [
         {
           type: "text",
-          text:
-            "Você é um classificador de transações bancárias brasileiras. " +
-            "Para cada transação, escolha a categoria mais apropriada da lista fornecida. " +
-            "Valores negativos são saídas; positivos são entradas. Cada linha pode trazer contexto estruturado " +
-            "(método de pagamento, contraparte CPF/CNPJ, comerciante, CNAE, MCC, parcela, categoria do banco) — use-o antes da descrição.\n\n" +
-            "PIX / TED / DOC — o método NÃO define a categoria, o destinatário define:\n" +
-            "- Saída para o próprio titular (mesma titularidade): \"Transferências\"\n" +
-            "- Entrada vinda do próprio titular: é dinheiro trazido de uma conta que NÃO está conectada — pode ser salário recebido em outro banco. " +
-            "Use \"Transferências\" só se a descrição indicar resgate/movimentação entre contas; caso contrário escolha a categoria mais provável com confidence baixa (<0.6) para o usuário revisar\n" +
-            "- Contraparte é empresa (CNPJ): é uma compra/pagamento — classifique pelo nome do comerciante (padaria → Restaurantes/Cafés, mercado → Mercado, etc.)\n" +
-            "- Saída para pessoa física (CPF): use o nome/descrição (aluguel → Aluguel, diarista/faxina → Contas de casa, professor → Educação, médico/psicólogo → Saúde); se não houver pista, \"Pagamentos a pessoas\"\n" +
-            "- Entrada de pessoa física (CPF): geralmente \"Reembolsos\" (divisão de conta, devolução), salvo indício de salário\n" +
-            "- Sem contraparte identificada: Pix/TED só é \"Transferências\" se a descrição indicar conta própria; caso contrário trate como pagamento pelo nome\n\n" +
-            "CARTÃO DE CRÉDITO:\n" +
-            "- Pagamento de fatura (\"PAGAMENTO RECEBIDO\", \"PAG FATURA\", débito automático da fatura): \"Pagamento de fatura\"\n" +
-            "- Estorno/crédito de compra: mesma categoria da compra original (pelo comerciante); cashback: \"Reembolsos\"\n" +
-            "- Compras parceladas: categoria do comerciante, como qualquer compra\n" +
-            "- IOF, juros, encargos, multa, anuidade, tarifa, cesta de serviços, seguro do cartão/prestamista: \"Tarifas & Juros\"\n\n" +
-            "CONTA / INVESTIMENTOS / RENDA:\n" +
-            "- Aplicação, resgate, RDB, CDB, caixinha, porquinho, poupança, Tesouro, corretora: \"Investimentos\"\n" +
-            "- PGBL, VGBL, previdência: \"Previdência privada\"\n" +
-            "- Rendimento, juros recebidos, dividendos, JCP: \"Rendimentos\"\n" +
-            "- Salário, folha, proventos, férias, 13º, PLR: \"Salário\"\n" +
-            "- Boleto: classifique pelo beneficiário/descrição (condomínio, luz, água, gás → Contas de casa; escola → Educação)\n\n" +
-            "COMERCIANTES COMUNS:\n" +
-            "- Apple, apple.com/bill, iCloud, Microsoft 365, Google One, ChatGPT, Notion, GitHub: \"Tecnologia & Software\"\n" +
-            "- Netflix, Spotify, Disney+, HBO/Max, Globoplay, Prime Video, YouTube Premium, Deezer: \"Streaming\"\n" +
-            "- Barbearia, cabeleireiro, salão, estética, cosmético, manicure: \"Cuidados pessoais\"\n" +
-            "- Supermercado (Pão de Açúcar, Carrefour, Extra, Atacadão, Assaí, Sam's Club): \"Mercado\"\n" +
-            "- iFood, Rappi, James, Zé Delivery: \"Delivery\"\n" +
-            "- Uber, 99, InDriver, Cabify: \"Apps de mobilidade\"\n" +
-            "- Posto Shell/Ipiranga/BR/Petrobras, combustível: \"Combustível\"; Sem Parar, ConectCar, Veloe, estacionamento: \"Estacionamento & Pedágio\"\n" +
-            "- Drogasil, Drogaria São Paulo, Pague Menos, Raia: \"Farmácia\"; plano de saúde, clínica, laboratório, hospital: \"Saúde\"\n" +
-            "- Smartfit, Bluefit, Gympass/Wellhub, academia: \"Academia\"\n" +
-            "- Mercado Livre, Amazon, Shopee, Magalu, Casas Bahia: olhe o item se descrito; default \"Eletrônicos\" ou \"Casa & Decoração\"\n" +
-            "- IPVA, IPTU, DARF, DAS, Receita Federal, licenciamento: \"Impostos & Taxas\"\n" +
-            "- Porto Seguro, SulAmérica, Bradesco Seguros, seguro auto/vida: \"Seguros\"\n" +
-            "- Petshop, ração, veterinário: \"Pets\"\n\n" +
-            "Retorne uma sugestão por transação, com o id exatamente como recebido e confidence entre 0 e 1. " +
-            "Se não conseguir identificar, use \"Outros\" com confidence baixa (<0.5).\n\n" +
-            "Categorias disponíveis:\n" +
-            categoryList,
+          text: SYSTEM_PROMPT(categoryList),
           cache_control: { type: "ephemeral" },
         },
       ],
@@ -130,11 +150,18 @@ export async function suggestCategories(remaining: TxForAI[], categories: { name
   const parsed = resp.parsed_output;
   if (!parsed) throw new Error(`Claude returned no parseable output (stop_reason=${resp.stop_reason})`);
 
+  const known = new Set(categoryNames);
+  const suggestions = (parsed.suggestions as CategorySuggestion[]).filter((s) => known.has(s.categoryName));
+  if (suggestions.length < parsed.suggestions.length) {
+    const invalidas = [...new Set(parsed.suggestions.filter((s) => !known.has(s.categoryName)).map((s) => s.categoryName))];
+    logger.warn("ai:categorize_invalid_category", { invalidas });
+  }
+
   const usage = {
     input: resp.usage.input_tokens,
     output: resp.usage.output_tokens,
     cacheRead: resp.usage.cache_read_input_tokens ?? 0,
     cacheCreation: resp.usage.cache_creation_input_tokens ?? 0,
   };
-  return { suggestions: parsed.suggestions as CategorySuggestion[], usage };
+  return { suggestions, usage };
 }

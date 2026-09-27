@@ -217,6 +217,22 @@ describe("post-sync pipeline", () => {
     });
   });
 
+  it("keeps the good suggestions when Claude answers a category that doesn't exist", async () => {
+    claude({
+      "Loja Nova XYZ": { category: "Mercado", confidence: 0.9 },
+      "Coisa Estranha": { category: "Categoria Inventada", confidence: 0.95 },
+    });
+    const shop = await tx("Loja Nova XYZ", -80);
+    const unknown = await tx("Coisa Estranha", -10);
+
+    const out = await runPostSyncJobs();
+
+    expect(await prisma.transaction.findUniqueOrThrow({ where: { id: shop.id } })).toMatchObject({ categoryId: ids.mercado });
+    // a inválida volta para revisão em vez de derrubar o lote inteiro
+    expect(await prisma.transaction.findUniqueOrThrow({ where: { id: unknown.id } })).toMatchObject({ status: "REVIEW" });
+    expect(out.aiError).toBeNull();
+  });
+
   it("keeps rules working and reports the error when Claude fails", async () => {
     parse.mockRejectedValue(new Error("credit balance is too low"));
     const bakery = await tx("Padaria Pão Quente", -20);

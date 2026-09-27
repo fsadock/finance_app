@@ -35,11 +35,14 @@ async function categorizeReviewTransactions(skipIds: string[] = [], { useAI = tr
         installmentNumber: true,
         totalInstallments: true,
         pluggyCategory: true,
+        excludeOverride: true,
         account: { select: { type: true } },
       },
       take: CATEGORIZE_BATCH_SIZE,
     }),
-    prisma.category.findMany({ where: { excludeFromBudget: false } }),
+    // Todas: o prompt manda usar "Transferências", "Investimentos", "Pagamento de fatura" e
+    // "Previdência privada", que ficam de fora do orçamento mas são classificações legítimas.
+    prisma.category.findMany(),
     prisma.merchantRule.findMany(),
   ]);
 
@@ -86,7 +89,7 @@ async function categorizeReviewTransactions(skipIds: string[] = [], { useAI = tr
 
     await prisma.transaction.update({
       where: { id: s.txId },
-      data: { categoryId: cat.id, status: "POSTED" },
+      data: { categoryId: cat.id, status: "POSTED", excludeFromBudget: tx.excludeOverride ?? cat.excludeFromBudget },
     });
     fromAI++;
 
