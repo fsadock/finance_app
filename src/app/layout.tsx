@@ -7,6 +7,7 @@ import { ServiceWorkerRegistration } from "@/components/layout/service-worker-re
 import { PullToRefresh } from "@/components/layout/pull-to-refresh";
 import { getLastSync } from "@/lib/data/connections";
 import { getPluggyCredentials } from "@/lib/infra/settings";
+import { hasCryptoWallets } from "@/lib/data/crypto";
 import { APP_NAME } from "@/lib/infra/app";
 import { SetupBanner } from "@/components/setup/setup-banner";
 import { connection } from "next/server";
@@ -39,13 +40,13 @@ export default async function RootLayout({
   // Signed out, the proxy only lets the sign-in page through: no navigation, no data
   if (!(await currentSession())) return html(<main className="px-4">{children}</main>);
 
-  const [lastSync, pluggy] = await Promise.all([getLastSync(), getPluggyCredentials()]);
+  const [lastSync, pluggy, hasCrypto] = await Promise.all([getLastSync(), getPluggyCredentials(), hasCryptoWallets()]);
   return html(
     <div className="flex min-h-screen">
       <ServiceWorkerRegistration />
-      <Sidebar appName={APP_NAME} lastSync={lastSync?.toISOString() ?? null} setupPending={!pluggy.configured} />
+      <Sidebar appName={APP_NAME} lastSync={lastSync?.toISOString() ?? null} setupPending={!pluggy.configured} hasCrypto={hasCrypto} />
       <main className="flex-1 min-w-0">
-        <MobileNav appName={APP_NAME} lastSync={lastSync?.toISOString() ?? null} setupPending={!pluggy.configured} />
+        <MobileNav appName={APP_NAME} lastSync={lastSync?.toISOString() ?? null} setupPending={!pluggy.configured} hasCrypto={hasCrypto} />
         <PullToRefresh lastSync={lastSync?.toISOString() ?? null} />
         <div className="mx-auto max-w-[1400px] px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:px-8 lg:py-8">
           {!pluggy.configured && <SetupBanner />}

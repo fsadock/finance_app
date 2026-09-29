@@ -70,6 +70,32 @@ export function portfolioValue(holdings: Holding[]) {
   return { brl, usd, unpriced };
 }
 
+/** How much the whole position moved in 24h, weighted by what each asset is worth now. */
+export function portfolioChange24h(holdings: Holding[], change: (symbol: CryptoSymbol) => number | undefined) {
+  let weighted = 0;
+  let base = 0;
+  for (const h of holdings) {
+    const pct = change(h.symbol);
+    if (h.priceBrl === null || pct === undefined) continue;
+    const value = h.quantity * h.priceBrl;
+    weighted += value * pct;
+    base += value;
+  }
+  return base > 0 ? weighted / base : null;
+}
+
+/** Each asset's share of the position, biggest first: what the allocation bars draw. */
+export function allocation(holdings: Holding[]) {
+  const total = portfolioValue(holdings).brl;
+  return holdings
+    .filter((h) => h.priceBrl !== null)
+    .map((h) => {
+      const value = h.quantity * h.priceBrl!;
+      return { symbol: h.symbol, quantity: h.quantity, value, share: total > 0 ? value / total : 0 };
+    })
+    .sort((a, b) => b.value - a.value);
+}
+
 /** Dust: balances too small to show as a position (a fraction of a cent). */
 export function isDust(h: Holding) {
   return h.quantity <= 0 || (h.priceBrl !== null && h.quantity * h.priceBrl < 0.01);

@@ -5,10 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/domain/format";
-import { NAV, SETTINGS_NAV, isActive } from "./nav";
+import { SETTINGS_NAV, isActive, navFor } from "./nav";
 import { NavLinkPending } from "./nav-link-pending";
 
-export function Sidebar({ appName, lastSync, setupPending }: { appName: string; lastSync: string | null; setupPending: boolean }) {
+export function Sidebar({ appName, lastSync, setupPending, hasCrypto }: { appName: string; lastSync: string | null; setupPending: boolean; hasCrypto: boolean }) {
+  const nav = navFor({ hasCrypto });
   const pathname = usePathname();
   return (
     <aside className="hidden lg:flex w-64 shrink-0 border-r border-border bg-bg-elev px-4 py-6 flex-col gap-2 sticky top-0 h-screen">
@@ -20,7 +21,7 @@ export function Sidebar({ appName, lastSync, setupPending }: { appName: string; 
         </div>
       </div>
       <nav className="flex flex-col gap-0.5">
-        {NAV.map((item) => {
+        {nav.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href, pathname);
           return (

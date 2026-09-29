@@ -7,9 +7,8 @@ import { ProjectionChart } from "@/components/investments/projection";
 import { getBenchmarkRates } from "@/lib/data/rates";
 import { futureValue, realRate } from "@/lib/domain/investments";
 import { parseBRLInput } from "@/lib/domain/brazil";
-import { getCryptoPortfolio } from "@/lib/data/crypto";
-import { MarketPanel } from "@/components/crypto/market-panel";
-import { CryptoWallets } from "@/components/crypto/wallets";
+import Link from "next/link";
+import { getCryptoSummary } from "@/lib/data/crypto";
 import { formatUSD } from "@/lib/domain/format";
 
 /** Used only when the BCB API is unreachable. */
@@ -41,7 +40,7 @@ export default async function InvestmentsPage({ searchParams }: Props) {
   const [investments, rates, crypto] = await Promise.all([
     getInvestments(),
     getBenchmarkRates(),
-    getCryptoPortfolio(),
+    getCryptoSummary(),
   ]);
 
   const total = investments.reduce((s, i) => s + i.currentPrice * i.quantity, 0);
@@ -177,23 +176,23 @@ export default async function InvestmentsPage({ searchParams }: Props) {
         </Card>
       </div>
 
-      <section className="mb-4 space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-2">
+      {crypto.wallets > 0 && (
+        <Link
+          href="/cripto"
+          className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-border bg-bg-card p-4 hover:bg-bg-hover"
+        >
           <div>
-            <h2 className="text-lg font-semibold">Cripto</h2>
-            <p className="text-xs text-fg-muted">Saldos lidos direto da blockchain, pelo endereço público da carteira.</p>
-          </div>
-          {crypto.wallets.length > 0 && (
-            <div className="text-right">
-              <div className="text-xl font-semibold tabular-nums">{formatBRL(crypto.total.brl)}</div>
-              <div className="text-xs text-fg-muted tabular-nums">{formatUSD(crypto.total.usd)}</div>
+            <div className="font-semibold">Cripto</div>
+            <div className="text-xs text-fg-muted">
+              {crypto.wallets} carteira(s) · {crypto.symbols.join(", ")}
             </div>
-          )}
-        </div>
-
-        <MarketPanel initial={{ quotes: crypto.quotes, dollar: crypto.dollar }} />
-        <CryptoWallets wallets={crypto.wallets} />
-      </section>
+          </div>
+          <div className="text-right">
+            <div className="font-semibold tabular-nums">{formatBRL(crypto.total.brl)}</div>
+            <div className="text-xs text-fg-muted tabular-nums">{formatUSD(crypto.total.usd)}</div>
+          </div>
+        </Link>
+      )}
 
       <Card className="p-0 overflow-hidden">
         <table className="w-full text-sm">

@@ -7,16 +7,17 @@ import { usePathname } from "next/navigation";
 import { MoreHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/domain/format";
-import { MOBILE_TABS, NAV, SETTINGS_NAV, isActive } from "./nav";
+import { MOBILE_TABS, SETTINGS_NAV, isActive, navFor } from "./nav";
 import { NavLinkPending } from "./nav-link-pending";
 
 /** Phone navigation (below lg): top bar, bottom tab bar and a "Mais" sheet with the other pages. */
-export function MobileNav({ appName, lastSync, setupPending }: { appName: string; lastSync: string | null; setupPending: boolean }) {
+export function MobileNav({ appName, lastSync, setupPending, hasCrypto }: { appName: string; lastSync: string | null; setupPending: boolean; hasCrypto: boolean }) {
+  const nav = navFor({ hasCrypto });
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const tabs = MOBILE_TABS.map((href) => NAV.find((n) => n.href === href)!);
-  const more = [...NAV.filter((n) => !MOBILE_TABS.includes(n.href)), SETTINGS_NAV];
+  const tabs = MOBILE_TABS.map((href) => nav.find((n) => n.href === href)!);
+  const more = [...nav.filter((n) => !MOBILE_TABS.includes(n.href)), SETTINGS_NAV];
   const moreActive = more.some((n) => isActive(n.href, pathname));
 
   return (

@@ -6,7 +6,7 @@ import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_STYLE } from "@/compo
 import { formatBRL, formatBRLCompact, formatUSD } from "@/lib/domain/format";
 import { cn } from "@/lib/utils";
 import { readJson } from "@/lib/client/api";
-import type { Candle, DollarRate, Quote } from "@/lib/market/prices";
+import type { Candle, ChartSymbol, DollarRate, Quote } from "@/lib/market/prices";
 
 type Market = { quotes: Quote[]; dollar: DollarRate | null };
 
@@ -17,13 +17,7 @@ const RANGES = [
   { key: "1y", label: "1 ano" },
 ] as const;
 
-const ASSETS = [
-  { key: "BTC", name: "Bitcoin", color: "#f7931a" },
-  { key: "SOL", name: "Solana", color: "#9945ff" },
-  { key: "USDBRL", name: "Dólar", color: "var(--color-accent)" },
-] as const;
-
-type AssetKey = (typeof ASSETS)[number]["key"];
+export type MarketAsset = { key: ChartSymbol; name: string; color: string };
 
 /** Refreshed this often while the page is open; the server caches the sources, so this stays cheap. */
 const POLL_MS = 30_000;
@@ -41,16 +35,16 @@ function Change({ value }: { value: number }) {
  * Live prices for what the owner holds (BTC, SOL) and for the dollar, each in reais and dollars, with the
  * chart of whichever one is selected. Prices come from Binance's BRL pairs and the commercial dollar.
  */
-export function MarketPanel({ initial }: { initial: Market }) {
+export function MarketPanel({ initial, assets }: { initial: Market; assets: MarketAsset[] }) {
   const [market, setMarket] = useState(initial);
-  const [asset, setAsset] = useState<AssetKey>("BTC");
+  const [asset, setAsset] = useState<ChartSymbol>(assets[0]?.key ?? "BTC");
   const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("7d");
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(true);
   const [stale, setStale] = useState(false);
 
   const quote = (symbol: string) => market.quotes.find((q) => q.symbol === symbol);
-  const selected = ASSETS.find((a) => a.key === asset)!;
+  const selected = assets.find((a) => a.key === asset) ?? assets[0]!;
 
   useEffect(() => {
     const tick = async () => {
@@ -89,11 +83,12 @@ export function MarketPanel({ initial }: { initial: Market }) {
   const last = candles[candles.length - 1]?.close;
   const rangeChange = first && last ? ((last - first) / first) * 100 : null;
   const dayFormat = new Intl.DateTimeFormat("pt-BR", range === "1d" ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "short" });
+  if (assets.length === 0) return null;
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
-        {ASSETS.map((a) => {
+      <div className={cn("grid gap-3", assets.length > 2 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+        {assets.map((a) => {
           const q = a.key === "USDBRL" ? null : quote(a.key);
           const brl = a.key === "USDBRL" ? market.dollar?.rate : q?.brl;
           const change = a.key === "USDBRL" ? market.dollar?.change24h : q?.change24h;

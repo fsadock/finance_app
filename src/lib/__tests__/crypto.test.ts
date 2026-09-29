@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { detectChain, isDust, lamportsToSol, portfolioValue, satsToBtc, shortAddress, type Holding } from "@/lib/domain/crypto";
+import {
+  allocation,
+  detectChain,
+  isDust,
+  lamportsToSol,
+  portfolioChange24h,
+  portfolioValue,
+  satsToBtc,
+  shortAddress,
+  type Holding,
+} from "@/lib/domain/crypto";
 
 const holding = (over: Partial<Holding> & { symbol: Holding["symbol"] }): Holding => ({
   quantity: 1,
@@ -59,5 +69,37 @@ describe("shortAddress", () => {
   it("mostra as pontas de um endereço longo", () => {
     expect(shortAddress("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM")).toBe("9WzD…AWWM");
     expect(shortAddress("curto")).toBe("curto");
+  });
+});
+
+describe("portfolioChange24h", () => {
+  const change = (s: string) => ({ BTC: -2, SOL: 6 })[s];
+
+  it("pesa a variação pelo tamanho de cada posição", () => {
+    // R$ 900 em BTC caindo 2% e R$ 100 em SOL subindo 6% dão -1,2% no conjunto
+    const total = portfolioChange24h(
+      [
+        holding({ symbol: "BTC", quantity: 1, priceBrl: 900 }),
+        holding({ symbol: "SOL", quantity: 1, priceBrl: 100 }),
+      ],
+      change
+    );
+    expect(total).toBeCloseTo(-1.2);
+  });
+
+  it("não inventa variação quando não há posição com preço", () => {
+    expect(portfolioChange24h([], change)).toBeNull();
+    expect(portfolioChange24h([holding({ symbol: "BTC", priceBrl: null })], change)).toBeNull();
+  });
+});
+
+describe("allocation", () => {
+  it("ordena pela posição e divide em fatias que somam o todo", () => {
+    const bars = allocation([
+      holding({ symbol: "SOL", quantity: 1, priceBrl: 250 }),
+      holding({ symbol: "BTC", quantity: 1, priceBrl: 750 }),
+    ]);
+    expect(bars.map((b) => b.symbol)).toEqual(["BTC", "SOL"]);
+    expect(bars.map((b) => Math.round(b.share * 100))).toEqual([75, 25]);
   });
 });

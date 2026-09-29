@@ -104,17 +104,23 @@ export function CryptoWallets({ wallets }: { wallets: WalletView[] }) {
                 const cost = h.costBasis * h.quantity;
                 const pnl = value !== null && cost > 0 ? value - cost : null;
                 return (
-                  <li key={h.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-sm">
-                    <span className="font-medium">{h.symbol}</span>
-                    <span className="text-fg-muted tabular-nums">{formatCryptoAmount(h.quantity)}</span>
-                    <CostInput id={h.id} quantity={h.quantity} costBasis={h.costBasis} onSaved={() => router.refresh()} />
-                    <span className="tabular-nums">{value !== null ? formatBRL(value) : "—"}</span>
-                    {pnl !== null && (
-                      <span className={cn("w-full text-right text-xs tabular-nums", pnl >= 0 ? "text-accent" : "text-danger")}>
-                        {pnl >= 0 ? "+" : ""}
-                        {formatBRL(pnl)} em relação ao que custou
+                  <li key={h.id} className="py-2 text-sm">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="font-medium">{h.symbol}</span>
+                      <span className="tabular-nums">{value !== null ? formatBRL(value) : "—"}</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs text-fg-muted tabular-nums">{formatCryptoAmount(h.quantity)}</span>
+                      <span className="flex items-center gap-2">
+                        <CostInput id={h.id} quantity={h.quantity} costBasis={h.costBasis} onSaved={() => router.refresh()} />
+                        {pnl !== null && (
+                          <span className={cn("text-xs tabular-nums", pnl >= 0 ? "text-accent" : "text-danger")}>
+                            {pnl >= 0 ? "+" : ""}
+                            {formatBRL(pnl)}
+                          </span>
+                        )}
                       </span>
-                    )}
+                    </div>
                   </li>
                 );
               })}
