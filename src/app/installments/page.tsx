@@ -38,12 +38,19 @@ export default async function InstallmentsPage() {
 
       <Card className="mb-6">
         <CardHeader><CardTitle>Comprometido por mês · próximos 12 meses</CardTitle></CardHeader>
-        <div className="flex items-end gap-2 h-44">
+        {/* min-w-0 em cada coluna: sem isso os rótulos seguram a largura e 12 meses estouram a tela do celular */}
+        <div className="flex items-end gap-1 h-44 sm:gap-2">
           {upcoming.map((m) => (
-            <div key={m.month} className="flex-1 flex flex-col items-center gap-1 h-full justify-end" title={`${formatMonthKeyLong(m.month)}: ${formatBRL(m.total)}`}>
-              <span className="text-[10px] text-fg-muted">{m.total > 0 ? formatBRL(m.total).replace(/,\d{2}$/, "") : ""}</span>
+            <div
+              key={m.month}
+              className="flex-1 min-w-0 flex flex-col items-center gap-1 h-full justify-end"
+              title={`${formatMonthKeyLong(m.month)}: ${formatBRL(m.total)}`}
+            >
+              <span className="w-full truncate text-center text-[10px] text-fg-muted">
+                {m.total > 0 ? formatBRL(m.total).replace(/,\d{2}$/, "") : ""}
+              </span>
               <div className="w-full rounded-t bg-warn/70" style={{ height: `${(m.total / peak) * 100}%`, minHeight: m.total > 0 ? 2 : 0 }} />
-              <span className="text-[10px] text-fg-muted capitalize">{formatMonthKeyShort(m.month)}</span>
+              <span className="w-full truncate text-center text-[10px] text-fg-muted capitalize">{formatMonthKeyShort(m.month)}</span>
             </div>
           ))}
         </div>

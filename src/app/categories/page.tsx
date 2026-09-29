@@ -57,11 +57,11 @@ export default async function CategoriesPage({ searchParams }: Props) {
         title="Categorias"
         subtitle={`${formatPeriodLabel(period)} · gastos vs orçamento`}
         actions={
-          <div className="flex items-center gap-2">
+          <>
             <RebalanceSuggestions monthStr={period.key} suggestions={suggestions} />
             <PeriodPicker />
             <CategoryCreateDialog />
-          </div>
+          </>
         }
       />
 

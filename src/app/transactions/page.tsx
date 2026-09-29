@@ -45,7 +45,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
         title="Transações"
         subtitle={`${count} resultado(s) · saídas ${formatBRL(Math.abs(outflow._sum.amount ?? 0))} · entradas ${formatBRL(inflow._sum.amount ?? 0)}`}
         actions={
-          <div className="flex items-center gap-2">
+          <>
             <a
               href={exportUrl}
               download
@@ -56,7 +56,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
               CSV
             </a>
             <PeriodPicker />
-          </div>
+          </>
         }
       />
 
