@@ -27,7 +27,7 @@ export default async function CryptoPage() {
 
   // only what this person holds, plus the dollar — which prices everything here.
   // With no wallet yet, show the usual suspects so the page has something to say.
-  const held: string[] = allocation.length > 0 ? [...new Set(allocation.map((a) => a.symbol))] : ["BTC", "SOL"];
+  const held: CryptoSymbol[] = allocation.length > 0 ? [...new Set(allocation.map((a) => a.symbol))] : ["BTC", "SOL"];
   const assets: MarketAsset[] = [
     ...held.flatMap((symbol) =>
       CHARTABLE.has(symbol) ? [{ key: symbol as ChartSymbol, name: ASSET_NAME[symbol], color: ASSET_COLOR[symbol] ?? "#6b7280" }] : []
