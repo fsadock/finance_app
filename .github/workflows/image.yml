@@ -43,8 +43,10 @@ jobs:
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
+          # o endereço fica em segredo para um repositório público não anunciar onde os serviços estão
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           install -d -m 700 ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
-          echo "vps.hair-karat.ts.net $VPS_HOST_KEY" > ~/.ssh/known_hosts
-          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes root@vps.hair-karat.ts.net "${{ github.event.repository.name }}"
+          echo "$VPS_HOST $VPS_HOST_KEY" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes "root@$VPS_HOST" "${{ github.event.repository.name }}"
