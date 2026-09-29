@@ -96,6 +96,19 @@ export function allocation(holdings: Holding[]) {
     .sort((a, b) => b.value - a.value);
 }
 
+type Purchase = { quantity: number; totalBrl: number };
+
+/**
+ * What the owner paid, across every purchase of the same asset: total spent divided by total bought.
+ * Buying the same coin at different prices is the normal case, and the weighted average is also what the
+ * Brazilian tax rules ask for ("custo médio ponderado"), so one number answers both questions.
+ */
+export function averageCost(purchases: Purchase[]) {
+  const quantity = purchases.reduce((s, p) => s + p.quantity, 0);
+  const total = purchases.reduce((s, p) => s + p.totalBrl, 0);
+  return { quantity, total, perUnit: quantity > 0 ? total / quantity : 0 };
+}
+
 /** Dust: balances too small to show as a position (a fraction of a cent). */
 export function isDust(h: Holding) {
   return h.quantity <= 0 || (h.priceBrl !== null && h.quantity * h.priceBrl < 0.01);

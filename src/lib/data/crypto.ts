@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/infra/db";
-import { allocation, portfolioChange24h, portfolioValue, type CryptoSymbol, type Holding } from "@/lib/domain/crypto";
+import { allocation, averageCost, portfolioChange24h, portfolioValue, type CryptoSymbol, type Holding } from "@/lib/domain/crypto";
 import { DAY_MS } from "@/lib/domain/format";
 import { getQuotes, getUsdBrl } from "@/lib/market/prices";
 
@@ -8,13 +8,16 @@ const HISTORY_DAYS = 90;
 
 /** Every wallet with what it holds, priced now. Shared by the summary and the full page. */
 async function pricedWallets() {
-  const [wallets, quotes] = await Promise.all([
+  const [wallets, quotes, purchases] = await Promise.all([
     prisma.cryptoWallet.findMany({
       orderBy: { createdAt: "asc" },
       include: { account: { select: { id: true, investments: true } } },
     }),
     getQuotes(),
+    prisma.cryptoPurchase.findMany({ orderBy: { date: "desc" } }),
   ]);
+
+  const costOf = (symbol: string) => averageCost(purchases.filter((p) => p.symbol === symbol));
 
   const priced = wallets.map((w) => {
     // the id and the cost travel along: the cost isn't on the chain, the owner is the one who knows it
@@ -24,7 +27,8 @@ async function pricedWallets() {
         id: i.id,
         symbol: (i.ticker ?? "BTC") as CryptoSymbol,
         quantity: i.quantity,
-        costBasis: i.costBasis,
+        // o custo vem das compras informadas, não do que estava gravado no último sync
+        costBasis: costOf(i.ticker ?? "").perUnit,
         // the stored price is the last sync's; the live quote wins while the screen is open
         priceBrl: quote?.brl ?? i.currentPrice,
         priceUsd: quote?.usd ?? null,
@@ -47,6 +51,7 @@ async function pricedWallets() {
   return {
     wallets: priced,
     quotes,
+    purchases,
     holdings,
     total: {
       brl: priced.reduce((s, w) => s + w.brl, 0),
@@ -64,7 +69,7 @@ export async function getCryptoSummary() {
 
 /** Everything the Cripto page draws: wallets, allocation, the dollar and the wallets' value day by day. */
 export async function getCryptoPortfolio() {
-  const [{ wallets, quotes, holdings, total }, dollar] = await Promise.all([pricedWallets(), getUsdBrl()]);
+  const [{ wallets, quotes, holdings, total, purchases }, dollar] = await Promise.all([pricedWallets(), getUsdBrl()]);
 
   // Daily balance snapshots, which the app already records for every account
   const snapshots = await prisma.balanceSnapshot.findMany({
@@ -78,6 +83,13 @@ export async function getCryptoPortfolio() {
   const byDay = new Map<number, number>();
   for (const s of snapshots) byDay.set(s.date.getTime(), (byDay.get(s.date.getTime()) ?? 0) + s.balance);
 
+  // as compras, por ativo, para a tela de aportes
+  const bySymbol = new Map<string, { id: string; date: Date; quantity: number; totalBrl: number }[]>();
+  for (const p of purchases) {
+    if (!bySymbol.has(p.symbol)) bySymbol.set(p.symbol, []);
+    bySymbol.get(p.symbol)!.push({ id: p.id, date: p.date, quantity: p.quantity, totalBrl: p.totalBrl });
+  }
+
   return {
     wallets,
     quotes,
@@ -85,10 +97,6 @@ export async function getCryptoPortfolio() {
     total,
     allocation: allocation(holdings),
     history: [...byDay].map(([t, brl]) => ({ t, brl })),
+    purchases: Object.fromEntries(bySymbol),
   };
-}
-
-/** Whether this install tracks any wallet — decides if the Cripto page shows up in the menu. */
-export async function hasCryptoWallets() {
-  return (await prisma.cryptoWallet.count()) > 0;
 }

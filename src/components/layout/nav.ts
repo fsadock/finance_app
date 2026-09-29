@@ -15,10 +15,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-/** `requires` hides the item until that part of the app is in use — a page nobody needs is just noise. */
-type NavItem = { href: string; label: string; short?: string; icon: LucideIcon; requires?: "crypto" };
+type NavItem = { href: string; label: string; short?: string; icon: LucideIcon };
 
-const NAV: NavItem[] = [
+export const NAV: NavItem[] = [
   { href: "/", label: "Dashboard", short: "Início", icon: LayoutDashboard },
   { href: "/transactions", label: "Transações", icon: Receipt },
   { href: "/categories", label: "Categorias", icon: PieChart },
@@ -26,7 +25,7 @@ const NAV: NavItem[] = [
   { href: "/accounts", label: "Contas", icon: Wallet },
   { href: "/goals", label: "Metas", icon: Target },
   { href: "/investments", label: "Investimentos", icon: LineChart },
-  { href: "/cripto", label: "Cripto", icon: Bitcoin, requires: "crypto" },
+  { href: "/cripto", label: "Cripto", icon: Bitcoin },
   { href: "/recurrings", label: "Recorrentes", icon: Repeat },
   { href: "/installments", label: "Parcelas", icon: Layers },
   { href: "/taxes", label: "Imposto de Renda", icon: Landmark },
@@ -37,11 +36,6 @@ export const SETTINGS_NAV: NavItem = { href: "/settings", label: "Configuraçõe
 
 /** The four screens in the phone's bottom bar; everything else sits under "Mais". */
 export const MOBILE_TABS = ["/", "/transactions", "/accounts", "/recurrings"];
-
-/** The menu for this install: pages whose feature isn't in use stay out. */
-export function navFor({ hasCrypto }: { hasCrypto: boolean }) {
-  return NAV.filter((item) => item.requires !== "crypto" || hasCrypto);
-}
 
 export function isActive(href: string, pathname: string) {
   if (href === "/") return pathname === "/";

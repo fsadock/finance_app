@@ -84,7 +84,7 @@ export async function getUsdBrl(): Promise<DollarRate | null> {
   });
 }
 
-export const CHART_SYMBOLS = ["BTC", "SOL", "USDBRL"] as const;
+export const CHART_SYMBOLS = ["BTC", "SOL", "USDC", "USDT", "USDBRL"] as const;
 export type ChartSymbol = (typeof CHART_SYMBOLS)[number];
 
 export const CHART_RANGES = ["1d", "7d", "30d", "1y"] as const;

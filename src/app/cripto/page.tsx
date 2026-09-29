@@ -7,7 +7,7 @@ import { MarketPanel, type MarketAsset } from "@/components/crypto/market-panel"
 import { PortfolioChart } from "@/components/crypto/portfolio-chart";
 import { CryptoWallets } from "@/components/crypto/wallets";
 import { cn } from "@/lib/utils";
-import type { ChartSymbol } from "@/lib/market/prices";
+import { CHART_SYMBOLS, type ChartSymbol } from "@/lib/market/prices";
 
 const ASSET_COLOR: Record<string, string> = {
   BTC: "#f7931a",
@@ -16,22 +16,22 @@ const ASSET_COLOR: Record<string, string> = {
   USDT: "#26a17b",
 };
 
-/** Charts exist for what is traded against the real; stablecoins are covered by the dollar. */
-const CHARTABLE: Partial<Record<CryptoSymbol, ChartSymbol>> = { BTC: "BTC", SOL: "SOL" };
+/** Every asset the app prices has a BRL pair on Binance, so anything held can be charted. */
+const CHARTABLE = new Set<string>(CHART_SYMBOLS);
 
 // Preços ao vivo: nada aqui pode ser gerado no build.
 export const dynamic = "force-dynamic";
 
 export default async function CryptoPage() {
-  const { wallets, quotes, dollar, total, allocation, history } = await getCryptoPortfolio();
+  const { wallets, quotes, dollar, total, allocation, history, purchases } = await getCryptoPortfolio();
 
-  // only what this person holds, plus the dollar — which prices everything here
-  const held = [...new Set(allocation.map((a) => a.symbol))];
+  // only what this person holds, plus the dollar — which prices everything here.
+  // With no wallet yet, show the usual suspects so the page has something to say.
+  const held: string[] = allocation.length > 0 ? [...new Set(allocation.map((a) => a.symbol))] : ["BTC", "SOL"];
   const assets: MarketAsset[] = [
-    ...held.flatMap((symbol) => {
-      const chart = CHARTABLE[symbol];
-      return chart ? [{ key: chart, name: ASSET_NAME[symbol], color: ASSET_COLOR[symbol] ?? "#6b7280" }] : [];
-    }),
+    ...held.flatMap((symbol) =>
+      CHARTABLE.has(symbol) ? [{ key: symbol as ChartSymbol, name: ASSET_NAME[symbol], color: ASSET_COLOR[symbol] ?? "#6b7280" }] : []
+    ),
     { key: "USDBRL" as const, name: "Dólar", color: "var(--color-accent)" },
   ];
   const empty = wallets.length === 0;
@@ -114,7 +114,7 @@ export default async function CryptoPage() {
             Só o endereço público é guardado. Com ele o app lê saldos e nada mais — não dá para mover nada.
           </p>
         </div>
-        <CryptoWallets wallets={wallets} />
+        <CryptoWallets wallets={wallets} purchases={purchases} />
       </section>
     </>
   );

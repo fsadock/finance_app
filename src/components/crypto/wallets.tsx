@@ -3,10 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, RefreshCw, Trash2, Wallet } from "lucide-react";
-import { addCryptoWallet, refreshCryptoWallets, removeCryptoWallet, setCryptoCostBasis } from "@/app/actions/crypto";
+import { addCryptoWallet, refreshCryptoWallets, removeCryptoWallet } from "@/app/actions/crypto";
 import { CHAIN_LABEL, shortAddress, type CryptoChain } from "@/lib/domain/crypto";
 import { formatBRL, formatCryptoAmount, formatDateTime, formatUSD } from "@/lib/domain/format";
-import { parseBRLInput } from "@/lib/domain/brazil";
+import { PurchasesDialog, type PurchaseRow } from "@/components/crypto/purchases-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -24,45 +24,10 @@ type WalletView = {
 
 const CHAIN_COLOR: Record<CryptoChain, string> = { BITCOIN: "#f7931a", SOLANA: "#9945ff" };
 
-/**
- * What the owner paid, in total — which is what people actually remember ("pus R$ 1.000 em bitcoin"), not the
- * price per unit. Stored per unit, like every other investment in the app, by dividing by the amount held.
- */
-function CostInput({ id, quantity, costBasis, onSaved }: { id: string; quantity: number; costBasis: number; onSaved: () => void }) {
-  const total = costBasis * quantity;
-  const [value, setValue] = useState(total ? total.toFixed(2).replace(".", ",") : "");
-  const [pending, startTransition] = useTransition();
-
-  const save = () => {
-    const typedTotal = parseBRLInput(value) ?? 0;
-    const perUnit = quantity > 0 ? typedTotal / quantity : 0;
-    if (Math.abs(perUnit - costBasis) < 0.000001) return;
-    startTransition(async () => {
-      await setCryptoCostBasis(id, perUnit);
-      onSaved();
-    });
-  };
-
-  return (
-    <label className="flex items-center gap-1 text-xs text-fg-muted" title="O total que você investiu neste ativo">
-      investido R$
-      <input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={save}
-        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-        inputMode="decimal"
-        placeholder="0,00"
-        disabled={pending}
-        className="w-20 rounded border border-border bg-bg-elev px-1.5 py-0.5 text-right text-fg tabular-nums outline-none focus:border-accent"
-      />
-    </label>
-  );
-}
-
 /** The wallets being watched, what each holds now, and the form to add another. Public addresses only. */
-export function CryptoWallets({ wallets }: { wallets: WalletView[] }) {
+export function CryptoWallets({ wallets, purchases }: { wallets: WalletView[]; purchases: Record<string, PurchaseRow[]> }) {
   const router = useRouter();
+  const [openPurchases, setOpenPurchases] = useState<string | null>(null);
   const [address, setAddress] = useState("");
   const [label, setLabel] = useState("");
   const [adding, setAdding] = useState(false);
@@ -112,13 +77,18 @@ export function CryptoWallets({ wallets }: { wallets: WalletView[] }) {
                     <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs text-fg-muted tabular-nums">{formatCryptoAmount(h.quantity)}</span>
                       <span className="flex items-center gap-2">
-                        <CostInput id={h.id} quantity={h.quantity} costBasis={h.costBasis} onSaved={() => router.refresh()} />
                         {pnl !== null && (
                           <span className={cn("text-xs tabular-nums", pnl >= 0 ? "text-accent" : "text-danger")}>
                             {pnl >= 0 ? "+" : ""}
                             {formatBRL(pnl)}
                           </span>
                         )}
+                        <button
+                          onClick={() => setOpenPurchases(h.symbol)}
+                          className="rounded-lg border border-border px-2 py-0.5 text-xs text-fg-muted hover:bg-bg-hover hover:text-fg"
+                        >
+                          {h.costBasis > 0 ? `custo ${formatBRL(h.costBasis)}/un` : "informar aportes"}
+                        </button>
                       </span>
                     </div>
                   </li>
@@ -221,6 +191,10 @@ export function CryptoWallets({ wallets }: { wallets: WalletView[] }) {
       )}
 
       {result && <p className={cn("text-sm", result.ok ? "text-accent" : "text-danger")}>{result.text}</p>}
+
+      {openPurchases && (
+        <PurchasesDialog symbol={openPurchases} purchases={purchases[openPurchases] ?? []} onClose={() => setOpenPurchases(null)} />
+      )}
     </div>
   );
 }

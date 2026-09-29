@@ -323,3 +323,19 @@ enum CryptoChain {
   SOLANA
   BITCOIN
 }
+
+/// One purchase of a crypto asset. The blockchain knows what you hold, never what you paid, and buying the
+/// same coin at different prices is the normal case — so each buy is its own row and the cost is their
+/// weighted average, which is also how the Brazilian tax rules ask for it (custo médio).
+model CryptoPurchase {
+  id        String   @id @default(cuid())
+  /// Asset ticker (BTC, SOL, USDC…), not tied to a wallet: coins move between wallets, the cost doesn't.
+  symbol    String
+  quantity  Float
+  /// What was paid in reais, including fees
+  totalBrl  Float
+  date      DateTime
+  createdAt DateTime @default(now())
+
+  @@index([symbol, date])
+}

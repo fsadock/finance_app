@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/infra/db";
 import { logger } from "@/lib/infra/logger";
-import { ASSET_NAME, isDust, portfolioValue, type CryptoSymbol, type Holding } from "@/lib/domain/crypto";
+import { ASSET_NAME, averageCost, isDust, portfolioValue, type CryptoSymbol, type Holding } from "@/lib/domain/crypto";
 import { readBalances } from "@/lib/market/chains";
 import { getQuotes } from "@/lib/market/prices";
 
@@ -9,7 +9,7 @@ import { getQuotes } from "@/lib/market/prices";
  * wallet's account — the same shape banks' investments use, so net worth and the investments page need no
  * special case for crypto.
  *
- * Cost basis isn't on the chain: it stays as whatever the owner typed, and is kept across syncs.
+ * Cost basis isn't on the chain: it comes from the purchases the owner recorded (weighted average).
  */
 export async function syncCryptoWallets() {
   const wallets = await prisma.cryptoWallet.findMany({ include: { account: { select: { id: true } } } });
@@ -28,11 +28,12 @@ export async function syncCryptoWallets() {
       });
       const worth = holdings.filter((h) => !isDust(h));
 
-      // What the owner paid, kept per asset across syncs: the chain knows the amount, never the cost.
-      const previous = new Map(
-        (await prisma.investment.findMany({ where: { accountId: wallet.accountId }, select: { ticker: true, costBasis: true } }))
-          .map((i) => [i.ticker, i.costBasis])
-      );
+      // What the owner paid, from the purchases recorded for each asset
+      const purchases = await prisma.cryptoPurchase.findMany({
+        where: { symbol: { in: worth.map((h) => h.symbol) } },
+        select: { symbol: true, quantity: true, totalBrl: true },
+      });
+      const costOf = (symbol: CryptoSymbol) => averageCost(purchases.filter((p) => p.symbol === symbol)).perUnit;
 
       await prisma.$transaction([
         prisma.investment.deleteMany({ where: { accountId: wallet.accountId } }),
@@ -44,7 +45,7 @@ export async function syncCryptoWallets() {
             type: "CRYPTO" as const,
             quantity: h.quantity,
             currentPrice: h.priceBrl ?? 0,
-            costBasis: previous.get(h.symbol) ?? 0,
+            costBasis: costOf(h.symbol),
           })),
         }),
         prisma.account.update({ where: { id: wallet.accountId }, data: { balance: portfolioValue(worth).brl } }),

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   allocation,
+  averageCost,
   detectChain,
   isDust,
   lamportsToSol,
@@ -101,5 +102,22 @@ describe("allocation", () => {
     ]);
     expect(bars.map((b) => b.symbol)).toEqual(["BTC", "SOL"]);
     expect(bars.map((b) => Math.round(b.share * 100))).toEqual([75, 25]);
+  });
+});
+
+describe("averageCost", () => {
+  it("é a média ponderada, não a média dos preços", () => {
+    // 0,01 BTC por R$ 4.000 e depois 0,03 BTC por R$ 18.000: o custo médio pesa a quantidade
+    const cost = averageCost([
+      { quantity: 0.01, totalBrl: 4_000 },
+      { quantity: 0.03, totalBrl: 18_000 },
+    ]);
+    expect(cost.quantity).toBeCloseTo(0.04);
+    expect(cost.total).toBe(22_000);
+    expect(cost.perUnit).toBeCloseTo(550_000); // e não a média simples de 400.000 e 600.000
+  });
+
+  it("sem compras registradas, não inventa custo", () => {
+    expect(averageCost([])).toEqual({ quantity: 0, total: 0, perUnit: 0 });
   });
 });

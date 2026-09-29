@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/infra/db";
-import { CHAIN_LABEL, detectChain, shortAddress } from "@/lib/domain/crypto";
+import { averageCost, CHAIN_LABEL, detectChain, shortAddress } from "@/lib/domain/crypto";
+import { dateOnly } from "@/lib/domain/format";
 import { syncCryptoWallets } from "@/lib/jobs/crypto";
 
 type Result = { ok: true; message: string } | { ok: false; error: string };
@@ -53,11 +54,44 @@ export async function refreshCryptoWallets(): Promise<Result> {
     : { ok: true, message: "Saldos atualizados." };
 }
 
-/** What the owner paid for an asset: it isn't on the chain, so it's typed once and kept across syncs. */
-export async function setCryptoCostBasis(investmentId: string, costBasis: number): Promise<Result> {
-  const id = z.string().min(1).parse(investmentId);
-  const value = z.number().min(0).parse(costBasis);
-  await prisma.investment.update({ where: { id }, data: { costBasis: value } });
+/** One purchase of an asset: date, how much came in and what was paid. The cost is their weighted average. */
+export async function addCryptoPurchase(input: { symbol: string; quantity: number; totalBrl: number; date: string }): Promise<Result> {
+  const parsed = z
+    .object({
+      symbol: z.string().min(2).max(10),
+      quantity: z.number().positive({ error: "Informe quanto você comprou." }),
+      totalBrl: z.number().positive({ error: "Informe quanto você pagou." }),
+      date: z.string().min(10),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+
+  const { symbol, quantity, totalBrl, date } = parsed.data;
+  await prisma.cryptoPurchase.create({
+    data: {
+      symbol,
+      quantity,
+      totalBrl,
+      // "2026-08-02" lido como dia local: new Date() leria como UTC e mostraria o dia anterior aqui
+      date: dateOnly(date),
+    },
+  });
+  await refreshCostBasis(symbol);
   revalidatePath("/", "layout");
-  return { ok: true, message: "Custo salvo." };
+  return { ok: true, message: "Aporte registrado." };
+}
+
+export async function removeCryptoPurchase(id: string): Promise<Result> {
+  const purchase = await prisma.cryptoPurchase.findUnique({ where: { id: z.string().min(1).parse(id) } });
+  if (!purchase) return { ok: false, error: "Aporte não encontrado." };
+  await prisma.cryptoPurchase.delete({ where: { id: purchase.id } });
+  await refreshCostBasis(purchase.symbol);
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Aporte removido." };
+}
+
+/** Keeps the stored investments in step with the purchases, so the Investimentos page shows the same cost. */
+async function refreshCostBasis(symbol: string) {
+  const { perUnit } = averageCost(await prisma.cryptoPurchase.findMany({ where: { symbol }, select: { quantity: true, totalBrl: true } }));
+  await prisma.investment.updateMany({ where: { ticker: symbol, type: "CRYPTO" }, data: { costBasis: perUnit } });
 }
