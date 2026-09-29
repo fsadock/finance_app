@@ -10,6 +10,19 @@ export function formatBRL(value: number) {
   return BRL.format(value);
 }
 
+const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+
+/** Dollars, for assets quoted in USD alongside their price in reais. */
+export function formatUSD(value: number) {
+  return USD.format(value);
+}
+
+/** An amount of a crypto asset: enough decimals to be honest, without a wall of zeros. */
+export function formatCryptoAmount(value: number) {
+  const digits = value >= 1000 ? 2 : value >= 1 ? 4 : 8;
+  return value.toLocaleString("pt-BR", { maximumFractionDigits: digits });
+}
+
 export function formatBRLCompact(value: number) {
   const abs = Math.abs(value);
   if (abs >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)}M`;

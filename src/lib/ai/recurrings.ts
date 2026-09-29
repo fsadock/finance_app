@@ -11,7 +11,6 @@ import { withRetry } from "@/lib/infra/retry";
 import { logger } from "@/lib/infra/logger";
 import {
   CADENCES,
-  inferCadence,
   nextDueDate,
   type Cadence,
   regularCadence,

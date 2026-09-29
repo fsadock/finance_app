@@ -5,6 +5,7 @@ import { applyDeterministicRules } from "@/lib/jobs/deterministic";
 import { removeDuplicateTransactions } from "@/lib/jobs/duplicates";
 import { updateChargeDates } from "@/lib/jobs/charge-dates";
 import { applyPassThroughs } from "@/lib/jobs/pass-through";
+import { syncCryptoWallets } from "@/lib/jobs/crypto";
 import { detectTransfers } from "@/lib/jobs/transfers";
 import { categorizeAllPending } from "@/lib/jobs/categorize";
 import { refreshRecurrings } from "@/lib/jobs/recurrings";
@@ -20,6 +21,7 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
     duplicatesRemoved: 0,
     chargeDatesUpdated: 0,
     passThroughs: 0,
+    cryptoWallets: 0,
     deterministic: 0,
     transfersPaired: 0,
     categorized: 0,
@@ -59,6 +61,13 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
   }
 
   out.passThroughs = (await applyPassThroughs()).marked;
+
+  // watch-only wallets: read straight from the blockchains, so they refresh with everything else
+  try {
+    out.cryptoWallets = (await syncCryptoWallets()).wallets;
+  } catch (e) {
+    logger.error("post-sync:crypto_failed", { error: errorMessage(e) });
+  }
 
   const c = await categorizeAllPending();
   out.categorized = c.applied;

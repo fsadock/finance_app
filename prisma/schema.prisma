@@ -54,6 +54,7 @@ model Account {
   hidden               Boolean           @default(false)
   pluggyItemId         String?
   pluggyAccountId      String?           @unique
+  cryptoWallet         CryptoWallet?
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
   transactions         Transaction[]
@@ -301,4 +302,24 @@ model Session {
   expiresAt DateTime
 
   @@index([passkeyId])
+}
+
+/// A watch-only crypto wallet: only the public address, never a key. Its holdings are written as Investment
+/// rows on `account`, so net worth and the investments page show them like any other asset.
+model CryptoWallet {
+  id           String     @id @default(cuid())
+  chain        CryptoChain
+  /// Public address, as the wallet app shows it
+  address      String     @unique
+  label        String
+  accountId    String     @unique
+  account      Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  lastSyncedAt DateTime?
+  lastError    String?
+  createdAt    DateTime   @default(now())
+}
+
+enum CryptoChain {
+  SOLANA
+  BITCOIN
 }

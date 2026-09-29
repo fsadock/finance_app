@@ -7,6 +7,10 @@ import { ProjectionChart } from "@/components/investments/projection";
 import { getBenchmarkRates } from "@/lib/data/rates";
 import { futureValue, realRate } from "@/lib/domain/investments";
 import { parseBRLInput } from "@/lib/domain/brazil";
+import { getCryptoPortfolio } from "@/lib/data/crypto";
+import { MarketPanel } from "@/components/crypto/market-panel";
+import { CryptoWallets } from "@/components/crypto/wallets";
+import { formatUSD } from "@/lib/domain/format";
 
 /** Used only when the BCB API is unreachable. */
 const FALLBACK = { cdi: 0.1, ipca: 0.045 };
@@ -34,9 +38,10 @@ type Props = { searchParams: Promise<{ aporte?: string }> };
 
 export default async function InvestmentsPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const [investments, rates] = await Promise.all([
+  const [investments, rates, crypto] = await Promise.all([
     getInvestments(),
     getBenchmarkRates(),
+    getCryptoPortfolio(),
   ]);
 
   const total = investments.reduce((s, i) => s + i.currentPrice * i.quantity, 0);
@@ -171,6 +176,24 @@ export default async function InvestmentsPage({ searchParams }: Props) {
           </p>
         </Card>
       </div>
+
+      <section className="mb-4 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-semibold">Cripto</h2>
+            <p className="text-xs text-fg-muted">Saldos lidos direto da blockchain, pelo endereço público da carteira.</p>
+          </div>
+          {crypto.wallets.length > 0 && (
+            <div className="text-right">
+              <div className="text-xl font-semibold tabular-nums">{formatBRL(crypto.total.brl)}</div>
+              <div className="text-xs text-fg-muted tabular-nums">{formatUSD(crypto.total.usd)}</div>
+            </div>
+          )}
+        </div>
+
+        <MarketPanel initial={{ quotes: crypto.quotes, dollar: crypto.dollar }} />
+        <CryptoWallets wallets={crypto.wallets} />
+      </section>
 
       <Card className="p-0 overflow-hidden">
         <table className="w-full text-sm">
