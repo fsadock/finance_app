@@ -4,6 +4,7 @@ import { getInvestments } from "@/lib/data/investments";
 import { formatBRL, formatBRLCompact } from "@/lib/domain/format";
 import { InvestmentDonut } from "@/components/investments/donut";
 import { ProjectionChart } from "@/components/investments/projection";
+import { PositionsTable, type Position } from "@/components/investments/positions-table";
 import { getBenchmarkRates } from "@/lib/data/rates";
 import { futureValue, realRate } from "@/lib/domain/investments";
 import { parseBRLInput } from "@/lib/domain/brazil";
@@ -42,6 +43,27 @@ export default async function InvestmentsPage({ searchParams }: Props) {
     getBenchmarkRates(),
     getCryptoSummary(),
   ]);
+
+  const positions: Position[] = investments.map((i) => {
+    const value = i.currentPrice * i.quantity;
+    const cost = i.costBasis * i.quantity;
+    const pnl = value - cost;
+    return {
+      id: i.id,
+      name: i.name,
+      ticker: i.ticker,
+      type: i.type,
+      typeLabel: TYPE_LABEL[i.type] ?? i.type,
+      typeColor: TYPE_COLOR[i.type] ?? "#6b7280",
+      account: i.account.name,
+      quantity: i.quantity,
+      price: i.currentPrice,
+      cost,
+      value,
+      pnl,
+      pnlPct: cost > 0 ? (pnl / cost) * 100 : 0,
+    };
+  });
 
   const total = investments.reduce((s, i) => s + i.currentPrice * i.quantity, 0);
   const totalCost = investments.reduce((s, i) => s + i.costBasis * i.quantity, 0);
@@ -195,50 +217,9 @@ export default async function InvestmentsPage({ searchParams }: Props) {
       )}
 
       <Card className="p-0 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-fg-muted border-b border-border">
-              <th className="px-6 py-3 font-medium">Ativo</th>
-              <th className="px-6 py-3 font-medium">Tipo</th>
-              <th className="px-6 py-3 font-medium">Conta</th>
-              <th className="px-6 py-3 font-medium text-right">Qtd</th>
-              <th className="px-6 py-3 font-medium text-right">Preço</th>
-              <th className="px-6 py-3 font-medium text-right">Custo</th>
-              <th className="px-6 py-3 font-medium text-right">Posição</th>
-              <th className="px-6 py-3 font-medium text-right">P&L</th>
-            </tr>
-          </thead>
-          <tbody>
-            {investments.map((i) => {
-              const value = i.currentPrice * i.quantity;
-              const cost = i.costBasis * i.quantity;
-              const p = value - cost;
-              const pp = cost > 0 ? (p / cost) * 100 : 0;
-              return (
-                <tr key={i.id} className="border-b border-border last:border-b-0 hover:bg-bg-hover/40">
-                  <td className="px-6 py-3">
-                    <div className="font-medium">{i.name}</div>
-                    {i.ticker && <div className="text-xs text-fg-muted">{i.ticker}</div>}
-                  </td>
-                  <td className="px-6 py-3">
-                    <span className="text-xs px-2 py-0.5 rounded-md" style={{ background: `${TYPE_COLOR[i.type]}20`, color: TYPE_COLOR[i.type] }}>
-                      {TYPE_LABEL[i.type]}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3 text-fg-muted">{i.account.name}</td>
-                  <td className="px-6 py-3 text-right">{i.quantity}</td>
-                  <td className="px-6 py-3 text-right">{formatBRL(i.currentPrice)}</td>
-                  <td className="px-6 py-3 text-right text-fg-muted">{formatBRL(cost)}</td>
-                  <td className="px-6 py-3 text-right font-medium">{formatBRL(value)}</td>
-                  <td className={`px-6 py-3 text-right ${p >= 0 ? "text-accent" : "text-danger"}`}>
-                    {p >= 0 ? "+" : ""}{pp.toFixed(1)}%
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <PositionsTable positions={positions} />
       </Card>
+
     </>
   );
 }
