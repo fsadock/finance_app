@@ -5,7 +5,7 @@ import { getConnections } from "@/lib/data/connections";
 import { getOpenBills } from "@/lib/data/cards";
 import { formatBRL, formatDate, formatDateTime, startOfDay } from "@/lib/domain/format";
 import { Wallet, CreditCard, PiggyBank, TrendingUp, Coins, Banknote, CalendarClock, AlertTriangle, CheckCircle2 } from "lucide-react";
-import { CollectButton, PluggyConnectButton, ReconnectButton } from "@/components/accounts/pluggy-connect-button";
+import { PluggyConnectButton, ReconnectButton } from "@/components/accounts/pluggy-connect-button";
 import { HideAccountToggle } from "@/components/accounts/hide-toggle";
 import { getNetWorthHistory } from "@/lib/data/net-worth";
 import { getConfigNumber } from "@/lib/infra/config";
@@ -92,7 +92,8 @@ export default async function AccountsPage() {
                       <div className="font-medium">{it.connector}</div>
                       <div className="text-xs text-fg-muted">
                         {status.label}
-                        {/* duas datas diferentes: quando o banco foi consultado e quando o app importou */}
+                        {/* duas datas diferentes: a instituição só é consultada no ciclo dela, e o app
+                            importa o que já foi coletado — sem isso um dado velho parece recém-buscado */}
                         {it.lastUpdated && ` · banco consultado ${formatDateTime(it.lastUpdated)}`}
                         {it.lastSyncedAt && ` · importada ${formatDateTime(it.lastSyncedAt)}`}
                         {consentDays !== null && (
@@ -107,15 +108,7 @@ export default async function AccountsPage() {
                       {it.lastError && <div className="text-xs text-danger mt-0.5 truncate">{it.lastError}</div>}
                     </div>
                   </div>
-                  <span className="flex items-center gap-2 flex-wrap justify-end">
-                    {/* uma conexão que já recusou a consulta sob demanda não ganha um botão que não funciona */}
-                    {it.canCollect === false ? (
-                      <span className="text-xs text-fg-subtle">atualiza sozinha, 1× por dia</span>
-                    ) : (
-                      <CollectButton itemId={it.pluggyId} />
-                    )}
-                    {needsAction && <ReconnectButton itemId={it.pluggyId} />}
-                  </span>
+                  {needsAction && <ReconnectButton itemId={it.pluggyId} />}
                 </li>
               );
             })}
