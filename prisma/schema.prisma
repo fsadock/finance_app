@@ -273,6 +273,8 @@ model PluggyItem {
   lastSyncedAt     DateTime?
   /// Open Finance consent expiry — sync stops silently after this
   consentExpiresAt DateTime?
+  /// Se a instituição aceita uma coleta sob demanda. null = ainda não se sabe.
+  canCollect       Boolean?
   lastError        String?
   createdAt        DateTime  @default(now())
 }

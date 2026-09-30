@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plug, Loader2, RefreshCw, RotateCcw } from "lucide-react";
+import { Plug, Loader2, RefreshCw, RotateCcw, Download } from "lucide-react";
 import { CategorizePendingButton } from "@/components/transactions/categorize-pending-button";
 import { errorMessage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { readJson } from "@/lib/client/api";
+import { formatDateTime } from "@/lib/domain/format";
 import { describeSync, syncAllAccounts } from "@/lib/client/sync";
 
 declare global {
@@ -165,6 +166,71 @@ export function ReconnectButton({ itemId }: { itemId: string }) {
         Reconectar
       </button>
       {msg && <span className="text-xs text-fg-muted">{msg}</span>}
+    </span>
+  );
+}
+
+/**
+ * Asks the institution for fresh data, instead of re-importing what Pluggy already had. Pluggy only goes
+ * to the bank once a day on its own, so this is the button that actually makes the numbers newer — and the
+ * reason it is separate from "Sincronizar" is that each collection counts against what the bank allows.
+ */
+export function CollectButton({ itemId }: { itemId: string }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [detail, setDetail] = useState<string | null>(null);
+
+  async function collect() {
+    setBusy(true);
+    setDetail(null);
+    setMsg("Consultando o banco… pode levar um minuto.");
+    try {
+      const data = await readJson(
+        await fetch("/api/pluggy/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ itemId, collect: true }),
+        })
+      );
+      const { collected, lastCollectedAt, refused } = data.collected ?? {};
+      const novas = `${data.stats.transactions} transação(ões) nova(s)`;
+      if (refused) {
+        // a frase crua da Pluggy é em inglês e não ajuda o dono da conta; fica no title
+        setDetail(refused);
+        setMsg("Essa conexão não aceita consulta sob demanda — ela atualiza sozinha, uma vez por dia.");
+      } else if (collected === false && lastCollectedAt) {
+        setMsg(`O banco já respondeu ${formatDateTime(lastCollectedAt)} — reimportei esses dados · ${novas}`);
+      } else if (collected === false) {
+        setMsg("O banco ainda está respondendo. Os dados aparecem assim que terminar.");
+      } else {
+        setMsg(`✓ ${novas}`);
+      }
+      startTransition(() => router.refresh());
+    } catch (e) {
+      setMsg(errorMessage(e, "Erro ao consultar o banco"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+      <button
+        onClick={collect}
+        disabled={busy}
+        title="Pede dados novos direto na instituição, em vez de reimportar o que a Pluggy já tinha"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border text-xs hover:border-accent hover:text-accent disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />}
+        Buscar no banco
+      </button>
+      {(msg || isPending) && (
+        <span className="min-w-0 break-words text-xs text-fg-muted" title={detail ?? undefined}>
+          {isPending ? "Atualizando…" : msg}
+        </span>
+      )}
     </span>
   );
 }

@@ -9,6 +9,7 @@ import type { AccountType as PrismaAccountType, InvestmentType as PrismaInvestme
 import { errorMessage } from "@/lib/utils";
 import { DAY_MS, dateOnly } from "@/lib/domain/format";
 import { dateOnlyDuplicates } from "@/lib/domain/duplicates";
+import { isCollectionDue } from "@/lib/domain/sync-schedule";
 
 function mapAccountType(pluggyType: string, subtype: string | undefined | null): PrismaAccountType {
   if (subtype === "CREDIT_CARD" || pluggyType === "CREDIT") return "CREDIT_CARD";
@@ -72,6 +73,75 @@ async function registerItem(itemId: string) {
     },
   });
   return { item, isNew };
+}
+
+/**
+ * The products the app actually reads. Pluggy collects only what the item asks for, and an item that
+ * never asks for investments keeps serving the position it collected days ago — which is how the CDBs
+ * ended up frozen while the card statement was current.
+ */
+const COLLECTED_PRODUCTS = ["ACCOUNTS", "CREDIT_CARDS", "TRANSACTIONS", "INVESTMENTS", "IDENTITY", "PAYMENT_DATA"] as const;
+
+/** While the item sits in one of these, the collection is still running. */
+const COLLECTING = ["UPDATING", "MERGING"];
+const POLL_EVERY_MS = 3_000;
+const GIVE_UP_AFTER_MS = 150_000;
+
+/**
+ * Asks Pluggy to go to the bank again.
+ *
+ * Everything else here reads the snapshot Pluggy already holds, and Pluggy refreshes that on its own once
+ * a day — so importing more often cannot make the numbers newer. This is the only call that reaches the
+ * institution, which is also why it is not on the ordinary sync path: it costs a collection and banks
+ * limit how often one may be asked.
+ *
+ * Returns when the collection settles. A connection that needs the owner (expired consent, an action in
+ * the bank's app) settles too, in a status the Contas screen already explains.
+ */
+export async function refreshItem(itemId: string) {
+  const pluggy = await getPluggy();
+  const current = await withRetry(() => pluggy.fetchItem(itemId));
+  const lastCollectedAt = current.lastUpdatedAt ? new Date(current.lastUpdatedAt) : null;
+  // A collection asked minutes after the last one returns the same numbers and still counts against
+  // what the institution allows. Say when it was, and let the caller import what is already there.
+  if (!isCollectionDue(lastCollectedAt, new Date())) {
+    return { status: current.status, executionStatus: current.executionStatus, collected: false, refused: null, lastCollectedAt };
+  }
+
+  const supported = new Set(current.connector?.products ?? []);
+  const products = COLLECTED_PRODUCTS.filter((p) => supported.has(p));
+
+  logger.info("collect:start", { itemId, products });
+  let item;
+  try {
+    item = await pluggy.updateItem(itemId, undefined, products.length > 0 ? { products } : undefined);
+  } catch (e) {
+    // Institutions reached through the Open Finance sharing portal only refresh on their own daily
+    // cycle and refuse an on-demand collection. Remember it, so the screen stops offering one.
+    if (isRefusal(e)) {
+      const refused = pluggyErrorMessage(e);
+      logger.info("collect:refused", { itemId, refused });
+      await prisma.pluggyItem.update({ where: { pluggyId: itemId }, data: { canCollect: false } });
+      return { status: current.status, executionStatus: current.executionStatus, collected: false, refused, lastCollectedAt };
+    }
+    throw e;
+  }
+  await prisma.pluggyItem.update({ where: { pluggyId: itemId }, data: { canCollect: true } });
+
+  const deadline = Date.now() + GIVE_UP_AFTER_MS;
+  while (COLLECTING.includes(item.status) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, POLL_EVERY_MS));
+    item = await withRetry(() => pluggy.fetchItem(itemId));
+  }
+
+  const collected = !COLLECTING.includes(item.status);
+  logger.info("collect:done", { itemId, status: item.status, executionStatus: item.executionStatus, collected });
+  return { status: item.status, executionStatus: item.executionStatus, collected, refused: null, lastCollectedAt: null };
+}
+
+/** Pluggy answers 400 when the connection itself cannot be collected on demand — not a transient failure. */
+function isRefusal(e: unknown) {
+  return Boolean(e && typeof e === "object" && (e as { code?: number }).code === 400);
 }
 
 export async function syncItem(itemId: string) {

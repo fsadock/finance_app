@@ -136,8 +136,7 @@ export default async function InvestmentsPage({ searchParams }: Props) {
           </div>
           {withheld > 0 && (
             <div className="text-xs text-fg-subtle mt-1">
-              Já descontados {formatBRL(withheld)} de IR e IOF — o app do banco mostra o valor antes disso
-            </div>
+              Descontados {formatBRL(withheld)} de IR e IOF             </div>
           )}
         </Card>
         <Card className="col-span-12 md:col-span-4">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSyncDue } from "@/lib/domain/sync-schedule";
+import { isCollectionDue, isSyncDue } from "@/lib/domain/sync-schedule";
 
 describe("isSyncDue", () => {
   const now = new Date(2026, 8, 22, 12);
@@ -12,5 +12,21 @@ describe("isSyncDue", () => {
   it("waits an hour after an attempt, so a failing bank isn't retried every check", () => {
     expect(isSyncDue(hoursAgo(20), hoursAgo(0.5), now)).toBe(false);
     expect(isSyncDue(hoursAgo(20), hoursAgo(1), now)).toBe(true);
+  });
+});
+
+describe("isCollectionDue", () => {
+  const now = new Date("2026-09-30T12:00:00Z");
+
+  it("asks the bank when nothing was ever collected", () => {
+    expect(isCollectionDue(null, now)).toBe(true);
+  });
+
+  it("does not ask again right after a collection", () => {
+    expect(isCollectionDue(new Date("2026-09-30T11:00:00Z"), now)).toBe(false);
+  });
+
+  it("asks again once the data had time to go stale", () => {
+    expect(isCollectionDue(new Date("2026-09-30T07:00:00Z"), now)).toBe(true);
   });
 });
