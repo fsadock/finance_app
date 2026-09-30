@@ -8,6 +8,7 @@ import { toDateInput, parseDateInput } from "@/lib/domain/format";
 import { errorMessage } from "@/lib/utils";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, INPUT_CLASS } from "@/components/ui/field";
+import { ACCOUNT_GROUP_LABEL } from "@/lib/domain/goals";
 import { Button } from "@/components/ui/button";
 
 type GoalFormValue = {
@@ -18,9 +19,16 @@ type GoalFormValue = {
   deadline: Date | null;
   color: string | null;
   accountId: string | null;
+  accountType: string | null;
 };
 
-type AccountOption = { id: string; name: string; institution: string };
+type AccountOption = { id: string; name: string; institution: string; type: string };
+
+/**
+ * One dropdown, two kinds of answer. A group is prefixed so the value says which it is: "investimentos"
+ * is a kind of money spread over several accounts, and picking one of them would leave the rest out.
+ */
+const GROUP_PREFIX = "type:";
 
 const COLORS = ["#00d28d", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#eab308"];
 
@@ -30,7 +38,11 @@ function GoalEditor({ goal, accounts, onClose }: { goal?: GoalFormValue; account
   const [current, setCurrent] = useState(goal?.currentAmount ? String(goal.currentAmount).replace(".", ",") : "");
   const [deadline, setDeadline] = useState(goal?.deadline ? toDateInput(new Date(goal.deadline)) : "");
   const [color, setColor] = useState(goal?.color ?? COLORS[0]!);
-  const [accountId, setAccountId] = useState(goal?.accountId ?? "");
+  const [source, setSource] = useState(goal?.accountType ? `${GROUP_PREFIX}${goal.accountType}` : (goal?.accountId ?? ""));
+  const isGroup = source.startsWith(GROUP_PREFIX);
+  const linked = source !== "";
+  // Only the kinds the person actually has an account of — a dead option is a lie about what exists.
+  const groups = [...new Set(accounts.map((a) => a.type))].filter((t) => ACCOUNT_GROUP_LABEL[t]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -50,7 +62,8 @@ function GoalEditor({ goal, accounts, onClose }: { goal?: GoalFormValue; account
           currentAmount,
           deadline: parseDateInput(deadline),
           color,
-          accountId: accountId || null,
+          accountId: isGroup ? null : source || null,
+          accountType: isGroup ? (source.slice(GROUP_PREFIX.length) as never) : null,
         });
         onClose();
       } catch (e) {
@@ -66,23 +79,40 @@ function GoalEditor({ goal, accounts, onClose }: { goal?: GoalFormValue; account
           <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Reserva de emergência" className={INPUT_CLASS} />
         </Field>
 
-        <Field label="Conta vinculada (opcional)">
-          <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={INPUT_CLASS}>
-            <option value="">Nenhuma — informar valor manualmente</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name} · {a.institution}
-              </option>
-            ))}
+        <Field label="O que a meta acompanha (opcional)">
+          <select value={source} onChange={(e) => setSource(e.target.value)} className={INPUT_CLASS}>
+            <option value="">Nada — informar valor manualmente</option>
+            {groups.length > 0 && (
+              <optgroup label="Por tipo">
+                {groups.map((t) => (
+                  <option key={t} value={`${GROUP_PREFIX}${t}`}>
+                    {ACCOUNT_GROUP_LABEL[t]}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Uma conta">
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} · {a.institution}
+                </option>
+              ))}
+            </optgroup>
           </select>
-          {accountId && <p className="text-[11px] text-fg-muted mt-1">O progresso acompanha o saldo desta conta.</p>}
+          {linked && (
+            <p className="text-[11px] text-fg-muted mt-1">
+              {isGroup
+                ? "O progresso soma todas as contas desse tipo, inclusive as que você criar depois."
+                : "O progresso acompanha o saldo desta conta."}
+            </p>
+          )}
         </Field>
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Valor total">
             <input value={target} onChange={(e) => setTarget(e.target.value)} inputMode="decimal" placeholder="10.000,00" className={INPUT_CLASS} />
           </Field>
-          {!accountId && (
+          {!linked && (
             <Field label="Já guardado">
               <input value={current} onChange={(e) => setCurrent(e.target.value)} inputMode="decimal" placeholder="0,00" className={INPUT_CLASS} />
             </Field>

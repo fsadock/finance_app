@@ -200,6 +200,8 @@ model Goal {
   color         String?
   accountId     String?
   account       Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  /// Segue todas as contas visíveis deste tipo, em vez de uma só. Exclui accountId.
+  accountType   AccountType?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }

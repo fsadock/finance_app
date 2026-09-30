@@ -43,6 +43,7 @@ export default async function GoalsPage() {
                     deadline: g.deadline,
                     color: g.color,
                     accountId: g.accountId,
+                    accountType: g.accountType,
                   }}
                 />
                 <GoalDeleteButton id={g.id} />
@@ -57,9 +58,10 @@ export default async function GoalsPage() {
                     <div className="font-semibold text-lg">{g.name}</div>
                     <div className="text-xs text-fg-muted flex items-center gap-2">
                       {daysLeft !== null && (daysLeft > 0 ? `${daysLeft} dias restantes` : "Prazo vencido")}
-                      {g.account && (
+                      {g.source && (
                         <span className="inline-flex items-center gap-1">
-                          <Link2 className="size-3" /> {g.account.name}
+                          <Link2 className="size-3" /> {g.source}
+                          {g.accounts && g.accounts.length > 1 && ` · ${g.accounts.length} contas`}
                         </span>
                       )}
                     </div>

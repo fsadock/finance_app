@@ -17,6 +17,7 @@ export function getGoalAccountOptions() {
   return prisma.account.findMany({
     where: { hidden: false, type: { not: "CREDIT_CARD" } },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, institution: true },
+    // balance and type come along: the same rows fill the picker and answer what a goal has saved
+    select: { id: true, name: true, institution: true, balance: true, type: true },
   });
 }

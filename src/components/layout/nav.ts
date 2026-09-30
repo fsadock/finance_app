@@ -8,6 +8,7 @@ import {
   LineChart,
   Repeat,
   Layers,
+  CalendarClock,
   Landmark,
   Bitcoin,
   ListChecks,
@@ -28,6 +29,7 @@ export const NAV: NavItem[] = [
   { href: "/cripto", label: "Cripto", icon: Bitcoin },
   { href: "/recurrings", label: "Recorrentes", icon: Repeat },
   { href: "/installments", label: "Parcelas", icon: Layers },
+  { href: "/next-month", label: "Próximo mês", short: "Próximo", icon: CalendarClock },
   { href: "/taxes", label: "Imposto de Renda", icon: Landmark },
   { href: "/rules", label: "Regras", icon: ListChecks },
 ];
