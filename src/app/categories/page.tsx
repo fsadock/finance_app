@@ -11,6 +11,7 @@ import { getRebalanceSuggestions } from "@/lib/data/budgets";
 import { getCategorySpend } from "@/lib/data/spending";
 import { getBudgetsForMonth, getCategorySpendByMonth } from "@/lib/data/budgets";
 import { RebalanceSuggestions } from "@/components/categories/rebalance-suggestions";
+import { Breakdown } from "@/components/ui/breakdown";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -97,6 +98,23 @@ export default async function CategoriesPage({ searchParams }: Props) {
             { name: OTHER_CATEGORIES, color: "#4b5563" },
           ]}
         />
+        {rest.length > 0 && (
+          <div className="mt-3 border-t border-border pt-3 text-xs text-fg-muted">
+            <Breakdown
+              title={`${OTHER_CATEGORIES} · ${months.length} meses`}
+              description="A banda cinza do gráfico, categoria por categoria."
+              total={rest.reduce((sum, { cat }) => sum + spentOverPeriod(cat.id), 0)}
+              parts={rest
+                .map(({ cat }) => ({ id: cat.id, label: cat.name, value: spentOverPeriod(cat.id) }))
+                .filter((p) => Math.abs(p.value) >= 0.01)}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <span className="size-2.5 rounded-sm" style={{ background: "#4b5563" }} />
+                O que há dentro de &quot;{OTHER_CATEGORIES}&quot;
+              </span>
+            </Breakdown>
+          </div>
+        )}
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

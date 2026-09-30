@@ -6,6 +6,7 @@ import { formatBRL, formatBRLCompact, startOfDay } from "@/lib/domain/format";
 import { Link2, Target } from "lucide-react";
 import { AddGoalButton, EditGoalButton } from "@/components/goals/goal-editor";
 import { GoalDeleteButton } from "@/components/goals/goal-delete-button";
+import { Breakdown } from "@/components/ui/breakdown";
 
 export default async function GoalsPage() {
   const { goals, accounts } = await getGoalsWithAccounts();
@@ -78,7 +79,14 @@ export default async function GoalsPage() {
               </div>
 
               <div className="flex items-baseline justify-between text-sm">
-                <span className="text-fg-muted">{formatBRL(saved)} guardados</span>
+                <Breakdown
+                  title={`${g.name} · o que está guardado`}
+                  description="Os saldos das contas que esta meta acompanha."
+                  total={saved}
+                  parts={(g.accounts ?? []).map((a) => ({ id: a.id, label: a.name, value: a.balance, hint: a.institution, href: "/accounts" }))}
+                >
+                  <span className="text-fg-muted">{formatBRL(saved)} guardados</span>
+                </Breakdown>
                 <span className="text-fg-muted">de {formatBRL(g.targetAmount)}</span>
               </div>
 

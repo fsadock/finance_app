@@ -55,3 +55,32 @@ export async function getSankeyData(month = new Date()) {
   fixed = Math.max(0, fixed);
   return { income, fixed, variable, savings: Math.max(0, income - totalSpent), totalSpent };
 }
+
+/**
+ * The 12-month totals broken down by category.
+ *
+ * The table on that page already answers "by month", so repeating it would say nothing. What it cannot
+ * answer is what those totals are made of — the Sankey shows that for one month only. Built from the same
+ * transactions and the same classification as `getMonthlyCashflow`, so the parts add up to the totals.
+ */
+export async function getCashflowComposition(monthsBack = 12, anchor = new Date()) {
+  const keys = lastMonthKeys(monthsBack, anchor);
+  const start = monthKeyToDate(keys[0]!);
+  const { end } = monthBounds(anchor);
+  const txs = await prisma.transaction.findMany({
+    where: { AND: [{ chargeDate: { gte: start, lt: end } }, BUDGET_RELEVANT] },
+    select: { ...FLOW_SELECT, chargeDate: true, category: { select: { isIncome: true, name: true } } },
+  });
+
+  const income = new Map<string, number>();
+  const spend = new Map<string, number>();
+  for (const t of txs) {
+    if (!keys.includes(monthKey(t.chargeDate))) continue;
+    const name = t.category?.name ?? "Sem categoria";
+    if (classifyFlow(t) === "income") income.set(name, (income.get(name) ?? 0) + t.amount);
+    else spend.set(name, (spend.get(name) ?? 0) + spendDelta(t));
+  }
+  const rows = (m: Map<string, number>) =>
+    [...m.entries()].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);
+  return { income: rows(income), spend: rows(spend) };
+}

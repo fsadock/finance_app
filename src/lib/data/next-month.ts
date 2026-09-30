@@ -3,7 +3,6 @@ import { getInstallmentPlans } from "@/lib/data/installments";
 import { getActiveRecurrings } from "@/lib/data/recurrings";
 import { getBudgetsForMonth, getCategorySpendByMonth } from "@/lib/data/budgets";
 import { getMonthlyCashflow } from "@/lib/data/cashflow";
-import { committedByMonth } from "@/lib/domain/installments";
 import { judgeLimit, median, monthOutlook } from "@/lib/domain/next-month";
 import { lastMonthKeys, monthKey } from "@/lib/domain/format";
 import { addMonths } from "date-fns";
@@ -29,7 +28,12 @@ export async function getNextMonthPlan(today = new Date()) {
     getMonthlyCashflow(HISTORY_MONTHS + 1, today),
   ]);
 
-  const installments = committedByMonth(plans, 2, today).find((m) => m.month === key)?.total ?? 0;
+  // Kept as the plans themselves, not just their sum: a total nobody can open is a number to be taken
+  // on faith, and every question asked of this app so far has been "where does this come from?".
+  const duePlans = plans
+    .map((p) => ({ key: p.key, label: p.label, account: p.accountName, amount: p.schedule.get(key) ?? 0, endMonth: p.endMonth }))
+    .filter((p) => p.amount > 0);
+  const installments = duePlans.reduce((s, p) => s + p.amount, 0);
 
   const dueNextMonth = recurrings.filter((r) => r.amount < 0 && !r.likelyInactive && monthKey(r.upcoming) === key);
   const recurringTotal = dueNextMonth.reduce((s, r) => s + Math.abs(r.amount), 0);
@@ -54,5 +58,5 @@ export async function getNextMonthPlan(today = new Date()) {
     .filter((l) => l.verdict !== "ok")
     .sort((a, b) => Math.abs(b.suggested - b.limit) - Math.abs(a.suggested - a.limit));
 
-  return { month: key, outlook, installments, recurrings: dueNextMonth, limits };
+  return { month: key, outlook, installments, duePlans, recurrings: dueNextMonth, limits };
 }

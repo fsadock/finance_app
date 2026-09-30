@@ -3,7 +3,8 @@ import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { CashflowChart } from "@/components/dashboard/cashflow-chart";
 import { CashflowAreaChart } from "@/components/cashflow/area-chart";
 import { CashflowSankey } from "@/components/cashflow/sankey";
-import { getMonthlyCashflow, getSankeyData } from "@/lib/data/cashflow";
+import { getCashflowComposition, getMonthlyCashflow, getSankeyData } from "@/lib/data/cashflow";
+import { Breakdown } from "@/components/ui/breakdown";
 import { formatBRL, formatBRLCompact, formatMonthKeyLong } from "@/lib/domain/format";
 import { PeriodPicker } from "@/components/layout/period-picker";
 import { formatPeriodLabel, parsePeriod } from "@/lib/domain/period";
@@ -12,7 +13,11 @@ type Props = { searchParams: Promise<{ month?: string }> };
 
 export default async function CashflowPage({ searchParams }: Props) {
   const period = parsePeriod((await searchParams).month);
-  const [data, sankey] = await Promise.all([getMonthlyCashflow(12, period.date), getSankeyData(period.date)]);
+  const [data, sankey, composition] = await Promise.all([
+    getMonthlyCashflow(12, period.date),
+    getSankeyData(period.date),
+    getCashflowComposition(12, period.date),
+  ]);
   const totalIncome = data.reduce((s, d) => s + d.income, 0);
   const totalSpend = data.reduce((s, d) => s + d.spend, 0);
   const avgNet = data.length > 0 ? (totalIncome - totalSpend) / data.length : 0;
@@ -36,13 +41,27 @@ export default async function CashflowPage({ searchParams }: Props) {
           <CardHeader>
             <CardTitle>Receita total (12m)</CardTitle>
           </CardHeader>
-          <CardValue className="text-accent">{formatBRL(totalIncome)}</CardValue>
+          <Breakdown
+            title="Receita de 12 meses, por categoria"
+            description="A tabela abaixo mostra mês a mês; isto mostra de onde veio."
+            total={totalIncome}
+            parts={composition.income.map((r) => ({ id: r.name, label: r.name, value: r.total }))}
+          >
+            <CardValue className="text-accent">{formatBRL(totalIncome)}</CardValue>
+          </Breakdown>
         </Card>
         <Card className="col-span-12 md:col-span-4">
           <CardHeader>
             <CardTitle>Despesa total (12m)</CardTitle>
           </CardHeader>
-          <CardValue className="text-danger">{formatBRL(totalSpend)}</CardValue>
+          <Breakdown
+            title="Despesa de 12 meses, por categoria"
+            description="A tabela abaixo mostra mês a mês; isto mostra em que foi."
+            total={totalSpend}
+            parts={composition.spend.map((r) => ({ id: r.name, label: r.name, value: r.total, href: "/categories" }))}
+          >
+            <CardValue className="text-danger">{formatBRL(totalSpend)}</CardValue>
+          </Breakdown>
         </Card>
         <Card className="col-span-12 md:col-span-4">
           <CardHeader>

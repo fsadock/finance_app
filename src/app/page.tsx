@@ -5,7 +5,9 @@ import { getCCSpendingData } from "@/lib/data/cards";
 import { getMonthlyCashflow } from "@/lib/data/cashflow";
 import { getNetWorth } from "@/lib/data/net-worth";
 import { getActiveRecurrings } from "@/lib/data/recurrings";
-import { getMonthSpend, getSpendingPace, getTopCategories } from "@/lib/data/spending";
+import { getMonthIncome, getMonthSpend, getSpendingPace, getTopCategories } from "@/lib/data/spending";
+import { Breakdown } from "@/components/ui/breakdown";
+import { formatDayMonth } from "@/lib/domain/format";
 import { getReviewTransactions } from "@/lib/data/transactions";
 import { formatBRL, formatBRLCompact, formatDate, monthKey, startOfDay } from "@/lib/domain/format";
 import Link from "next/link";
@@ -34,7 +36,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const period = parsePeriod(sp.month);
   const periodDate = period.date;
 
-  const [ccData, networth, monthSpend, top, review, recurrings, cashflow, budgets, categories] = await Promise.all([
+  const [ccData, networth, monthSpend, top, review, recurrings, cashflow, budgets, categories, income] = await Promise.all([
     getCCSpendingData(periodDate),
     getNetWorth(),
     getMonthSpend(periodDate),
@@ -44,6 +46,7 @@ export default async function DashboardPage({ searchParams }: Props) {
     getMonthlyCashflow(6, periodDate),
     getMonthBudgetProgress(periodDate),
     getCategoryOptions(),
+    getMonthIncome(periodDate),
   ]);
 
   const totalBudget = budgets.reduce((s, b) => s + Math.max(0, b.effective), 0);
@@ -82,7 +85,24 @@ export default async function DashboardPage({ searchParams }: Props) {
               <Wallet className="size-4 text-accent" /> Liberdade p/ gastar
             </CardTitle>
           </CardHeader>
-          <CardValue className="text-xl text-accent">{formatBRL(freeToSpend)}</CardValue>
+          <Breakdown
+            title="Liberdade para gastar"
+            description="O orçamento do mês, menos o que já saiu e o que ainda vence."
+            total={freeToSpend}
+            parts={[
+              { id: "budget", label: "Orçamento do mês", value: totalBudget, hint: `${budgets.length} categorias`, href: "/categories" },
+              { id: "spent", label: "Já gasto", value: -monthSpend.spent, href: "/transactions" },
+              ...upcomingBills.map((r) => ({
+                id: r.id,
+                label: r.name,
+                value: -Math.abs(r.amount),
+                hint: `vence ${formatDayMonth(r.upcoming)}`,
+                href: "/recurrings",
+              })),
+            ]}
+          >
+            <CardValue className="text-xl text-accent">{formatBRL(freeToSpend)}</CardValue>
+          </Breakdown>
           <div className="mt-3 text-xs text-fg-muted">
             {totalBudget > 0
               ? `Orçamento − gastos − ${formatBRLCompact(upcomingTotal)} em contas a vencer`
@@ -111,7 +131,20 @@ export default async function DashboardPage({ searchParams }: Props) {
           <CardHeader>
             <CardTitle>Recebido no mês</CardTitle>
           </CardHeader>
-          <CardValue className="text-xl">{formatBRL(monthSpend.income)}</CardValue>
+          <Breakdown
+            title="Recebido no mês"
+            description="Cada entrada que contou como receita."
+            total={monthSpend.income}
+            parts={income.map((t) => ({
+              id: t.id,
+              label: t.merchantName ?? t.description,
+              value: t.amount,
+              hint: `${formatDayMonth(t.chargeDate)}${t.category ? ` · ${t.category.name}` : ""}`,
+              href: "/transactions",
+            }))}
+          >
+            <CardValue className="text-xl">{formatBRL(monthSpend.income)}</CardValue>
+          </Breakdown>
           <div className="mt-3 text-xs">
             <span className={monthSpend.income - monthSpend.spent >= 0 ? "text-accent" : "text-danger"}>
               Saldo: {formatBRL(monthSpend.income - monthSpend.spent)}
@@ -123,7 +156,20 @@ export default async function DashboardPage({ searchParams }: Props) {
           <CardHeader>
             <CardTitle>Patrimônio líquido</CardTitle>
           </CardHeader>
-          <CardValue className="text-xl text-accent">{formatBRL(networth.net)}</CardValue>
+          <Breakdown
+            title="Patrimônio líquido"
+            description="Saldo de cada conta visível. Dívidas entram negativas."
+            total={networth.net}
+            parts={networth.accounts.map((a) => ({
+              id: a.id,
+              label: a.name,
+              value: a.balance,
+              hint: a.institution,
+              href: "/accounts",
+            }))}
+          >
+            <CardValue className="text-xl text-accent">{formatBRL(networth.net)}</CardValue>
+          </Breakdown>
           <div className="mt-3 text-xs text-fg-muted truncate">
             {formatBRLCompact(networth.assets)} Ativos · {formatBRLCompact(networth.debts)} Dívidas
           </div>

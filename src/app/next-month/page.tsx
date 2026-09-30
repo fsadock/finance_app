@@ -3,13 +3,14 @@ import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { getNextMonthPlan } from "@/lib/data/next-month";
 import { formatBRL, formatDayMonth, formatMonthKeyLong } from "@/lib/domain/format";
 import { ApplyLimitButton } from "@/components/next-month/apply-limit-button";
+import { Breakdown } from "@/components/ui/breakdown";
 import { MobileList, ListRow } from "@/components/ui/list-row";
 import { CalendarClock } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export default async function NextMonthPage() {
-  const { month, outlook, installments, recurrings, limits } = await getNextMonthPlan();
+  const { month, outlook, installments, duePlans, recurrings, limits } = await getNextMonthPlan();
 
   return (
     <>
@@ -21,7 +22,17 @@ export default async function NextMonthPage() {
       <div className="grid grid-cols-12 gap-4 mb-6">
         <Card className="col-span-12 md:col-span-4">
           <CardHeader><CardTitle>Já comprometido</CardTitle></CardHeader>
-          <CardValue className="text-danger">{formatBRL(outlook.total)}</CardValue>
+          <Breakdown
+            title={`Comprometido em ${formatMonthKeyLong(month)}`}
+            description="Parcelas que ainda vão cair e recorrentes com vencimento no mês."
+            total={outlook.total}
+            parts={[
+              ...duePlans.map((p) => ({ id: p.key, label: p.label, value: p.amount, hint: `${p.account} · até ${p.endMonth}`, href: "/installments" })),
+              ...recurrings.map((r) => ({ id: r.id, label: r.name, value: Math.abs(r.amount), hint: `dia ${formatDayMonth(r.upcoming)}`, href: "/recurrings" })),
+            ]}
+          >
+            <CardValue className="text-danger">{formatBRL(outlook.total)}</CardValue>
+          </Breakdown>
           <div className="text-xs text-fg-muted mt-3">
             {formatBRL(installments)} em parcelas · {formatBRL(outlook.total - installments)} em recorrentes
           </div>

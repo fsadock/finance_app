@@ -64,3 +64,13 @@ export async function getSpendingPace(month: Date, totalBudget: number, chartSta
   const currentSpend = Math.max(0, txs.reduce((s, t) => s + spendDelta(t), 0));
   return { data, totalBudget, currentSpend };
 }
+
+/** What came in this month, transaction by transaction — what the "Recebido no mês" total is made of. */
+export async function getMonthIncome(month = new Date()) {
+  const { start, end } = monthBounds(month);
+  return prisma.transaction.findMany({
+    where: { AND: [{ chargeDate: { gte: start, lt: end } }, INCOME_WHERE] },
+    select: { id: true, description: true, merchantName: true, amount: true, chargeDate: true, category: { select: { name: true } } },
+    orderBy: { amount: "desc" },
+  });
+}

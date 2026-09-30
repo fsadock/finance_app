@@ -3,14 +3,19 @@ import { lastMonthKeys, monthBounds, monthKey, monthKeyToDate } from "@/lib/doma
 import { getMonthlyCashflow } from "@/lib/data/cashflow";
 
 export async function getNetWorth() {
-  const accounts = await prisma.account.findMany({ where: { hidden: false }, select: { balance: true } });
+  const accounts = await prisma.account.findMany({
+    where: { hidden: false },
+    // the accounts come along: net worth is the one number nobody can check without them
+    select: { id: true, name: true, institution: true, balance: true },
+    orderBy: { balance: "desc" },
+  });
   let assets = 0;
   let debts = 0;
   for (const a of accounts) {
     if (a.balance >= 0) assets += a.balance;
     else debts += Math.abs(a.balance);
   }
-  return { assets, debts, net: assets - debts };
+  return { assets, debts, net: assets - debts, accounts };
 }
 
 /**
