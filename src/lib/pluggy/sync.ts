@@ -268,7 +268,10 @@ export async function syncItem(itemId: string) {
   try {
     const invPage = await withRetry(() => pluggy.fetchInvestments(itemId));
     const invAccountId = `inv-${itemId}`;
-    if (invPage.results.length > 0) {
+    // A position the owner already took out in full is history, not a holding: the institution keeps
+    // reporting it with zero balance, and storing it would mean a portfolio of empty rows.
+    const held = invPage.results.filter((inv) => inv.status !== "TOTAL_WITHDRAWAL");
+    if (held.length > 0) {
       const invAccount = await prisma.account.upsert({
         where: { id: invAccountId },
         create: { id: invAccountId, name: `Investimentos ${institutionName}`, type: "INVESTMENT", institution: institutionName, balance: 0, pluggyItemId: item.id },
@@ -277,7 +280,7 @@ export async function syncItem(itemId: string) {
       // Wipe prior snapshot for this account, then re-insert
       await prisma.investment.deleteMany({ where: { accountId: invAccount.id } });
       let totalValue = 0;
-      const rows = invPage.results.map((inv) => {
+      const rows = held.map((inv) => {
         // Pluggy returns *total* balance and *total* amountOriginal already
         // aggregated across the whole position. We don't multiply by quantity
         // (which can be in raw units like 178500 for fixed income).
@@ -294,6 +297,13 @@ export async function syncItem(itemId: string) {
           currentPrice: balance,
           costBasis: original,
           currency: inv.currencyCode ?? "BRL",
+          // `balance` is already net of these; keeping them is what lets the app show the same
+          // value the bank's own app shows, which is the amount before income tax.
+          incomeTax: inv.taxes ?? 0,
+          iof: inv.taxes2 ?? 0,
+          // Open Finance delivers investments with a lag — the position can be a couple of days old.
+          // Recording the institution's own date is what lets a screen say how old it is.
+          asOf: inv.date ?? new Date(),
         };
       });
       await prisma.investment.createMany({ data: rows });

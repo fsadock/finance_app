@@ -241,6 +241,11 @@ model Investment {
   currentPrice Float
   costBasis    Float
   currency     String         @default("BRL")
+  /// Imposto de renda já retido no valor (Pluggy `taxes`). Renda fixa chega líquida de IR.
+  incomeTax    Float          @default(0)
+  /// IOF retido, só existe enquanto a posição tem menos de 30 dias (Pluggy `taxes2`).
+  iof          Float          @default(0)
+  /// Data da posição segundo a instituição, não a hora da sincronização.
   asOf         DateTime       @default(now())
   createdAt    DateTime       @default(now())
 }

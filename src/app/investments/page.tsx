@@ -1,12 +1,12 @@
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { getInvestments } from "@/lib/data/investments";
-import { formatBRL, formatBRLCompact } from "@/lib/domain/format";
+import { formatBRL, formatBRLCompact, formatDayMonth, startOfDay } from "@/lib/domain/format";
 import { InvestmentDonut } from "@/components/investments/donut";
 import { ProjectionChart } from "@/components/investments/projection";
 import { PositionsTable, type Position } from "@/components/investments/positions-table";
 import { getBenchmarkRates } from "@/lib/data/rates";
-import { futureValue, realRate } from "@/lib/domain/investments";
+import { futureValue, grossUp, realRate } from "@/lib/domain/investments";
 import { parseBRLInput } from "@/lib/domain/brazil";
 import Link from "next/link";
 import { getCryptoSummary } from "@/lib/data/crypto";
@@ -65,10 +65,18 @@ export default async function InvestmentsPage({ searchParams }: Props) {
     };
   });
 
-  const total = investments.reduce((s, i) => s + i.currentPrice * i.quantity, 0);
   const totalCost = investments.reduce((s, i) => s + i.costBasis * i.quantity, 0);
+  // Fixed income arrives net of tax, so the profit shown here is the net one too; `withheld` is what the
+  // bank's own app still counts as yours, and the difference between the two screens.
+  const { net: total, withheld } = grossUp(
+    investments.map((i) => ({ value: i.currentPrice * i.quantity, incomeTax: i.incomeTax, iof: i.iof }))
+  );
   const pnl = total - totalCost;
   const pnlPct = totalCost > 0 ? (pnl / totalCost) * 100 : 0;
+
+  // Open Finance delivers investments with a lag; say so instead of implying the numbers are from now.
+  const oldest = investments.reduce<Date | null>((min, i) => (!min || i.asOf < min ? i.asOf : min), null);
+  const stale = oldest && startOfDay(oldest) < startOfDay(new Date()) ? oldest : null;
 
   const byType = new Map<string, number>();
   for (const i of investments) {
@@ -113,7 +121,10 @@ export default async function InvestmentsPage({ searchParams }: Props) {
             <CardTitle>Total investido</CardTitle>
           </CardHeader>
           <CardValue>{formatBRL(total)}</CardValue>
-          <div className="text-xs text-fg-muted mt-3">Custo: {formatBRLCompact(totalCost)}</div>
+          <div className="text-xs text-fg-muted mt-3">
+            Custo: {formatBRLCompact(totalCost)}
+            {stale && ` · posição mais antiga: ${formatDayMonth(stale)}`}
+          </div>
         </Card>
         <Card className="col-span-12 md:col-span-4">
           <CardHeader>
@@ -123,6 +134,11 @@ export default async function InvestmentsPage({ searchParams }: Props) {
           <div className={`text-xs mt-3 ${pnl >= 0 ? "text-accent" : "text-danger"}`}>
             {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
           </div>
+          {withheld > 0 && (
+            <div className="text-xs text-fg-subtle mt-1">
+              Já descontados {formatBRL(withheld)} de IR e IOF — o app do banco mostra o valor antes disso
+            </div>
+          )}
         </Card>
         <Card className="col-span-12 md:col-span-4">
           <CardHeader>
