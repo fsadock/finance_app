@@ -2,7 +2,7 @@
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { formatBRL } from "@/lib/domain/format";
-import { CHART_TOOLTIP_STYLE } from "@/components/ui/chart-theme";
+import { CHART_TOOLTIP_PROPS } from "@/components/ui/chart-theme";
 
 type Slice = { name: string; value: number; color: string };
 
@@ -25,7 +25,7 @@ export function CategoryDonut({ data }: { data: Slice[] }) {
             ))}
           </Pie>
           <Tooltip
-            contentStyle={CHART_TOOLTIP_STYLE}
+            {...CHART_TOOLTIP_PROPS}
             formatter={(v, n) => [formatBRL(Number(v)), n]}
           />
         </PieChart>

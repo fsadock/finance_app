@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatBRLCompact } from "@/lib/domain/format";
-import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_STYLE } from "@/components/ui/chart-theme";
+import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_PROPS } from "@/components/ui/chart-theme";
 
 type Row = { month: string; income: number; spend: number; net: number };
 
@@ -30,7 +30,7 @@ export function CashflowChart({ data }: { data: Row[] }) {
           <YAxis tickFormatter={(v) => formatBRLCompact(v)} {...CHART_AXIS_PROPS} width={70} />
           <Tooltip
             cursor={{ fill: "rgba(255,255,255,0.03)" }}
-            contentStyle={CHART_TOOLTIP_STYLE}
+            {...CHART_TOOLTIP_PROPS}
             labelFormatter={(l) => monthLabel(String(l))}
             formatter={(v, n) => [formatBRLCompact(Number(v)), n === "income" ? "Receita" : "Despesa"]}
           />

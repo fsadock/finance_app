@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatBRLCompact } from "@/lib/domain/format";
-import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_STYLE } from "@/components/ui/chart-theme";
+import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_PROPS } from "@/components/ui/chart-theme";
 
 type Row = { month: string; value: number };
 
@@ -43,7 +43,7 @@ export function NetWorthChart({ data }: { data: Row[] }) {
             width={70}
           />
           <Tooltip
-            contentStyle={CHART_TOOLTIP_STYLE}
+            {...CHART_TOOLTIP_PROPS}
             labelFormatter={(l) => monthLabel(String(l))}
             formatter={(v) => [formatBRLCompact(Number(v)), "Patrimônio"]}
           />

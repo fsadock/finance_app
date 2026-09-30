@@ -2,7 +2,7 @@
 
 import { ResponsiveContainer, Sankey, Tooltip, Layer, Text } from "recharts";
 import { formatBRLCompact } from "@/lib/domain/format";
-import { CHART_TOOLTIP_STYLE } from "@/components/ui/chart-theme";
+import { CHART_TOOLTIP_PROPS } from "@/components/ui/chart-theme";
 
 type Props = {
   data: {
@@ -23,21 +23,29 @@ type NodeProps = {
   containerWidth: number;
 };
 
+/** The room the labels have before they run off the card. */
+const LABEL_CHARS = 18;
+
 function SankeyNode({ x, y, width, height, index, payload, containerWidth }: NodeProps) {
   const isOut = x > containerWidth / 2;
+  const clipped = payload.name.length > LABEL_CHARS ? `${payload.name.slice(0, LABEL_CHARS - 1)}…` : payload.name;
   return (
     <Layer key={`node-${index}`}>
       <rect x={x} y={y} width={width} height={height} fill="#00d28d" fillOpacity={0.8} rx={2} />
+      {/* The colour comes from a class rather than a var() in the fill attribute. Reported as rendering
+          black here and not reproduced; a CSS rule resolves the custom property under every engine,
+          which an SVG presentation attribute is not guaranteed to do. */}
       <Text
         x={isOut ? x - 6 : x + width + 6}
         y={y + height / 2}
         textAnchor={isOut ? "end" : "start"}
         verticalAnchor="middle"
         fontSize={12}
-        fill="var(--color-fg-muted)"
+        className="fill-fg-muted"
       >
-        {payload.name}
+        {clipped}
       </Text>
+      {clipped !== payload.name && <title>{payload.name}</title>}
     </Layer>
   );
 }
@@ -82,7 +90,7 @@ export function CashflowSankey({ data }: Props) {
           nodePadding={40}
         >
           <Tooltip
-            contentStyle={CHART_TOOLTIP_STYLE}
+            {...CHART_TOOLTIP_PROPS}
             formatter={(v) => formatBRLCompact(Number(v))}
           />
         </Sankey>

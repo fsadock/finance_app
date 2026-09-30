@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_STYLE } from "@/components/ui/chart-theme";
+import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_PROPS } from "@/components/ui/chart-theme";
 import { formatBRL, formatBRLCompact, formatUSD } from "@/lib/domain/format";
 import { cn } from "@/lib/utils";
 import { readJson } from "@/lib/client/api";
@@ -177,7 +177,7 @@ export function MarketPanel({ initial, assets }: { initial: Market; assets: Mark
                   {...CHART_AXIS_PROPS}
                 />
                 <Tooltip
-                  contentStyle={CHART_TOOLTIP_STYLE}
+                  {...CHART_TOOLTIP_PROPS}
                   labelFormatter={(v) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(Number(v)))}
                   formatter={(v) => [formatBRL(Number(v)), selected.name]}
                 />

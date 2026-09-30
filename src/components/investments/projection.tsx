@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatBRLCompact } from "@/lib/domain/format";
-import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_STYLE } from "@/components/ui/chart-theme";
+import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_PROPS } from "@/components/ui/chart-theme";
 
 type Row = { month: number; conservative: number; expected: number; aggressive: number };
 
@@ -40,7 +40,7 @@ export function ProjectionChart({ data, labels }: { data: Row[]; labels: Project
           <XAxis dataKey="month" tickFormatter={(v) => yearTick(Number(v))} {...CHART_AXIS_PROPS} interval={11} />
           <YAxis tickFormatter={(v) => formatBRLCompact(Number(v))} {...CHART_AXIS_PROPS} width={70} />
           <Tooltip
-            contentStyle={CHART_TOOLTIP_STYLE}
+            {...CHART_TOOLTIP_PROPS}
             labelFormatter={(l) => `Mês ${l}`}
             formatter={(v, n) => [formatBRLCompact(Number(v)), labels[n as keyof ProjectionLabels] ?? String(n)]}
           />

@@ -1,7 +1,7 @@
 "use client";
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_STYLE } from "@/components/ui/chart-theme";
+import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_PROPS } from "@/components/ui/chart-theme";
 import { formatBRL, formatBRLCompact } from "@/lib/domain/format";
 
 /** What the wallets were worth on each day the app took a snapshot. */
@@ -21,7 +21,7 @@ export function PortfolioChart({ data }: { data: { t: number; brl: number }[] })
           <XAxis dataKey="t" tickFormatter={(v) => day.format(new Date(Number(v)))} minTickGap={40} {...CHART_AXIS_PROPS} />
           <YAxis tickFormatter={(v) => formatBRLCompact(Number(v))} width={70} {...CHART_AXIS_PROPS} />
           <Tooltip
-            contentStyle={CHART_TOOLTIP_STYLE}
+            {...CHART_TOOLTIP_PROPS}
             labelFormatter={(v) => day.format(new Date(Number(v)))}
             formatter={(v) => [formatBRL(Number(v)), "Carteiras"]}
           />
