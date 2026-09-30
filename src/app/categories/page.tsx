@@ -14,6 +14,15 @@ import { RebalanceSuggestions } from "@/components/categories/rebalance-suggesti
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
+/**
+ * The band holding every category outside the named ones, so the stack adds up. Not "Outros": that is a
+ * real category of the owner's, and two different things must not share a name on the same chart.
+ */
+const OTHER_CATEGORIES = "Demais categorias";
+
+/** How many categories the chart names before the rest go into one band. */
+const TREND_SIZE = 6;
+
 type Props = { searchParams: Promise<{ month?: string; all?: string }> };
 
 export default async function CategoriesPage({ searchParams }: Props) {
@@ -44,10 +53,22 @@ export default async function CategoriesPage({ searchParams }: Props) {
   const visible = showAll ? all : active;
   const hiddenCount = all.length - active.length;
 
-  const trendCategories = active.slice(0, 6);
+  const spentIn = (categoryId: string, mo: string) => history.get(categoryId)?.get(mo) ?? 0;
+
+  // The cards below are about the month being browsed, so they rank by it. The chart covers six months
+  // and has to rank by those six: the biggest spend of the period had been landing in the "rest" band
+  // because one quiet month kept it out of the top of the current one.
+  const spentOverPeriod = (categoryId: string) => months.reduce((sum, mo) => sum + spentIn(categoryId, mo), 0);
+  const byPeriod = [...all].sort((a, b) => spentOverPeriod(b.cat.id) - spentOverPeriod(a.cat.id));
+  const trendCategories = byPeriod.slice(0, TREND_SIZE);
+  const rest = byPeriod.slice(TREND_SIZE);
+  // Stacked, the bar is every category added up, so what the named ones leave out has to be in it.
+  // A month where refunds outweighed spending is reported as the negative it is: clamping it to zero
+  // used to inflate these months by exactly the amount that came back.
   const trendData = months.map((mo) => {
     const row: Record<string, number | string> = { month: mo };
-    for (const { cat } of trendCategories) row[cat.name] = Math.max(0, history.get(cat.id)?.get(mo) ?? 0);
+    for (const { cat } of trendCategories) row[cat.name] = spentIn(cat.id, mo);
+    row[OTHER_CATEGORIES] = rest.reduce((sum, { cat }) => sum + spentIn(cat.id, mo), 0);
     return row;
   });
 
@@ -67,11 +88,14 @@ export default async function CategoriesPage({ searchParams }: Props) {
 
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Tendência últimos 6 meses · top 6 categorias</CardTitle>
+          <CardTitle>Últimos 6 meses · {TREND_SIZE} maiores categorias do período</CardTitle>
         </CardHeader>
         <CategoriesTrendChart
           data={trendData}
-          categories={trendCategories.map((v) => ({ name: v.cat.name, color: v.cat.color ?? "#6b7280" }))}
+          categories={[
+            ...trendCategories.map((v) => ({ name: v.cat.name, color: v.cat.color ?? "#6b7280" })),
+            { name: OTHER_CATEGORIES, color: "#4b5563" },
+          ]}
         />
       </Card>
 
