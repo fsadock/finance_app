@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { MoreHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/domain/format";
-import { MOBILE_TABS, NAV, SETTINGS_NAV, isActive } from "./nav";
+import { MOBILE_TABS, NAV, NAV_GROUPS, SETTINGS_NAV, isActive } from "./nav";
 import { NavLinkPending } from "./nav-link-pending";
 
 /** Phone navigation (below lg): top bar, bottom tab bar and a "Mais" sheet with the other pages. */
@@ -16,7 +16,12 @@ export function MobileNav({ appName, lastSync, setupPending }: { appName: string
   const [moreOpen, setMoreOpen] = useState(false);
 
   const tabs = MOBILE_TABS.map((href) => NAV.find((n) => n.href === href)!);
-  const more = [...NAV.filter((n) => !MOBILE_TABS.includes(n.href)), SETTINGS_NAV];
+  // The sheet keeps the same grouping as the sidebar, minus whatever is already a tab.
+  const moreGroups = [
+    ...NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((n) => !MOBILE_TABS.includes(n.href)) })).filter((g) => g.items.length > 0),
+    { label: "Conta", items: [SETTINGS_NAV] },
+  ];
+  const more = moreGroups.flatMap((g) => g.items);
   const moreActive = more.some((n) => isActive(n.href, pathname));
 
   return (
@@ -64,30 +69,37 @@ export function MobileNav({ appName, lastSync, setupPending }: { appName: string
                 <X className="size-5" />
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {more.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.href, pathname);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMoreOpen(false)}
-                    className={cn(
-                      "flex flex-col items-center gap-2 rounded-xl border px-2 py-3 text-xs text-center",
-                      active ? "border-accent/40 bg-accent-soft text-accent" : "border-border bg-bg-elev text-fg"
-                    )}
-                  >
-                    <span className="relative">
-                      <Icon className="size-5" strokeWidth={1.75} />
-                      {item.href === SETTINGS_NAV.href && setupPending && (
-                        <span className="absolute -top-0.5 -right-1 size-2 rounded-full bg-warn" />
-                      )}
-                    </span>
-                    {item.label}
-                  </Link>
-                );
-              })}
+            <div className="max-h-[60dvh] space-y-3 overflow-y-auto">
+              {moreGroups.map((group) => (
+                <div key={group.label}>
+                  <div className="px-1 pb-1.5 text-[11px] font-medium uppercase tracking-wide text-fg-subtle">{group.label}</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const active = isActive(item.href, pathname);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setMoreOpen(false)}
+                          className={cn(
+                            "flex flex-col items-center gap-2 rounded-xl border px-2 py-3 text-center text-xs",
+                            active ? "border-accent/40 bg-accent-soft text-accent" : "border-border bg-bg-elev text-fg"
+                          )}
+                        >
+                          <span className="relative">
+                            <Icon className="size-5" strokeWidth={1.75} />
+                            {item.href === SETTINGS_NAV.href && setupPending && (
+                              <span className="absolute -top-0.5 -right-1 size-2 rounded-full bg-warn" />
+                            )}
+                          </span>
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
