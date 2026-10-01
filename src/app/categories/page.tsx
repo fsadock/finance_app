@@ -4,7 +4,7 @@ import { getBudgetCategories } from "@/lib/data/categories";
 import { formatBRL, lastMonthKeys } from "@/lib/domain/format";
 import { CategoriesTrendChart } from "@/components/categories/trend-chart";
 import { PeriodPicker } from "@/components/layout/period-picker";
-import { parsePeriod, formatPeriodLabel } from "@/lib/domain/period";
+import { parsePeriod, formatPeriodLabel, monthRangeQuery } from "@/lib/domain/period";
 import { CategoryCreateDialog } from "@/components/categories/category-create-dialog";
 import { BudgetEditor } from "@/components/categories/budget-editor";
 import { getRebalanceSuggestions } from "@/lib/data/budgets";
@@ -128,7 +128,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <span className="size-3 rounded-full" style={{ background: cat.color ?? "#6b7280" }} />
-                  <Link href={`/transactions?cat=${cat.id}&month=${period.key}`} className="font-medium hover:text-accent">
+                  <Link href={`/transactions?cat=${cat.id}&${monthRangeQuery(period.key)}`} className="font-medium hover:text-accent">
                     {cat.name}
                   </Link>
                   {cat.rolloverEnabled && Math.abs(rolloverAmount) >= 0.01 && (

@@ -5,7 +5,7 @@ import { getCCSpendingData } from "@/lib/data/cards";
 import { getMonthlyCashflow } from "@/lib/data/cashflow";
 import { getNetWorth } from "@/lib/data/net-worth";
 import { getActiveRecurrings } from "@/lib/data/recurrings";
-import { getMonthIncome, getMonthSpend, getSpendingPace, getTopCategories } from "@/lib/data/spending";
+import { getCategorySpend, getMonthIncome, getMonthSpend, getSpendingPace, getTopCategories } from "@/lib/data/spending";
 import { Breakdown } from "@/components/ui/breakdown";
 import { formatDayMonth } from "@/lib/domain/format";
 import { getReviewTransactions } from "@/lib/data/transactions";
@@ -17,7 +17,7 @@ import { SpendingPaceChart } from "@/components/dashboard/spending-pace-chart";
 import { CCLimitEditor } from "@/components/dashboard/cc-limit-editor";
 import { CategoryDonut } from "@/components/dashboard/category-donut";
 import { PeriodPicker } from "@/components/layout/period-picker";
-import { parsePeriod, formatPeriodLabel } from "@/lib/domain/period";
+import { parsePeriod, formatPeriodLabel, monthRangeQuery } from "@/lib/domain/period";
 import { CategoryPicker } from "@/components/transactions/category-picker";
 import { CategorizePendingButton } from "@/components/transactions/categorize-pending-button";
 import { countAccounts } from "@/lib/data/accounts";
@@ -36,7 +36,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const period = parsePeriod(sp.month);
   const periodDate = period.date;
 
-  const [ccData, networth, monthSpend, top, review, recurrings, cashflow, budgets, categories, income] = await Promise.all([
+  const [ccData, networth, monthSpend, top, review, recurrings, cashflow, budgets, categories, income, categorySpend] = await Promise.all([
     getCCSpendingData(periodDate),
     getNetWorth(),
     getMonthSpend(periodDate),
@@ -47,6 +47,7 @@ export default async function DashboardPage({ searchParams }: Props) {
     getMonthBudgetProgress(periodDate),
     getCategoryOptions(),
     getMonthIncome(periodDate),
+    getCategorySpend(periodDate),
   ]);
 
   const totalBudget = budgets.reduce((s, b) => s + Math.max(0, b.effective), 0);
@@ -115,7 +116,21 @@ export default async function DashboardPage({ searchParams }: Props) {
             <CardTitle>Gasto do mês</CardTitle>
             {totalBudget > 0 && <span className="text-xs text-fg-muted">{Math.round(budgetPct)}% do orçamento</span>}
           </CardHeader>
-          <CardValue className="text-xl">{formatBRL(monthSpend.spent)}</CardValue>
+          <Breakdown
+            title={`Gasto em ${formatPeriodLabel(period)}`}
+            description="Por categoria. Inclui cobranças de cartão já lançadas para o resto do mês."
+            total={monthSpend.spent}
+            parts={[...categorySpend.entries()]
+              .filter(([, spent]) => spent > 0)
+              .map(([id, spent]) => ({
+                id: id ?? "none",
+                label: categories.find((c) => c.id === id)?.name ?? "Sem categoria",
+                value: spent,
+                href: `/transactions?cat=${id ?? "none"}&${monthRangeQuery(period.key)}`,
+              }))}
+          >
+            <CardValue className="text-xl">{formatBRL(monthSpend.spent)}</CardValue>
+          </Breakdown>
           <div className="mt-4 h-2 rounded-full bg-bg-hover overflow-hidden">
             <div
               className="h-full rounded-full transition-all"
