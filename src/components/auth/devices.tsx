@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { startRegistration } from "@simplewebauthn/browser";
+import { readJson } from "@/lib/client/api";
+import { errorMessage } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 import { Loader2, LogOut, Plus, Trash2 } from "lucide-react";
 import { createDeviceCode, removeDevice, signOut } from "@/app/actions/auth";
 import { formatDate } from "@/lib/domain/format";
@@ -10,8 +14,35 @@ type Device = { id: string; name: string; rpId: string | null; createdAt: Date; 
 
 /** Registered passkeys: add a device with a one-time code, remove one, sign out. */
 export function Devices({ devices }: { devices: Device[] }) {
+  const router = useRouter();
   const [code, setCode] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  /**
+   * A second passkey on the device already in your hand — a phone keeping one in a password manager and
+   * one in the platform keychain, say. No code: being signed in here is the proof.
+   */
+  async function addHere() {
+    setAdding(true);
+    setError(null);
+    try {
+      const post = (step: string, body: object = {}) =>
+        fetch(`/api/auth/${step}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(readJson);
+      const optionsJSON = await post("add-options");
+      await post("add", { response: await startRegistration({ optionsJSON }) });
+      router.refresh();
+    } catch (e) {
+      setError(
+        e instanceof Error && e.name === "InvalidStateError"
+          ? "Este autenticador já guarda uma passkey deste app. Escolha outro lugar para salvar."
+          : errorMessage(e, "Não foi possível criar a passkey")
+      );
+    } finally {
+      setAdding(false);
+    }
+  }
 
   function remove(d: Device) {
     const warning = d.current ? " Este é o dispositivo que você está usando: você sairá do app." : "";
@@ -40,6 +71,7 @@ export function Devices({ devices }: { devices: Device[] }) {
         ))}
       </ul>
 
+      {error && <p className="text-sm text-danger">{error}</p>}
       {code && (
         <div className="rounded-xl border border-accent/40 bg-accent/10 p-4 text-center">
           <p className="font-mono text-2xl font-semibold tracking-widest">{code.code}</p>
@@ -51,7 +83,15 @@ export function Devices({ devices }: { devices: Device[] }) {
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={pending} onClick={() => startTransition(async () => setCode(await createDeviceCode()))}>
+        <button
+          onClick={addHere}
+          disabled={pending || adding}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:border-accent hover:text-accent disabled:opacity-50"
+        >
+          {adding ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+          Adicionar neste dispositivo
+        </button>
+        <Button size="sm" disabled={pending || adding} onClick={() => startTransition(async () => setCode(await createDeviceCode()))}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
           Adicionar dispositivo
         </Button>

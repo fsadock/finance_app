@@ -46,15 +46,23 @@ export function relyingParty(headers: Headers): RelyingParty {
   return { origin, rpID: new URL(origin).hostname };
 }
 
-export async function registrationOptions(rp: RelyingParty, code: unknown) {
-  if (!checkCode(code)) throw new AuthError("Código inválido ou expirado.");
+/**
+ * Options for registering a passkey. The one-time code is how a device that cannot prove anything yet
+ * gets in; `code` is null when the caller already holds a live session, which is proof enough — asking
+ * someone to mail themselves a code to add a passkey to the device they are signed in on is ceremony.
+ */
+export async function registrationOptions(rp: RelyingParty, code: unknown | null) {
+  if (code !== null && !checkCode(code)) throw new AuthError("Código inválido ou expirado.");
   const existing = await prisma.passkey.findMany({ select: { id: true, transports: true } });
   const options = await generateRegistrationOptions({
     rpName: APP_NAME,
     rpID: rp.rpID,
     userName: APP_NAME,
     userID: USER_ID,
-    excludeCredentials: existing.map((p) => ({ id: p.id, transports: transportsOf(p.transports) })),
+    // Only excluded for a device signing in from scratch. Someone already signed in who asks for another
+    // passkey means it: a phone keeping one in a password manager and one in the platform keychain is the
+    // reason this exists, and excluding the first would make the authenticator refuse the second.
+    excludeCredentials: code === null ? [] : existing.map((p) => ({ id: p.id, transports: transportsOf(p.transports) })),
     authenticatorSelection: { residentKey: "required", userVerification: "required" },
   });
   rememberChallenge(options.challenge, "register");
@@ -62,8 +70,8 @@ export async function registrationOptions(rp: RelyingParty, code: unknown) {
 }
 
 /** Stores the new device's passkey and returns its id. */
-export async function register(rp: RelyingParty, code: unknown, response: RegistrationResponseJSON, name: string) {
-  if (!checkCode(code, { consume: true })) throw new AuthError("Código inválido ou expirado.");
+export async function register(rp: RelyingParty, code: unknown | null, response: RegistrationResponseJSON, name: string) {
+  if (code !== null && !checkCode(code, { consume: true })) throw new AuthError("Código inválido ou expirado.");
   const { verified, registrationInfo } = await verifyRegistrationResponse({
     response,
     expectedChallenge: takeChallenge("register"),

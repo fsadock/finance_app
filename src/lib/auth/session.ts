@@ -48,3 +48,8 @@ export async function endCurrentSession() {
   if (token) await prisma.session.deleteMany({ where: { id: hash(token) } });
   jar.delete(SESSION_COOKIE);
 }
+
+/** Ends one session by its token — used where cookies() isn't available, like a route handler. */
+export async function endSession(token: string) {
+  await prisma.session.deleteMany({ where: { id: hash(token) } });
+}

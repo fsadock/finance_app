@@ -93,8 +93,16 @@ export function LoginForm({
           Desbloquear
         </Button>
         {error && <p className="text-center text-sm text-danger">{error}</p>}
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => post("sign-out").then(() => window.location.assign("/login"))}
+          className="w-full text-center text-sm text-fg-muted hover:text-fg disabled:opacity-50"
+        >
+          Entrar de outro jeito
+        </button>
         <p className="text-center text-xs text-fg-subtle">
-          Se o seu aparelho não mostrar o pedido, desligue o bloqueio em Configurações → Dispositivos por
+          Se este aparelho não mostrar o pedido, desligue o bloqueio em Configurações → Dispositivos por
           outro dispositivo.
         </p>
       </div>
