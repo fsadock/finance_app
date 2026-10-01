@@ -357,37 +357,6 @@ Keep copies outside the project folder. To restore, stop the app and put the bac
 | `pnpm db:studio` | Browse and edit the raw database in Prisma Studio. |
 | `pnpm db:wipe` | ⚠ Deletes **all** data (accounts, transactions, rules, budgets, goals, recurring items, connections). Keeps categories. Back up first. |
 | `pnpm db:dedupe` | One-off cleanup for duplicate accounts created by old versions. |
-| `pnpm db:pull` | Copy the running server's database here, to develop against real data. |
-| `pnpm db:query` | Run one SQL statement against the database inside the running container. |
-
-### Developing against the server's data
-
-Seeded data never has the shapes that break things — the instalment plan the bank stopped sending halfway,
-the category that nets negative because refunds outweighed spending, the merchant written three different
-ways. Pull a snapshot and develop against it:
-
-```bash
-export VPS_HOST=your-server          # the address you ssh to; never committed
-pnpm db:pull                         # → prisma/live.db
-DATABASE_URL="file:./prisma/live.db" pnpm dev
-DATABASE_URL="file:./prisma/live.db" pnpm db:studio   # browse the tables
-```
-
-The snapshot is taken with `VACUUM INTO` rather than by copying the file, because the app is writing to it
-while you pull: copying a live SQLite file can catch a torn page. Migrations from your branch are applied
-to the copy afterwards, so it matches the code you are working on.
-
-It is a copy. Nothing you do to it reaches the server, and deploying is still `git push` — the build and
-the server update from CI. The file holds real financial data and is covered by `*.db` in `.gitignore`;
-delete it when you are done.
-
-To look at the live database without pulling it, the container has no `sqlite3` binary, so queries go
-through the `better-sqlite3` the app already ships with:
-
-```bash
-pnpm db:query 'select count(*) from "Transaction"'
-pnpm db:query --write 'update ...'    # writes need the flag; without it the handle is read-only
-```
 
 ---
 
