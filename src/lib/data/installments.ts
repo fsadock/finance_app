@@ -6,7 +6,7 @@ import { getOpenBillStarts } from "@/lib/data/cards";
 export async function getInstallmentPlans() {
   const since = new Date();
   since.setMonth(since.getMonth() - 48);
-  const [txs, openBillStarts] = await Promise.all([
+  const [txs, openBillStarts, paid] = await Promise.all([
     prisma.transaction.findMany({
     where: {
       totalInstallments: { gt: 1 },
@@ -29,10 +29,11 @@ export async function getInstallmentPlans() {
     },
     }),
     getOpenBillStarts(),
+    prisma.installmentPaid.findMany({ select: { planKey: true, number: true } }),
   ]);
 
   return buildInstallmentPlans(
     txs.map((t) => ({ ...t, accountName: t.account.name, totalInstallments: t.totalInstallments! })),
-    { openBillStarts }
+    { openBillStarts, paidByHand: new Set(paid.map((p) => `${p.planKey}:${p.number}`)) }
   );
 }

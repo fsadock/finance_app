@@ -1,24 +1,44 @@
+"use client";
+
+import { useState } from "react";
 import { ListRow, MobileList } from "@/components/ui/list-row";
+import { InstallmentDialog } from "@/components/installments/installment-dialog";
 import { formatBRL, formatMonthKeyShort } from "@/lib/domain/format";
 import type { getInstallmentPlans } from "@/lib/data/installments";
 
 type Plan = Awaited<ReturnType<typeof getInstallmentPlans>>[number];
 
-function Progress({ p }: { p: Plan }) {
+/** The progress is the way in: it is the part of the row that is about the instalments themselves. */
+function Progress({ p, onOpen }: { p: Plan; onOpen: () => void }) {
+  const byHand = p.installments.filter((i) => i.byHand).length;
   return (
-    <>
-    <div className="text-xs text-fg-muted mb-1">{p.paid}/{p.totalInstallments}</div>
-    <div className="h-1.5 rounded-full bg-bg-hover overflow-hidden">
-      <div className="h-full bg-accent" style={{ width: `${(p.paid / p.totalInstallments) * 100}%` }} />
-    </div>
-    </>
+    <button onClick={onOpen} className="block w-full text-left" title="Ver e marcar parcelas">
+      <div className="mb-1 text-xs text-fg-muted">
+        {p.paid}/{p.totalInstallments}
+        {byHand > 0 && <span className="text-accent"> · {byHand} marcada(s) por você</span>}
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-bg-hover">
+        <div className="h-full bg-accent" style={{ width: `${(p.paid / p.totalInstallments) * 100}%` }} />
+      </div>
+    </button>
   );
 }
 
 /** Installment purchases: a table from md up, a compact list on phones. */
 export function InstallmentList({ plans }: { plans: Plan[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const current = plans.find((p) => p.key === open);
   return (
     <>
+      {current && (
+        <InstallmentDialog
+          planKey={current.key}
+          label={current.label}
+          amount={current.installmentAmount}
+          installments={current.installments}
+          onClose={() => setOpen(null)}
+        />
+      )}
       <table className="hidden w-full text-sm md:table">
         <thead>
           <tr className="text-left text-xs text-fg-muted border-b border-border">
@@ -40,7 +60,7 @@ export function InstallmentList({ plans }: { plans: Plan[] }) {
               </td>
               <td className="px-6 py-3 text-fg-muted">{p.accountName}</td>
               <td className="px-6 py-3 min-w-[140px]">
-                <Progress p={p} />
+                <Progress p={p} onOpen={() => setOpen(p.key)} />
               </td>
               <td className="px-6 py-3 text-right whitespace-nowrap">{formatBRL(p.installmentAmount)}</td>
               <td className="px-6 py-3 text-right whitespace-nowrap text-fg-muted">{formatBRL(p.total)}</td>
@@ -61,7 +81,7 @@ export function InstallmentList({ plans }: { plans: Plan[] }) {
                 <div>
                   {p.accountName} · {formatBRL(p.installmentAmount)}/mês · até <span className="capitalize">{formatMonthKeyShort(p.endMonth)}</span>
                 </div>
-                <Progress p={p} />
+                <Progress p={p} onOpen={() => setOpen(p.key)} />
               </div>
             }
             value={

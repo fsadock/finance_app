@@ -163,3 +163,52 @@ describe("installment purchases (real Nubank cases, dates as Open Finance sent t
     expect(groupInstallmentPurchases(araujo)).toHaveLength(2);
   });
 });
+
+describe("parcela quitada à mão", () => {
+  const tx = (n: number, date: string, total = 10, amount = -333.4) => ({
+    id: `t${n}`,
+    accountId: "card",
+    accountName: "croma-platinum",
+    description: `Vivara ${n}/${total}`,
+    merchantName: "Vivara",
+    amount,
+    date: new Date(date),
+    installmentNumber: n,
+    totalInstallments: total,
+    purchaseAmount: null,
+    purchaseDate: new Date("2026-03-10"),
+  });
+  const rows = [
+    tx(1, "2026-03-10"), tx(2, "2026-03-13"), tx(3, "2026-04-13"),
+    tx(4, "2026-05-13"), tx(5, "2026-06-13"), tx(6, "2026-07-13"),
+  ];
+  const today = new Date("2026-10-01");
+
+  it("projeta todas as parcelas, inclusive as que o banco não enviou", () => {
+    const [plan] = buildInstallmentPlans(rows, { today });
+    expect(plan!.installments).toHaveLength(10);
+    expect(plan!.installments.filter((i) => !i.received).map((i) => i.number)).toEqual([7, 8, 9, 10]);
+    expect(plan!.remaining).toBe(3);
+  });
+
+  it("deixa de projetar o que o dono marcou como pago", () => {
+    const [plan] = buildInstallmentPlans(rows, { today });
+    const key = plan!.key;
+    const [quitada] = buildInstallmentPlans(rows, {
+      today,
+      paidByHand: new Set([`${key}:9`, `${key}:10`]),
+    });
+    expect(quitada!.remaining).toBe(1);
+    expect(quitada!.remainingAmount).toBeCloseTo(333.4, 2);
+    expect([...quitada!.schedule.keys()]).toEqual(["2026-09"]);
+  });
+
+  it("mantém a compra visível depois de quitada, para poder desfazer", () => {
+    const [plan] = buildInstallmentPlans(rows, { today });
+    const all = new Set(plan!.installments.map((i) => `${plan!.key}:${i.number}`));
+    const [quitada] = buildInstallmentPlans(rows, { today, paidByHand: all });
+    expect(quitada).toBeDefined();
+    expect(quitada!.remaining).toBe(0);
+    expect(quitada!.schedule.size).toBe(0);
+  });
+});

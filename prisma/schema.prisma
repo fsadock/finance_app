@@ -346,3 +346,14 @@ model CryptoPurchase {
 
   @@index([symbol, date])
 }
+
+/// Parcela que o dono declarou paga — adiantada ou quitada antes do fim.
+/// Quitar a compra inteira é marcar todas as que faltavam: um conceito só, não dois.
+model InstallmentPaid {
+  /// Chave da compra, como buildInstallmentPlans() a monta
+  planKey String
+  number  Int
+  paidAt  DateTime @default(now())
+
+  @@id([planKey, number])
+}

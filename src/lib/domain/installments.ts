@@ -22,6 +22,8 @@ type InstallmentPlan = {
   endMonth: string;
   /** month key → amount still to be charged */
   schedule: Map<string, number>;
+  /** Every instalment, so the owner can see and correct what the app assumed. */
+  installments: { number: number; date: Date; paid: boolean; byHand: boolean; received: boolean }[];
 };
 
 /** What grouping needs from an installment charge. */
@@ -125,7 +127,12 @@ export function installmentChargeDates<T extends InstallmentRow>(rows: T[]): Map
  */
 export function buildInstallmentPlans(
   txs: InstallmentTx[],
-  { today = new Date(), openBillStarts = new Map<string, Date>() }: { today?: Date; openBillStarts?: Map<string, Date> } = {}
+  {
+    today = new Date(),
+    openBillStarts = new Map<string, Date>(),
+    /** `planKey:number` of instalments the owner marked paid. */
+    paidByHand = new Set<string>(),
+  }: { today?: Date; openBillStarts?: Map<string, Date>; paidByHand?: Set<string> } = {}
 ): InstallmentPlan[] {
   const charges = txs.filter((t) => t.amount < 0 && t.totalInstallments >= 2);
   const plans: InstallmentPlan[] = [];
@@ -144,19 +151,27 @@ export function buildInstallmentPlans(
 
     const reference = known.get(numbers[numbers.length - 1]!)!; // later installments don't carry the rounding
     const installmentAmount = Math.abs(reference.amount);
+    const purchase = purchaseAnchor(list) ?? dateOf(1);
+    const key = [reference.accountId, merchantOf(reference), total, monthKey(purchase)].join("|");
+
     const schedule = new Map<string, number>();
+    const installments: InstallmentPlan["installments"] = [];
     let paid = 0;
     for (let k = 1; k <= total; k++) {
       const date = dateOf(k);
-      if (date < settledBefore) paid++;
+      // Settled because its bill closed, or because the owner says they paid it off early — the bank
+      // only knows the first, and projecting a charge that will never arrive is the worse mistake.
+      const byHand = paidByHand.has(`${key}:${k}`);
+      const settled = byHand || date < settledBefore;
+      if (settled) paid++;
       else schedule.set(monthKey(date), (schedule.get(monthKey(date)) ?? 0) + installmentAmount);
+      installments.push({ number: k, date, paid: settled, byHand, received: known.has(k) });
     }
     const remaining = total - paid;
-    if (remaining <= 0) continue;
-
-    const purchase = purchaseAnchor(list) ?? dateOf(1);
+    // A purchase paid off by hand stays listed, or there would be no way to undo it.
+    if (remaining <= 0 && !installments.some((i) => i.byHand)) continue;
     plans.push({
-      key: [reference.accountId, merchantOf(reference), total, monthKey(purchase)].join("|"),
+      key,
       label: reference.merchantName ?? reference.description.replace(/\s*(parc(ela)?\.?\s*)?\d{1,2}\s*(\/|de)\s*\d{1,2}\s*/i, " ").trim(),
       accountName: reference.accountName,
       installmentAmount,
@@ -168,6 +183,7 @@ export function buildInstallmentPlans(
       purchaseMonth: monthKey(purchase),
       endMonth: monthKey(dateOf(total)),
       schedule,
+      installments,
     });
   }
   return plans.sort((a, b) => b.remainingAmount - a.remainingAmount);
