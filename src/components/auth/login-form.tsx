@@ -63,7 +63,7 @@ export function LoginForm({
   // automatic one would greet an iPhone with an error instead of Face ID.
   const unlock = () =>
     run(async () => {
-      const optionsJSON = await post("login-options");
+      const optionsJSON = await post("unlock-options");
       await post("unlock", { response: await startAuthentication({ optionsJSON }) });
     }, unlockTo ?? "/");
 

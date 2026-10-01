@@ -85,16 +85,32 @@ export async function register(rp: RelyingParty, code: unknown, response: Regist
   return credential.id;
 }
 
-export async function authenticationOptions(rp: RelyingParty) {
-  const options = await generateAuthenticationOptions({ rpID: rp.rpID, userVerification: "required" });
+/**
+ * Options for a sign-in, or — with `passkeyId` — for proving one passkey in particular.
+ *
+ * Without `allowCredentials` the browser has to ask which passkey to use, which on a phone means a
+ * chooser sheet in front of Face ID. Unlocking already knows the answer: it is the passkey this session
+ * belongs to, and naming it is what collapses the whole thing into the biometric prompt.
+ */
+export async function authenticationOptions(rp: RelyingParty, passkeyId?: string) {
+  const passkey = passkeyId ? await prisma.passkey.findUnique({ where: { id: passkeyId } }) : null;
+  const options = await generateAuthenticationOptions({
+    rpID: rp.rpID,
+    userVerification: "required",
+    ...(passkey ? { allowCredentials: [{ id: passkey.id, transports: transportsOf(passkey.transports) }] } : {}),
+  });
   rememberChallenge(options.challenge, "login");
   return options;
 }
 
-/** Checks a sign-in and returns the passkey's id. */
-export async function authenticate(rp: RelyingParty, response: AuthenticationResponseJSON) {
+/**
+ * Checks a sign-in and returns the passkey's id. `expectedPasskeyId` pins it to one passkey: unlocking a
+ * session must re-prove the device that opened it, not merely any passkey the account happens to have.
+ */
+export async function authenticate(rp: RelyingParty, response: AuthenticationResponseJSON, expectedPasskeyId?: string) {
   const passkey = await prisma.passkey.findUnique({ where: { id: response.id } });
   if (!passkey) throw new AuthError("Esta passkey não está cadastrada (pode ter sido removida).");
+  if (expectedPasskeyId && passkey.id !== expectedPasskeyId) throw new AuthError("Use a passkey deste dispositivo para desbloquear.");
   const { verified, authenticationInfo } = await verifyAuthenticationResponse({
     response,
     expectedChallenge: takeChallenge("login"),

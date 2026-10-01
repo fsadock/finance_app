@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { SESSION_COOKIE, createSession, markVerified } from "@/lib/auth/session";
+import { SESSION_COOKIE, createSession, findSession, markVerified } from "@/lib/auth/session";
 import { deviceName } from "@/lib/auth/rules";
 import { issueCode } from "@/lib/auth/enrollment";
 import { sendToOwner, EmailError } from "@/lib/email/send";
@@ -23,12 +23,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return NextResponse.json(await authenticationOptions(rp));
       case "login":
         return signIn(await authenticate(rp, response), rp.origin);
+      case "unlock-options": {
+        // Naming the session's own passkey is what sends the phone straight to Face ID instead of a
+        // chooser: the browser no longer has to ask which credential to use.
+        const session = await findSession(request.cookies.get(SESSION_COOKIE)?.value);
+        if (!session) return NextResponse.json({ error: "Sessão não encontrada. Entre de novo." }, { status: 401 });
+        return NextResponse.json(await authenticationOptions(rp, session.passkeyId));
+      }
       case "unlock": {
         // Same ceremony as signing in, but the session is kept: only its last-checked time moves, so
         // unlocking never costs the device its place.
-        await authenticate(rp, response);
-        const ok = await markVerified(request.cookies.get(SESSION_COOKIE)?.value);
-        return ok ? NextResponse.json({ ok }) : NextResponse.json({ error: "Sessão não encontrada. Entre de novo." }, { status: 401 });
+        const token = request.cookies.get(SESSION_COOKIE)?.value;
+        const session = await findSession(token);
+        if (!session) return NextResponse.json({ error: "Sessão não encontrada. Entre de novo." }, { status: 401 });
+        await authenticate(rp, response, session.passkeyId);
+        await markVerified(token);
+        return NextResponse.json({ ok: true });
       }
       case "send-code":
         return NextResponse.json(await emailCode());
