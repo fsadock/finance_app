@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
+import { LockSetting } from "@/components/auth/lock-setting";
+import { getConfigNumber } from "@/lib/infra/config";
+import { DEFAULT_LOCK_MINUTES } from "@/lib/domain/auth-lock";
 import { getSetupStatus } from "@/lib/infra/settings";
 import { AiForm, EmailForm, PluggyForm, SourceBadge } from "@/components/setup/credential-forms";
 import { TestSettingsButton } from "@/components/setup/test-settings-button";
@@ -9,7 +12,8 @@ import { getDevices } from "@/lib/data/devices";
 import { currentSession } from "@/lib/auth/session";
 
 export default async function SettingsPage() {
-  const [status, session] = await Promise.all([getSetupStatus(), currentSession()]);
+  const [status, session, lock] = await Promise.all([getSetupStatus(), currentSession(), getConfigNumber("lockMinutes")]);
+  const lockMinutes = lock ?? DEFAULT_LOCK_MINUTES;
   const devices = await getDevices(session?.passkeyId);
   return (
     <>
@@ -68,6 +72,13 @@ export default async function SettingsPage() {
             <p className="text-xs text-fg-muted">Cada dispositivo entra com a própria passkey (Face ID, Touch ID ou PIN).</p>
           </div>
           <Devices devices={devices} />
+          <div className="border-t border-border pt-3">
+            <LockSetting minutes={lockMinutes} />
+            <p className="mt-1.5 text-xs text-fg-subtle">
+              Depois desse tempo sem uso, o app pede Face ID, Touch ID ou o PIN de novo. A sessão continua —
+              é só uma confirmação.
+            </p>
+          </div>
         </Card>
 
         <Card className="text-sm text-fg-muted space-y-2">

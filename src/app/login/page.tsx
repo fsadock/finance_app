@@ -8,8 +8,14 @@ import { getEmailSettings, maskEmail } from "@/lib/infra/settings";
 import { APP_NAME } from "@/lib/infra/app";
 import { publicOrigin } from "@/lib/auth/rules";
 
-export default async function LoginPage() {
-  if (await currentSession()) redirect("/");
+type Props = { searchParams: Promise<{ unlock?: string }> };
+
+export default async function LoginPage({ searchParams }: Props) {
+  // `unlock` is set by the proxy when a live session has been idle too long: the device proves itself
+  // again and goes back where it was, instead of signing in from scratch.
+  const back = (await searchParams).unlock;
+  const session = await currentSession();
+  if (session && !back) redirect("/");
   // A new address (another hostname, or after moving servers) starts with a code from the log, like the first run
   const [registered, email] = await Promise.all([
     hasPasskeysFor(new URL(publicOrigin(await headers())).hostname),
@@ -23,10 +29,20 @@ export default async function LoginPage() {
           <div className="flex size-12 items-center justify-center rounded-xl bg-accent text-2xl font-bold text-bg">F</div>
           <div>
             <h1 className="text-lg font-semibold">{APP_NAME}</h1>
-            <p className="text-sm text-fg-muted">{registered ? "Entre com Face ID, Touch ID ou o PIN do dispositivo." : "Crie a passkey deste dispositivo."}</p>
+            <p className="text-sm text-fg-muted">
+              {session
+                ? "Confirme que é você para continuar."
+                : registered
+                  ? "Entre com Face ID, Touch ID ou o PIN do dispositivo."
+                  : "Crie a passkey deste dispositivo."}
+            </p>
           </div>
         </div>
-        <LoginForm hasPasskeys={registered} emailTo={email.configured ? maskEmail(email.to) : null} />
+        <LoginForm
+          hasPasskeys={registered}
+          emailTo={email.configured ? maskEmail(email.to) : null}
+          unlockTo={session ? (back && back.startsWith("/") ? back : "/") : null}
+        />
       </div>
     </div>
   );

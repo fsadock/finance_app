@@ -306,6 +306,8 @@ model Session {
   passkeyId String
   passkey   Passkey  @relation(fields: [passkeyId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+  /// Última vez que a passkey foi conferida — o bloqueio por inatividade mede a partir daqui.
+  verifiedAt DateTime @default(now())
   expiresAt DateTime
 
   @@index([passkeyId])

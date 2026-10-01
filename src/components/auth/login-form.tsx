@@ -15,8 +15,20 @@ function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
 }
 
-/** Sign in with a passkey, or register this device's passkey with a one-time code. */
-export function LoginForm({ hasPasskeys, emailTo }: { hasPasskeys: boolean; emailTo: string | null }) {
+/**
+ * Sign in with a passkey, register this device's with a one-time code, or — when `unlockTo` is set —
+ * prove an existing session again after it sat idle. Unlocking keeps the session and only refreshes when
+ * it was last checked, so coming back to the app costs a prompt, not a sign-in.
+ */
+export function LoginForm({
+  hasPasskeys,
+  emailTo,
+  unlockTo,
+}: {
+  hasPasskeys: boolean;
+  emailTo: string | null;
+  unlockTo?: string | null;
+}) {
   const [registering, setRegistering] = useState(!hasPasskeys);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -35,17 +47,25 @@ export function LoginForm({ hasPasskeys, emailTo }: { hasPasskeys: boolean; emai
       .finally(() => setPending(false));
   }
 
-  async function run(ceremony: () => Promise<unknown>) {
+  async function run(ceremony: () => Promise<unknown>, to = "/") {
     setError(null);
     setPending(true);
     try {
       await ceremony();
-      window.location.assign("/");
+      window.location.assign(to);
     } catch (e) {
       setError(message(e));
       setPending(false);
     }
   }
+
+  // Fired by a tap, never on load: Safari blocks a passkey prompt that no gesture asked for, so an
+  // automatic one would greet an iPhone with an error instead of Face ID.
+  const unlock = () =>
+    run(async () => {
+      const optionsJSON = await post("login-options");
+      await post("unlock", { response: await startAuthentication({ optionsJSON }) });
+    }, unlockTo ?? "/");
 
   const signIn = () =>
     run(async () => {
@@ -62,6 +82,24 @@ export function LoginForm({ hasPasskeys, emailTo }: { hasPasskeys: boolean; emai
   };
 
   const spinner = <Loader2 className="size-4 animate-spin" />;
+
+  // Unlocking is one button and nothing else: the session is already good, and offering "create a
+  // passkey" or "email me a code" here would only invite signing in again for no reason.
+  if (unlockTo) {
+    return (
+      <div className="space-y-4">
+        <Button size="lg" onClick={unlock} disabled={pending}>
+          {pending ? spinner : <Fingerprint className="size-5" />}
+          Desbloquear
+        </Button>
+        {error && <p className="text-center text-sm text-danger">{error}</p>}
+        <p className="text-center text-xs text-fg-subtle">
+          Se o seu aparelho não mostrar o pedido, desligue o bloqueio em Configurações → Dispositivos por
+          outro dispositivo.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

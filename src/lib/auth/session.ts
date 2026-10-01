@@ -22,9 +22,20 @@ export async function createSession(passkeyId: string) {
 
 export async function findSession(token: string | undefined) {
   if (!token) return null;
-  const session = await prisma.session.findUnique({ where: { id: hash(token) }, select: { passkeyId: true, expiresAt: true } });
+  const session = await prisma.session.findUnique({
+    where: { id: hash(token) },
+    select: { passkeyId: true, expiresAt: true, verifiedAt: true },
+  });
   return session && session.expiresAt > new Date() ? session : null;
 }
+
+/** Records that the passkey was just checked again, without replacing the session. */
+export async function markVerified(token: string | undefined) {
+  if (!token) return false;
+  const { count } = await prisma.session.updateMany({ where: { id: hash(token) }, data: { verifiedAt: new Date() } });
+  return count > 0;
+}
+
 
 /** The session of the request being handled (server components and server actions). */
 export async function currentSession() {

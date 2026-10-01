@@ -6,6 +6,8 @@ import { deleteSetting, getEmailSettings, getPluggyCredentials, getSetting, save
 import { sendToOwner } from "@/lib/email/send";
 import { testPluggyCredentials } from "@/lib/pluggy/client";
 import { testAnthropicKey } from "@/lib/ai/client";
+import { lockLabel } from "@/lib/domain/auth-lock";
+import { setConfig } from "@/lib/infra/config";
 
 type Result = { ok: true; message: string } | { ok: false; error: string };
 
@@ -85,4 +87,12 @@ export async function removeEmailSettings(): Promise<Result> {
   await Promise.all([deleteSetting("recoveryEmail"), deleteSetting("resendApiKey")]);
   revalidatePath("/", "layout");
   return { ok: true, message: "Removido. O código volta a sair só no log do servidor." };
+}
+
+/** How long the app may sit idle before asking for the passkey again. 0 turns the lock off. */
+export async function saveLockMinutes(minutes: number): Promise<Result> {
+  const value = z.number().int().min(0).max(1440).parse(minutes);
+  await setConfig("lockMinutes", String(value));
+  revalidatePath("/settings");
+  return { ok: true, message: value > 0 ? `Pedirá a passkey ${lockLabel(value).toLowerCase()}.` : "Bloqueio desligado." };
 }
