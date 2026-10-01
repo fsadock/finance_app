@@ -101,10 +101,6 @@ export function LoginForm({
         >
           Entrar de outro jeito
         </button>
-        <p className="text-center text-xs text-fg-subtle">
-          Se este aparelho não mostrar o pedido, desligue o bloqueio em Configurações → Dispositivos por
-          outro dispositivo.
-        </p>
       </div>
     );
   }

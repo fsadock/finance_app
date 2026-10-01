@@ -13,6 +13,8 @@
     "db:wipe": "tsx prisma/wipe.ts",
     "db:dedupe": "tsx prisma/dedupe-accounts.ts",
     "db:studio": "prisma studio",
+    "db:pull": "./scripts/db-pull.sh",
+    "db:query": "./scripts/db-query.sh",
     "db:migrate": "prisma migrate dev",
     "test": "vitest run",
     "test:watch": "vitest",
