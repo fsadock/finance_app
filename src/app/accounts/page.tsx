@@ -12,6 +12,7 @@ import { getConfigNumber } from "@/lib/infra/config";
 import { NetWorthChart } from "@/components/dashboard/net-worth-chart";
 import { differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 const ACCOUNT_ICON = {
   CHECKING: Wallet,
@@ -131,15 +132,15 @@ export default async function AccountsPage() {
       <div className="grid grid-cols-12 gap-4 mb-6">
         <Card className="col-span-12 md:col-span-4">
           <CardHeader><CardTitle>Ativos</CardTitle></CardHeader>
-          <CardValue className="text-accent">{formatBRL(totalAssets)}</CardValue>
+          <CardValue className="text-accent"><Money>{formatBRL(totalAssets)}</Money></CardValue>
         </Card>
         <Card className="col-span-12 md:col-span-4">
           <CardHeader><CardTitle>Dívidas</CardTitle></CardHeader>
-          <CardValue className="text-danger">{formatBRL(totalDebts)}</CardValue>
+          <CardValue className="text-danger"><Money>{formatBRL(totalDebts)}</Money></CardValue>
         </Card>
         <Card className="col-span-12 md:col-span-4">
           <CardHeader><CardTitle>Líquido</CardTitle></CardHeader>
-          <CardValue>{formatBRL(totalAssets - totalDebts)}</CardValue>
+          <CardValue><Money>{formatBRL(totalAssets - totalDebts)}</Money></CardValue>
           {accounts.length !== visible.length && (
             <div className="text-xs text-fg-muted mt-3">{accounts.length - visible.length} conta(s) oculta(s) fora dos totais</div>
           )}
@@ -158,7 +159,7 @@ export default async function AccountsPage() {
                   <span>{ACCOUNT_LABEL[type as keyof typeof ACCOUNT_LABEL]}</span>
                   <span className="text-fg-subtle">· {list.length}</span>
                 </div>
-                <span className="text-sm font-medium">{formatBRL(groupTotal)}</span>
+                <span className="text-sm font-medium"><Money>{formatBRL(groupTotal)}</Money></span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {list.map((a) => {
@@ -183,7 +184,7 @@ export default async function AccountsPage() {
                           </div>
                         </div>
                         <div className={`mt-5 text-2xl font-semibold ${a.balance < 0 ? "text-danger" : ""}`}>
-                          {formatBRL(a.balance)}
+                          <Money>{formatBRL(a.balance)}</Money>
                         </div>
                       </div>
 
@@ -198,7 +199,7 @@ export default async function AccountsPage() {
                                   </div>
                                   <div className="text-fg-muted">
                                     A Pluggy ainda não enviou o valor. Em aberto no cartão:{" "}
-                                    <span className="text-fg font-medium">{formatBRL(bill.outstanding)}</span> (fechada + atual, sem
+                                    <span className="text-fg font-medium"><Money>{formatBRL(bill.outstanding)}</Money></span> (fechada + atual, sem
                                     parcelas futuras).
                                   </div>
                                 </div>
@@ -208,7 +209,7 @@ export default async function AccountsPage() {
                                 title="Soma das compras com data neste ciclo. O banco pode lançar parcelas e compras em outra fatura."
                               >
                                 <span>Fatura atual (estimada)</span>
-                                <span className="text-fg font-semibold text-sm normal-case">{formatBRL(bill.total)}</span>
+                                <span className="text-fg font-semibold text-sm normal-case"><Money>{formatBRL(bill.total)}</Money></span>
                               </div>
                               <div className="flex items-center gap-3 text-xs text-fg-muted">
                                 <span>fecha ~{formatDate(bill.end)}</span>
@@ -222,7 +223,7 @@ export default async function AccountsPage() {
                           {a.availableCreditLimit != null && (
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-fg-muted">Limite disponível</span>
-                              <span className="text-accent font-medium">{formatBRL(a.availableCreditLimit)}</span>
+                              <span className="text-accent font-medium"><Money>{formatBRL(a.availableCreditLimit)}</Money></span>
                             </div>
                           )}
 
@@ -230,7 +231,7 @@ export default async function AccountsPage() {
                             <div className="space-y-1.5">
                               <div className="flex items-center justify-between text-[10px] text-fg-muted uppercase tracking-wider font-bold">
                                 <span>Limite utilizado</span>
-                                <span>{Math.round(usedPct)}% de {formatBRL(a.creditLimit!)}</span>
+                                <span>{Math.round(usedPct)}% de <Money>{formatBRL(a.creditLimit!)}</Money></span>
                               </div>
                               <div className="h-1.5 rounded-full bg-bg-hover overflow-hidden">
                                 <div
@@ -250,7 +251,7 @@ export default async function AccountsPage() {
                               {a.creditCardBills.map((b) => (
                                 <div key={b.id} className="flex items-center justify-between text-xs text-fg-muted">
                                   <span>venc. {formatDate(b.dueDate)}</span>
-                                  <span>{formatBRL(b.totalAmount)}</span>
+                                  <span><Money>{formatBRL(b.totalAmount)}</Money></span>
                                 </div>
                               ))}
                             </div>

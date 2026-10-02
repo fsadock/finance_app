@@ -5,6 +5,7 @@ import { formatBRL, formatMonthKeyLong, formatMonthKeyShort } from "@/lib/domain
 import { committedByMonth } from "@/lib/domain/installments";
 import { Layers } from "lucide-react";
 import { InstallmentList } from "@/components/installments/installment-list";
+import { Money } from "@/components/ui/money";
 
 export default async function InstallmentsPage() {
   const plans = await getInstallmentPlans();
@@ -21,12 +22,12 @@ export default async function InstallmentsPage() {
       <div className="grid grid-cols-12 gap-4 mb-6">
         <Card className="col-span-12 md:col-span-4">
           <CardHeader><CardTitle>Total a pagar em parcelas</CardTitle></CardHeader>
-          <CardValue className="text-danger">{formatBRL(totalRemaining)}</CardValue>
+          <CardValue className="text-danger"><Money>{formatBRL(totalRemaining)}</Money></CardValue>
           <div className="text-xs text-fg-muted mt-3">{plans.length} compra(s) em andamento</div>
         </Card>
         <Card className="col-span-12 md:col-span-4">
           <CardHeader><CardTitle>Próxima fatura já comprometida</CardTitle></CardHeader>
-          <CardValue>{formatBRL(nextMonth?.total ?? 0)}</CardValue>
+          <CardValue><Money>{formatBRL(nextMonth?.total ?? 0)}</Money></CardValue>
           <div className="text-xs text-fg-muted mt-3 capitalize">{nextMonth ? formatMonthKeyLong(nextMonth.month) : "—"}</div>
         </Card>
         <Card className="col-span-12 md:col-span-4">
@@ -47,7 +48,7 @@ export default async function InstallmentsPage() {
               title={`${formatMonthKeyLong(m.month)}: ${formatBRL(m.total)}`}
             >
               <span className="w-full truncate text-center text-[10px] text-fg-muted">
-                {m.total > 0 ? formatBRL(m.total).replace(/,\d{2}$/, "") : ""}
+                {m.total > 0 ? <Money>{formatBRL(m.total).replace(/,\d{2}$/, "")}</Money> : ""}
               </span>
               <div className="w-full rounded-t bg-warn/70" style={{ height: `${(m.total / peak) * 100}%`, minHeight: m.total > 0 ? 2 : 0 }} />
               <span className="w-full truncate text-center text-[10px] text-fg-muted capitalize">{formatMonthKeyShort(m.month)}</span>

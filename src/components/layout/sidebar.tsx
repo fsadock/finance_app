@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/domain/format";
 import { NAV_GROUPS, SETTINGS_NAV, isActive } from "./nav";
 import { NavLinkPending } from "./nav-link-pending";
+import { PrivacyToggle } from "@/components/ui/privacy-toggle";
 
 export function Sidebar({ appName, lastSync, setupPending }: { appName: string; lastSync: string | null; setupPending: boolean }) {
   const pathname = usePathname();
@@ -14,10 +15,11 @@ export function Sidebar({ appName, lastSync, setupPending }: { appName: string; 
     <aside className="hidden lg:flex w-64 shrink-0 border-r border-border bg-bg-elev px-4 py-6 flex-col gap-2 sticky top-0 h-screen">
       <div className="px-3 mb-6 flex items-center gap-2">
         <div className="size-8 rounded-lg bg-accent grid place-items-center text-bg font-bold">F</div>
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="font-semibold leading-tight">{appName}</div>
           <div className="text-xs text-fg-muted">Personal</div>
         </div>
+        <PrivacyToggle className="-mr-1" />
       </div>
       {/* scrollable: fourteen links plus their headings do not fit a laptop screen */}
       <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">

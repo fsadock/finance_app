@@ -6,6 +6,7 @@ import { Check, Loader2 } from "lucide-react";
 import { setBudget } from "@/app/actions/budgets";
 import { formatBRL } from "@/lib/domain/format";
 import { errorMessage } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 /**
  * Applies the suggested limit from next month on. Budgets carry forward from the month they start in, so
@@ -40,7 +41,7 @@ export function ApplyLimitButton({ categoryId, month, suggested }: { categoryId:
         className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-border px-2.5 py-1 text-xs hover:border-accent hover:text-accent disabled:opacity-50"
       >
         {busy || isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
-        Usar {formatBRL(suggested)}
+        Usar <Money>{formatBRL(suggested)}</Money>
       </button>
       {error && <span className="text-xs text-danger">{error}</span>}
     </span>

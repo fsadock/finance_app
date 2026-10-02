@@ -8,6 +8,7 @@ import { PassThroughToggle } from "@/components/transactions/pass-through-toggle
 import { ListRow, MobileList } from "@/components/ui/list-row";
 import type { getTransactionsPage, getTransactionFilterOptions } from "@/lib/data/transactions";
 import type { getCategoryOptions } from "@/lib/data/categories";
+import { Money } from "@/components/ui/money";
 
 type Tx = Awaited<ReturnType<typeof getTransactionsPage>>["txs"][number];
 type Props = {
@@ -104,7 +105,7 @@ export function TransactionList({ txs, categories, allTags }: Props) {
               </td>
               <td className="px-6 py-3 text-fg-muted whitespace-nowrap">{t.account.name}</td>
               <td className={`px-6 py-3 text-right whitespace-nowrap ${t.amount > 0 ? "text-accent" : ""}`}>
-                {formatBRL(t.amount)}
+                <Money>{formatBRL(t.amount)}</Money>
               </td>
             </tr>
           ))}
@@ -131,7 +132,7 @@ export function TransactionList({ txs, categories, allTags }: Props) {
                 {t.notes && <span className="w-full italic">{t.notes}</span>}
               </>
             }
-            value={<span className={t.amount > 0 ? "text-accent" : ""}>{formatBRL(t.amount)}</span>}
+            value={<span className={t.amount > 0 ? "text-accent" : ""}><Money>{formatBRL(t.amount)}</Money></span>}
           />
         ))}
       </MobileList>

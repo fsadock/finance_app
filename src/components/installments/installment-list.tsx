@@ -5,6 +5,7 @@ import { ListRow, MobileList } from "@/components/ui/list-row";
 import { InstallmentDialog } from "@/components/installments/installment-dialog";
 import { formatBRL, formatMonthKeyShort } from "@/lib/domain/format";
 import type { getInstallmentPlans } from "@/lib/data/installments";
+import { Money } from "@/components/ui/money";
 
 type Plan = Awaited<ReturnType<typeof getInstallmentPlans>>[number];
 
@@ -62,9 +63,9 @@ export function InstallmentList({ plans }: { plans: Plan[] }) {
               <td className="px-6 py-3 min-w-[140px]">
                 <Progress p={p} onOpen={() => setOpen(p.key)} />
               </td>
-              <td className="px-6 py-3 text-right whitespace-nowrap">{formatBRL(p.installmentAmount)}</td>
-              <td className="px-6 py-3 text-right whitespace-nowrap text-fg-muted">{formatBRL(p.total)}</td>
-              <td className="px-6 py-3 text-right whitespace-nowrap font-medium">{formatBRL(p.remainingAmount)}</td>
+              <td className="px-6 py-3 text-right whitespace-nowrap"><Money>{formatBRL(p.installmentAmount)}</Money></td>
+              <td className="px-6 py-3 text-right whitespace-nowrap text-fg-muted"><Money>{formatBRL(p.total)}</Money></td>
+              <td className="px-6 py-3 text-right whitespace-nowrap font-medium"><Money>{formatBRL(p.remainingAmount)}</Money></td>
               <td className="px-6 py-3 text-right whitespace-nowrap capitalize text-fg-muted">{formatMonthKeyShort(p.endMonth)}</td>
             </tr>
           ))}
@@ -79,14 +80,14 @@ export function InstallmentList({ plans }: { plans: Plan[] }) {
             meta={
               <div className="w-full space-y-1.5">
                 <div>
-                  {p.accountName} · {formatBRL(p.installmentAmount)}/mês · até <span className="capitalize">{formatMonthKeyShort(p.endMonth)}</span>
+                  {p.accountName} · <Money>{formatBRL(p.installmentAmount)}</Money>/mês · até <span className="capitalize">{formatMonthKeyShort(p.endMonth)}</span>
                 </div>
                 <Progress p={p} onOpen={() => setOpen(p.key)} />
               </div>
             }
             value={
               <>
-                <div>{formatBRL(p.remainingAmount)}</div>
+                <div><Money>{formatBRL(p.remainingAmount)}</Money></div>
                 <div className="text-xs font-normal text-fg-muted">restante</div>
               </>
             }

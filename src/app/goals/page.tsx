@@ -7,6 +7,7 @@ import { Link2, Target } from "lucide-react";
 import { AddGoalButton, EditGoalButton } from "@/components/goals/goal-editor";
 import { GoalDeleteButton } from "@/components/goals/goal-delete-button";
 import { Breakdown } from "@/components/ui/breakdown";
+import { Money } from "@/components/ui/money";
 
 export default async function GoalsPage() {
   const { goals, accounts } = await getGoalsWithAccounts();
@@ -23,7 +24,12 @@ export default async function GoalsPage() {
         subtitle={
           goals.length === 0
             ? "Nenhuma meta cadastrada"
-            : `${goals.length} metas · ${formatBRLCompact(totalSaved)} de ${formatBRLCompact(totalTarget)} (${totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0}%)`
+            : (
+                <>
+                  {goals.length} metas · <Money>{formatBRLCompact(totalSaved)}</Money> de{" "}
+                  <Money>{formatBRLCompact(totalTarget)}</Money> ({totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0}%)
+                </>
+              )
         }
         actions={<AddGoalButton accounts={accounts} />}
       />
@@ -85,20 +91,20 @@ export default async function GoalsPage() {
                   total={saved}
                   parts={(g.accounts ?? []).map((a) => ({ id: a.id, label: a.name, value: a.balance, hint: a.institution, href: "/accounts" }))}
                 >
-                  <span className="text-fg-muted">{formatBRL(saved)} guardados</span>
+                  <span className="text-fg-muted"><Money>{formatBRL(saved)}</Money> guardados</span>
                 </Breakdown>
-                <span className="text-fg-muted">de {formatBRL(g.targetAmount)}</span>
+                <span className="text-fg-muted">de <Money>{formatBRL(g.targetAmount)}</Money></span>
               </div>
 
               <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 gap-4 text-xs">
                 <div>
                   <div className="text-fg-muted">Faltam</div>
-                  <div className="font-medium mt-0.5">{remaining > 0 ? formatBRL(remaining) : "Meta atingida 🎉"}</div>
+                  <div className="font-medium mt-0.5">{remaining > 0 ? <Money>{formatBRL(remaining)}</Money> : "Meta atingida 🎉"}</div>
                 </div>
                 {monthlyNeeded !== null && (
                   <div>
                     <div className="text-fg-muted">Por mês até o prazo</div>
-                    <div className="font-medium mt-0.5">{formatBRL(monthlyNeeded)}</div>
+                    <div className="font-medium mt-0.5"><Money>{formatBRL(monthlyNeeded)}</Money></div>
                   </div>
                 )}
               </div>

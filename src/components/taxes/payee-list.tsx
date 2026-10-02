@@ -1,5 +1,6 @@
 import { ListRow, MobileList } from "@/components/ui/list-row";
 import { formatBRL } from "@/lib/domain/format";
+import { Money } from "@/components/ui/money";
 
 type Payee = { name: string; doc: string | null; total: number; count: number };
 
@@ -22,7 +23,7 @@ export function PayeeList({ payees }: { payees: Payee[] }) {
               <td className="px-6 py-2">{p.name}</td>
               <td className="px-6 py-2 text-fg-muted text-xs">{p.doc ?? "— informe no recibo"}</td>
               <td className="px-6 py-2 text-right text-fg-muted">{p.count}</td>
-              <td className="px-6 py-2 text-right">{formatBRL(p.total)}</td>
+              <td className="px-6 py-2 text-right"><Money>{formatBRL(p.total)}</Money></td>
             </tr>
           ))}
         </tbody>

@@ -6,6 +6,7 @@ import { setCCMonthlyLimit, setCCCycleCloseDay } from "@/app/actions/accounts";
 import { formatBRL } from "@/lib/domain/format";
 import { parseBRLInput } from "@/lib/domain/brazil";
 import { errorMessage } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 export function CCLimitEditor({
   current,
@@ -118,16 +119,16 @@ export function CCLimitEditor({
           <span>Cartão:</span>
         </div>
         <span className={isOverBudget ? "text-danger font-medium" : "text-fg"}>
-          {formatBRL(currentSpend)} gastos
+          <Money>{formatBRL(currentSpend)}</Money> gastos
         </span>
         <span className="text-fg-muted">·</span>
         <span className={isOverBudget ? "text-danger" : "text-accent"}>
-          {formatBRL(remaining)} restam
+          <Money>{formatBRL(remaining)}</Money> restam
         </span>
         {dailyAllowance > 0 && (
           <>
             <span className="text-fg-muted">·</span>
-            <span className="text-accent">{formatBRL(dailyAllowance)}/dia</span>
+            <span className="text-accent"><Money>{formatBRL(dailyAllowance)}</Money>/dia</span>
           </>
         )}
       </div>

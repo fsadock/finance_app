@@ -6,6 +6,7 @@ import { applyRebalance } from "@/app/actions/budgets";
 import { formatBRL } from "@/lib/domain/format";
 import { Card } from "@/components/ui/card";
 import type { RebalanceSuggestion as Suggestion } from "@/lib/domain/budgets";
+import { Money } from "@/components/ui/money";
 
 
 export function RebalanceSuggestions({
@@ -60,7 +61,7 @@ export function RebalanceSuggestions({
                     <ArrowRight className="size-3" />
                     <span className="text-fg">{s.toName}</span>
                   </div>
-                  <div className="font-medium text-accent">{formatBRL(s.amount)}</div>
+                  <div className="font-medium text-accent"><Money>{formatBRL(s.amount)}</Money></div>
                 </div>
               ))}
             </div>

@@ -6,6 +6,7 @@ import { setBudget, deleteBudget, toggleRollover } from "@/app/actions/budgets";
 import { formatBRL } from "@/lib/domain/format";
 import { parseBRLInput } from "@/lib/domain/brazil";
 import { cn, errorMessage } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 export function BudgetEditor({
   categoryId,
@@ -92,7 +93,7 @@ export function BudgetEditor({
           className="inline-flex items-center gap-1.5 text-sm text-fg-muted hover:text-fg group"
         >
           {current > 0 ? (
-            <span title="Vale a partir deste mês até ser alterado">de {formatBRL(current)}</span>
+            <span title="Vale a partir deste mês até ser alterado">de <Money>{formatBRL(current)}</Money></span>
           ) : (
             <span className="italic">Definir orçamento</span>
           )}

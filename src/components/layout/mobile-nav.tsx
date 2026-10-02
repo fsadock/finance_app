@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/domain/format";
 import { MOBILE_TABS, NAV, NAV_GROUPS, SETTINGS_NAV, isActive } from "./nav";
 import { NavLinkPending } from "./nav-link-pending";
+import { PrivacyToggle } from "@/components/ui/privacy-toggle";
 
 /** Phone navigation (below lg): top bar, bottom tab bar and a "Mais" sheet with the other pages. */
 export function MobileNav({ appName, lastSync, setupPending }: { appName: string; lastSync: string | null; setupPending: boolean }) {
@@ -32,9 +33,12 @@ export function MobileNav({ appName, lastSync, setupPending }: { appName: string
             <div className="size-7 rounded-lg bg-accent grid place-items-center text-bg text-sm font-bold">F</div>
             <span className="font-semibold">{appName}</span>
           </Link>
-          <span className="text-[11px] text-fg-subtle">
-            {lastSync ? `Sincronizado ${formatDateTime(lastSync)}` : "Nenhuma sincronização ainda"}
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-fg-subtle">
+              {lastSync ? `Sincronizado ${formatDateTime(lastSync)}` : "Nenhuma sincronização ainda"}
+            </span>
+            <PrivacyToggle className="-mr-2 p-1.5" />
+          </div>
         </div>
       </header>
 

@@ -14,6 +14,7 @@ import { RebalanceSuggestions } from "@/components/categories/rebalance-suggesti
 import { Breakdown } from "@/components/ui/breakdown";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { Money } from "@/components/ui/money";
 
 /**
  * The band holding every category outside the named ones, so the stack adds up. Not "Outros": that is a
@@ -140,14 +141,14 @@ export default async function CategoriesPage({ searchParams }: Props) {
                       title={`Rollover dos meses anteriores: ${formatBRL(rolloverAmount)}`}
                     >
                       {rolloverAmount > 0 ? "+" : ""}
-                      {formatBRL(rolloverAmount)}
+                      <Money>{formatBRL(rolloverAmount)}</Money>
                     </span>
                   )}
                 </div>
                 <span className="text-xs text-fg-muted">{cat.group}</span>
               </div>
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-2xl font-semibold">{formatBRL(spent)}</span>
+                <span className="text-2xl font-semibold"><Money>{formatBRL(spent)}</Money></span>
                 <BudgetEditor
                   categoryId={cat.id}
                   startMonth={period.key}
@@ -168,7 +169,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
                   </div>
                   <div className="mt-2 text-[10px] text-fg-muted flex justify-between">
                     <span>{Math.round(pct)}% do orçamento{cat.rolloverEnabled ? " efetivo" : ""}</span>
-                    {Math.abs(effective - budget) >= 0.01 && <span>Efetivo: {formatBRL(effective)}</span>}
+                    {Math.abs(effective - budget) >= 0.01 && <span>Efetivo: <Money>{formatBRL(effective)}</Money></span>}
                   </div>
                 </>
               )}

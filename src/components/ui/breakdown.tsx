@@ -6,6 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { formatBRL } from "@/lib/domain/format";
 import { cn } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 /**
  * Makes a number answer "where does this come from?".
@@ -56,7 +57,7 @@ export function Breakdown({
                     {p.hint && <div className="truncate text-xs text-fg-muted">{p.hint}</div>}
                   </div>
                   <span className={cn("shrink-0 text-sm tabular-nums", p.value < 0 && "text-danger")}>
-                    {formatBRL(p.value)}
+                    <Money>{formatBRL(p.value)}</Money>
                   </span>
                   {p.href && <ArrowRight className="size-3.5 shrink-0 text-fg-subtle" />}
                 </>
@@ -76,11 +77,11 @@ export function Breakdown({
           </ul>
           <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-sm font-medium">
             <span>{parts.length} {parts.length === 1 ? "item" : "itens"}</span>
-            <span className="tabular-nums">{formatBRL(sum)}</span>
+            <span className="tabular-nums"><Money>{formatBRL(sum)}</Money></span>
           </div>
           {missing !== 0 && (
             <p className="mt-2 text-xs text-warn">
-              Faltam {formatBRL(missing)} para os {formatBRL(total)} mostrados na tela — o detalhamento não
+              Faltam <Money>{formatBRL(missing)}</Money> para os <Money>{formatBRL(total)}</Money> mostrados na tela — o detalhamento não
               cobre tudo que entra nesse total.
             </p>
           )}

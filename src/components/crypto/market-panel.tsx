@@ -7,6 +7,7 @@ import { formatBRL, formatBRLCompact, formatUSD } from "@/lib/domain/format";
 import { cn } from "@/lib/utils";
 import { readJson } from "@/lib/client/api";
 import type { Candle, ChartSymbol, DollarRate, Quote } from "@/lib/market/prices";
+import { Money } from "@/components/ui/money";
 
 type Market = { quotes: Quote[]; dollar: DollarRate | null };
 
@@ -113,7 +114,7 @@ export function MarketPanel({ initial, assets }: { initial: Market; assets: Mark
                 {change !== undefined && change !== null && <Change value={change} />}
               </div>
               <div className="mt-2 text-xl font-semibold tabular-nums">{brl ? formatBRL(brl) : "—"}</div>
-              {a.key !== "USDBRL" && q && <div className="text-xs text-fg-muted tabular-nums">{formatUSD(q.usd)}</div>}
+              {a.key !== "USDBRL" && q && <div className="text-xs text-fg-muted tabular-nums"><Money>{formatUSD(q.usd)}</Money></div>}
               {a.key === "USDBRL" && <div className="text-xs text-fg-muted">comercial · venda</div>}
             </button>
           );

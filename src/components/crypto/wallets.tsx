@@ -9,6 +9,7 @@ import { formatBRL, formatCryptoAmount, formatDateTime, formatUSD } from "@/lib/
 import { PurchasesDialog, type PurchaseRow } from "@/components/crypto/purchases-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 type WalletView = {
   id: string;
@@ -57,8 +58,8 @@ export function CryptoWallets({ wallets, purchases }: { wallets: WalletView[]; p
               </p>
             </div>
             <div className="text-right">
-              <div className="text-lg font-semibold tabular-nums">{formatBRL(w.brl)}</div>
-              <div className="text-xs text-fg-muted tabular-nums">{formatUSD(w.usd)}</div>
+              <div className="text-lg font-semibold tabular-nums"><Money>{formatBRL(w.brl)}</Money></div>
+              <div className="text-xs text-fg-muted tabular-nums"><Money>{formatUSD(w.usd)}</Money></div>
             </div>
           </div>
 
@@ -75,12 +76,12 @@ export function CryptoWallets({ wallets, purchases }: { wallets: WalletView[]; p
                       <span className="tabular-nums">{value !== null ? formatBRL(value) : "—"}</span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-xs text-fg-muted tabular-nums">{formatCryptoAmount(h.quantity)}</span>
+                      <span className="text-xs text-fg-muted tabular-nums"><Money>{formatCryptoAmount(h.quantity)}</Money></span>
                       <span className="flex items-center gap-2">
                         {pnl !== null && (
                           <span className={cn("text-xs tabular-nums", pnl >= 0 ? "text-accent" : "text-danger")}>
                             {pnl >= 0 ? "+" : ""}
-                            {formatBRL(pnl)}
+                            <Money>{formatBRL(pnl)}</Money>
                           </span>
                         )}
                         <button

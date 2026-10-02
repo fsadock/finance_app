@@ -6,6 +6,7 @@ import { IRPF_EDUCATION_CAP, IRPF_PENSION_CAP_RATE, IRPF_TYPES, groupDeductions,
 import { Info } from "lucide-react";
 import Link from "next/link";
 import { PayeeList } from "@/components/taxes/payee-list";
+import { Money } from "@/components/ui/money";
 
 type Props = { searchParams: Promise<{ year?: string }> };
 
@@ -58,26 +59,26 @@ export default async function TaxesPage({ searchParams }: Props) {
       <div className="grid grid-cols-12 gap-4 mb-6">
         <Card className="col-span-12 md:col-span-3">
           <CardHeader><CardTitle>Entradas no ano</CardTitle></CardHeader>
-          <CardValue className="text-accent">{formatBRL(totalIncome)}</CardValue>
+          <CardValue className="text-accent"><Money>{formatBRL(totalIncome)}</Money></CardValue>
           <div className="text-xs text-fg-muted mt-3">inclui não tributáveis (reembolsos, rendimentos isentos)</div>
         </Card>
         <Card className="col-span-12 md:col-span-3">
           <CardHeader><CardTitle>{IRPF_TYPES.MEDICAL.label}</CardTitle></CardHeader>
-          <CardValue>{formatBRL(medical)}</CardValue>
+          <CardValue><Money>{formatBRL(medical)}</Money></CardValue>
           <div className="text-xs text-fg-muted mt-3">sem limite de dedução</div>
         </Card>
         <Card className="col-span-12 md:col-span-3">
           <CardHeader><CardTitle>{IRPF_TYPES.EDUCATION.label}</CardTitle></CardHeader>
-          <CardValue>{formatBRL(education)}</CardValue>
+          <CardValue><Money>{formatBRL(education)}</Money></CardValue>
           <div className={`text-xs mt-3 ${education > IRPF_EDUCATION_CAP ? "text-warn" : "text-fg-muted"}`}>
-            limite de referência {formatBRL(IRPF_EDUCATION_CAP)} por pessoa
+            limite de referência <Money>{formatBRL(IRPF_EDUCATION_CAP)}</Money> por pessoa
           </div>
         </Card>
         <Card className="col-span-12 md:col-span-3">
           <CardHeader><CardTitle>{IRPF_TYPES.PENSION.label}</CardTitle></CardHeader>
-          <CardValue>{formatBRL(pension)}</CardValue>
+          <CardValue><Money>{formatBRL(pension)}</Money></CardValue>
           <div className={`text-xs mt-3 ${pension > pensionCap ? "text-warn" : "text-fg-muted"}`}>
-            até 12% da renda tributável (≈ {formatBRL(pensionCap)} sobre as entradas)
+            até 12% da renda tributável (≈ <Money>{formatBRL(pensionCap)}</Money> sobre as entradas)
           </div>
         </Card>
       </div>
@@ -104,7 +105,7 @@ export default async function TaxesPage({ searchParams }: Props) {
             {[...incomeByCategory.entries()].sort((a, b) => b[1] - a[1]).map(([name, v]) => (
               <li key={name} className="flex justify-between">
                 <span>{name}</span>
-                <span className="text-fg-muted">{formatBRL(v)}</span>
+                <span className="text-fg-muted"><Money>{formatBRL(v)}</Money></span>
               </li>
             ))}
             {incomeByCategory.size === 0 && <li className="text-fg-muted">Sem entradas registradas em {year}.</li>}
@@ -120,7 +121,7 @@ export default async function TaxesPage({ searchParams }: Props) {
           return (
             <Card key={type} className="p-0 overflow-x-auto">
               <div className="px-6 pt-5 pb-3">
-                <div className="font-medium">{IRPF_TYPES[type].label} · {formatBRL(g.total)}</div>
+                <div className="font-medium">{IRPF_TYPES[type].label} · <Money>{formatBRL(g.total)}</Money></div>
                 <p className="text-xs text-fg-muted mt-1">{IRPF_TYPES[type].hint}</p>
               </div>
               <PayeeList payees={payees} />

@@ -14,6 +14,7 @@ import {
   type TxFilterParams,
 } from "@/lib/data/transaction-filters";
 import Link from "next/link";
+import { Money } from "@/components/ui/money";
 
 const PAGE_SIZE = 50;
 
@@ -43,7 +44,12 @@ export default async function TransactionsPage({ searchParams }: Props) {
     <>
       <PageHeader
         title="Transações"
-        subtitle={`${count} resultado(s) · saídas ${formatBRL(Math.abs(outflow._sum.amount ?? 0))} · entradas ${formatBRL(inflow._sum.amount ?? 0)}`}
+        subtitle={
+          <>
+            {count} resultado(s) · saídas <Money>{formatBRL(Math.abs(outflow._sum.amount ?? 0))}</Money> · entradas{" "}
+            <Money>{formatBRL(inflow._sum.amount ?? 0)}</Money>
+          </>
+        }
         actions={
           <>
             <a

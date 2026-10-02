@@ -32,7 +32,21 @@ export default async function RootLayout({
   // Every page shows live personal data: never prerender at build time
   await connection();
   const html = (body: React.ReactNode) => (
-    <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    // O script abaixo põe `data-private` aqui antes da hidratação; sem isto o React reclama de um
+    // atributo que ele não renderizou — e o descarta, desligando o modo privado no carregamento.
+    <html
+      lang="pt-BR"
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <head>
+        {/* Antes da primeira pintura: aplicado depois, os valores piscariam visíveis a cada carregamento. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('financas_private')==='1')document.documentElement.setAttribute('data-private','')}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="min-h-full bg-bg text-fg font-sans">{body}</body>
     </html>
   );

@@ -10,6 +10,7 @@ import { formatBRL, formatCryptoAmount, formatDateNumeric } from "@/lib/domain/f
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 export type PurchaseRow = { id: string; date: Date; quantity: number; totalBrl: number };
 
@@ -56,9 +57,9 @@ export function PurchasesDialog({ symbol, purchases, onClose }: { symbol: string
               {purchases.map((p) => (
                 <li key={p.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                   <span className="text-fg-muted">{formatDateNumeric(p.date)}</span>
-                  <span className="tabular-nums">{formatCryptoAmount(p.quantity)}</span>
-                  <span className="tabular-nums">{formatBRL(p.totalBrl)}</span>
-                  <span className="text-xs text-fg-subtle tabular-nums">{formatBRL(p.totalBrl / p.quantity)}/un</span>
+                  <span className="tabular-nums"><Money>{formatCryptoAmount(p.quantity)}</Money></span>
+                  <span className="tabular-nums"><Money>{formatBRL(p.totalBrl)}</Money></span>
+                  <span className="text-xs text-fg-subtle tabular-nums"><Money>{formatBRL(p.totalBrl / p.quantity)}</Money>/un</span>
                   <button
                     onClick={() =>
                       startTransition(async () => {
@@ -77,9 +78,9 @@ export function PurchasesDialog({ symbol, purchases, onClose }: { symbol: string
             </ul>
             <div className="flex items-center justify-between rounded-xl bg-bg-elev px-3 py-2 text-sm">
               <span className="text-fg-muted">
-                {formatCryptoAmount(cost.quantity)} {symbol} · {formatBRL(cost.total)} investidos
+                <Money>{formatCryptoAmount(cost.quantity)}</Money> {symbol} · <Money>{formatBRL(cost.total)}</Money> investidos
               </span>
-              <span className="font-medium tabular-nums">custo médio {formatBRL(cost.perUnit)}</span>
+              <span className="font-medium tabular-nums">custo médio <Money>{formatBRL(cost.perUnit)}</Money></span>
             </div>
           </>
         )}

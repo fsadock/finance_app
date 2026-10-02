@@ -7,6 +7,7 @@ import { CADENCE_LABEL, type Cadence } from "@/lib/domain/recurrence";
 import { AutoChangeBadge, RecurringActions } from "@/components/recurrings/recurring-actions";
 import type { CategoryOption } from "@/components/recurrings/recurring-editor";
 import { cn } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 type Item = Awaited<ReturnType<typeof getActiveRecurrings>>[number];
 
@@ -38,7 +39,7 @@ export function RecurringSection({
           <Icon className="size-4" /> {title} · {items.length}
         </CardTitle>
         <span className="text-sm text-fg-muted">
-          {formatBRL(sum(items, (r) => r.monthly))}/mês · <span className="text-fg">{formatBRL(sum(items, (r) => r.yearly))}/ano</span>
+          <Money>{formatBRL(sum(items, (r) => r.monthly))}</Money>/mês · <span className="text-fg"><Money>{formatBRL(sum(items, (r) => r.yearly))}</Money>/ano</span>
         </span>
       </div>
       {hint && <p className="px-4 -mt-1 pb-3 text-xs text-fg-muted sm:px-6">{hint}</p>}
@@ -70,13 +71,13 @@ export function RecurringSection({
                     {r.category && ` · ${r.category.name}`}
                   </div>
                 </td>
-                <td className={cn("px-6 py-2.5 text-right whitespace-nowrap", r.amount > 0 && "text-accent")}>{formatBRL(r.amount)}</td>
-                <td className="px-6 py-2.5 text-right whitespace-nowrap font-medium">{formatBRL(r.yearly)}</td>
+                <td className={cn("px-6 py-2.5 text-right whitespace-nowrap", r.amount > 0 && "text-accent")}><Money>{formatBRL(r.amount)}</Money></td>
+                <td className="px-6 py-2.5 text-right whitespace-nowrap font-medium"><Money>{formatBRL(r.yearly)}</Money></td>
                 <td
                   className="px-6 py-2.5 text-right whitespace-nowrap text-fg-muted"
                   title={chargesTooltip(r.chargesLast12m)}
                 >
-                  {formatBRL(r.paidLast12m)}
+                  <Money>{formatBRL(r.paidLast12m)}</Money>
                   <div className="text-[11px]">
                     {r.chargesLast12m.length} {r.chargesLast12m.length === 1 ? "cobrança" : "cobranças"}
                   </div>
@@ -110,8 +111,8 @@ export function RecurringSection({
               }
               value={
                 <>
-                  <div className={cn(r.amount > 0 && "text-accent")}>{formatBRL(r.yearly)}/ano</div>
-                  <div className="text-xs font-normal text-fg-muted">{formatBRL(r.amount)}</div>
+                  <div className={cn(r.amount > 0 && "text-accent")}><Money>{formatBRL(r.yearly)}</Money>/ano</div>
+                  <div className="text-xs font-normal text-fg-muted"><Money>{formatBRL(r.amount)}</Money></div>
                 </>
               }
             />

@@ -21,7 +21,7 @@ export function ListRow({
         <div className="flex min-w-0 items-center gap-2 text-sm">{title}</div>
         {meta && <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-muted">{meta}</div>}
       </div>
-      {value !== undefined && <div className="shrink-0 text-right text-sm font-medium tabular-nums">{value}</div>}
+      {value !== undefined && <div data-money className="shrink-0 text-right text-sm font-medium tabular-nums">{value}</div>}
     </li>
   );
 }

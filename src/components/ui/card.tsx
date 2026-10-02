@@ -21,6 +21,7 @@ export function CardTitle({ className, ...props }: ComponentProps<"h3">) {
   return <h3 className={cn("text-sm font-medium text-fg-muted", className)} {...props} />;
 }
 
+/** O número grande do card. Marcado como valor: é o que o modo privado esconde. */
 export function CardValue({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cn("text-2xl font-semibold tracking-tight sm:text-3xl", className)} {...props} />;
+  return <div data-money className={cn("text-2xl font-semibold tracking-tight sm:text-3xl", className)} {...props} />;
 }

@@ -6,6 +6,7 @@ import { getActiveRecurrings, getPausedRecurrings } from "@/lib/data/recurrings"
 import { getCategoryOptions } from "@/lib/data/categories";
 import { RecurringActions } from "@/components/recurrings/recurring-actions";
 import { RecurringSection, sum } from "@/components/recurrings/recurring-section";
+import { Money } from "@/components/ui/money";
 
 /** Categories treated as subscriptions (discretionary — the first place to look when cutting). */
 const SUBSCRIPTION_CATEGORIES = new Set(["Streaming", "Assinaturas", "Academia", "Tecnologia & Software", "Educação", "Lazer", "Cuidados pessoais"]);
@@ -31,18 +32,18 @@ export default async function RecurringsPage() {
       <div className="grid grid-cols-12 gap-4 mb-6">
         <Card className="col-span-12 md:col-span-4">
           <CardHeader><CardTitle>Assinaturas</CardTitle></CardHeader>
-          <CardValue className="text-danger">{formatBRL(sum(subscriptions, (r) => r.yearly))}<span className="text-base text-fg-muted">/ano</span></CardValue>
-          <div className="text-xs text-fg-muted mt-3">{formatBRL(sum(subscriptions, (r) => r.monthly))}/mês · {subscriptions.length} ativas — onde cortar primeiro</div>
+          <CardValue className="text-danger"><Money>{formatBRL(sum(subscriptions, (r) => r.yearly))}</Money><span className="text-base text-fg-muted">/ano</span></CardValue>
+          <div className="text-xs text-fg-muted mt-3"><Money>{formatBRL(sum(subscriptions, (r) => r.monthly))}</Money>/mês · {subscriptions.length} ativas — onde cortar primeiro</div>
         </Card>
         <Card className="col-span-12 md:col-span-4">
           <CardHeader><CardTitle>Contas fixas</CardTitle></CardHeader>
-          <CardValue>{formatBRL(sum(bills, (r) => r.yearly))}<span className="text-base text-fg-muted">/ano</span></CardValue>
-          <div className="text-xs text-fg-muted mt-3">{formatBRL(sum(bills, (r) => r.monthly))}/mês · telefone, internet e similares</div>
+          <CardValue><Money>{formatBRL(sum(bills, (r) => r.yearly))}</Money><span className="text-base text-fg-muted">/ano</span></CardValue>
+          <div className="text-xs text-fg-muted mt-3"><Money>{formatBRL(sum(bills, (r) => r.monthly))}</Money>/mês · telefone, internet e similares</div>
         </Card>
         <Card className="col-span-12 md:col-span-4">
           <CardHeader><CardTitle>Moradia</CardTitle></CardHeader>
-          <CardValue>{formatBRL(sum(housing, (r) => r.yearly))}<span className="text-base text-fg-muted">/ano</span></CardValue>
-          <div className="text-xs text-fg-muted mt-3">{formatBRL(sum(housing, (r) => r.monthly))}/mês · aluguel, condomínio e energia</div>
+          <CardValue><Money>{formatBRL(sum(housing, (r) => r.yearly))}</Money><span className="text-base text-fg-muted">/ano</span></CardValue>
+          <div className="text-xs text-fg-muted mt-3"><Money>{formatBRL(sum(housing, (r) => r.monthly))}</Money>/mês · aluguel, condomínio e energia</div>
         </Card>
       </div>
 
@@ -69,7 +70,7 @@ export default async function RecurringsPage() {
                     {r.lastDate && <span className="text-xs"> · última cobrança {formatDate(r.lastDate)}</span>}
                   </span>
                   <span className="flex items-center gap-2">
-                    {formatBRL(r.amount)}
+                    <Money>{formatBRL(r.amount)}</Money>
                     <RecurringActions recurring={r} active={false} categories={categories} />
                   </span>
                 </li>

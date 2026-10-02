@@ -8,6 +8,7 @@ import { MobileList, ListRow } from "@/components/ui/list-row";
 import { CalendarClock } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 export default async function NextMonthPage() {
   const { month, outlook, installments, duePlans, recurrings, limits } = await getNextMonthPlan();
@@ -31,16 +32,16 @@ export default async function NextMonthPage() {
               ...recurrings.map((r) => ({ id: r.id, label: r.name, value: Math.abs(r.amount), hint: `dia ${formatDayMonth(r.upcoming)}`, href: "/recurrings" })),
             ]}
           >
-            <CardValue className="text-danger">{formatBRL(outlook.total)}</CardValue>
+            <CardValue className="text-danger"><Money>{formatBRL(outlook.total)}</Money></CardValue>
           </Breakdown>
           <div className="text-xs text-fg-muted mt-3">
-            {formatBRL(installments)} em parcelas · {formatBRL(outlook.total - installments)} em recorrentes
+            <Money>{formatBRL(installments)}</Money> em parcelas · <Money>{formatBRL(outlook.total - installments)}</Money> em recorrentes
           </div>
         </Card>
         <Card className="col-span-12 md:col-span-4">
           <CardHeader><CardTitle>Sobra de um mês típico</CardTitle></CardHeader>
-          <CardValue className={outlook.left >= 0 ? undefined : "text-danger"}>{formatBRL(outlook.left)}</CardValue>
-          <div className="text-xs text-fg-muted mt-3">
+          <CardValue className={outlook.left >= 0 ? undefined : "text-danger"}><Money>{formatBRL(outlook.left)}</Money></CardValue>
+          <div data-money className="text-xs text-fg-muted mt-3">
             {outlook.typicalIncome > 0
               ? `entra ${formatBRL(outlook.typicalIncome)} num mês mediano`
               : "sem histórico de receita suficiente"}
@@ -69,9 +70,9 @@ export default async function NextMonthPage() {
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium">{l.category.name}</div>
                   <div className="text-xs text-fg-muted">
-                    limite {formatBRL(l.limit)} · costuma gastar{" "}
+                    limite <Money>{formatBRL(l.limit)}</Money> · costuma gastar{" "}
                     <span className={cn("tabular-nums", l.verdict === "low" ? "text-danger" : "text-fg-muted")}>
-                      {formatBRL(l.typical)}
+                      <Money>{formatBRL(l.typical)}</Money>
                     </span>{" "}
                     {l.verdict === "low" ? "— o limite é que está errado" : "— o limite nunca freia nada"}
                   </div>

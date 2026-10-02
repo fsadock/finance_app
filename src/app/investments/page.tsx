@@ -11,6 +11,7 @@ import { parseBRLInput } from "@/lib/domain/brazil";
 import Link from "next/link";
 import { getCryptoSummary } from "@/lib/data/crypto";
 import { formatUSD } from "@/lib/domain/format";
+import { Money } from "@/components/ui/money";
 
 /** Used only when the BCB API is unreachable. */
 const FALLBACK = { cdi: 0.1, ipca: 0.045 };
@@ -120,9 +121,9 @@ export default async function InvestmentsPage({ searchParams }: Props) {
           <CardHeader>
             <CardTitle>Total investido</CardTitle>
           </CardHeader>
-          <CardValue>{formatBRL(total)}</CardValue>
+          <CardValue><Money>{formatBRL(total)}</Money></CardValue>
           <div className="text-xs text-fg-muted mt-3">
-            Custo: {formatBRLCompact(totalCost)}
+            Custo: <Money>{formatBRLCompact(totalCost)}</Money>
             {stale && ` · posição mais antiga: ${formatDayMonth(stale)}`}
           </div>
         </Card>
@@ -130,13 +131,13 @@ export default async function InvestmentsPage({ searchParams }: Props) {
           <CardHeader>
             <CardTitle>Lucro/Prejuízo</CardTitle>
           </CardHeader>
-          <CardValue className={pnl >= 0 ? "text-accent" : "text-danger"}>{formatBRL(pnl)}</CardValue>
+          <CardValue className={pnl >= 0 ? "text-accent" : "text-danger"}><Money>{formatBRL(pnl)}</Money></CardValue>
           <div className={`text-xs mt-3 ${pnl >= 0 ? "text-accent" : "text-danger"}`}>
             {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
           </div>
           {withheld > 0 && (
             <div className="text-xs text-fg-subtle mt-1">
-              Já descontados {formatBRL(withheld)} de IR e IOF — o app do banco mostra o valor antes disso
+              Já descontados <Money>{formatBRL(withheld)}</Money> de IR e IOF — o app do banco mostra o valor antes disso
             </div>
           )}
         </Card>
@@ -184,7 +185,7 @@ export default async function InvestmentsPage({ searchParams }: Props) {
                   {a.name}
                 </span>
                 <span className="text-fg-muted">
-                  {formatBRLCompact(a.value)} · {total > 0 ? Math.round((a.value / total) * 100) : 0}%
+                  <Money>{formatBRLCompact(a.value)}</Money> · {total > 0 ? Math.round((a.value / total) * 100) : 0}%
                 </span>
               </li>
             ))}
@@ -207,8 +208,8 @@ export default async function InvestmentsPage({ searchParams }: Props) {
           </CardHeader>
           <ProjectionChart data={projection} labels={labels} />
           <p className="text-xs text-fg-muted mt-3">
-            Em 10 anos no cenário CDI líquido: {formatBRLCompact(projection[120]!.conservative)} nominais ≈{" "}
-            {formatBRLCompact(tenYearReal)} em poder de compra de hoje (IPCA {pct(ipca)}).
+            Em 10 anos no cenário CDI líquido: <Money>{formatBRLCompact(projection[120]!.conservative)}</Money> nominais ≈{" "}
+            <Money>{formatBRLCompact(tenYearReal)}</Money> em poder de compra de hoje (IPCA {pct(ipca)}).
             {!rates.cdi && " Taxas do BCB indisponíveis — usando valores de referência."}
           </p>
         </Card>
@@ -226,8 +227,8 @@ export default async function InvestmentsPage({ searchParams }: Props) {
             </div>
           </div>
           <div className="text-right">
-            <div className="font-semibold tabular-nums">{formatBRL(crypto.total.brl)}</div>
-            <div className="text-xs text-fg-muted tabular-nums">{formatUSD(crypto.total.usd)}</div>
+            <div className="font-semibold tabular-nums"><Money>{formatBRL(crypto.total.brl)}</Money></div>
+            <div className="text-xs text-fg-muted tabular-nums"><Money>{formatUSD(crypto.total.usd)}</Money></div>
           </div>
         </Link>
       )}

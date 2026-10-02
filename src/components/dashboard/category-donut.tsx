@@ -3,6 +3,7 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { formatBRL } from "@/lib/domain/format";
 import { CHART_TOOLTIP_PROPS } from "@/components/ui/chart-theme";
+import { Money } from "@/components/ui/money";
 
 type Slice = { name: string; value: number; color: string };
 
@@ -33,7 +34,7 @@ export function CategoryDonut({ data }: { data: Slice[] }) {
       <div className="absolute inset-0 grid place-items-center pointer-events-none">
         <div className="text-center">
           <div className="text-xs text-fg-muted">Total</div>
-          <div className="font-semibold">{formatBRL(total)}</div>
+          <div className="font-semibold"><Money>{formatBRL(total)}</Money></div>
         </div>
       </div>
     </div>

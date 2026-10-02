@@ -55,3 +55,17 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #2d333d;
 }
+
+/*
+ * Modo privado: o olhinho que os apps de banco têm.
+ *
+ * Borra os valores em vez de escondê-los, porque sumir com o texto reorganiza a página inteira —
+ * e a ideia é poder abrir o app no ônibus sem que a pessoa ao lado leia o saldo, não navegar às cegas.
+ * O raio em `em` faz a borra acompanhar o tamanho da fonte: número grande borra mais que número pequeno.
+ */
+html[data-private] [data-money],
+html[data-private] .tabular-nums {
+  filter: blur(0.45em);
+  /* sem isto dá para arrastar o cursor e ler o valor selecionado */
+  user-select: none;
+}

@@ -24,6 +24,7 @@ import { countAccounts } from "@/lib/data/accounts";
 import { getCategoryOptions } from "@/lib/data/categories";
 import { getPluggyCredentials } from "@/lib/infra/settings";
 import { redirect } from "next/navigation";
+import { Money } from "@/components/ui/money";
 
 type Props = { searchParams: Promise<{ month?: string }> };
 
@@ -102,9 +103,9 @@ export default async function DashboardPage({ searchParams }: Props) {
               })),
             ]}
           >
-            <CardValue className="text-xl text-accent">{formatBRL(freeToSpend)}</CardValue>
+            <CardValue className="text-xl text-accent"><Money>{formatBRL(freeToSpend)}</Money></CardValue>
           </Breakdown>
-          <div className="mt-3 text-xs text-fg-muted">
+          <div data-money className="mt-3 text-xs text-fg-muted">
             {totalBudget > 0
               ? `Orçamento − gastos − ${formatBRLCompact(upcomingTotal)} em contas a vencer`
               : "Defina orçamentos em Categorias"}
@@ -129,7 +130,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                 href: `/transactions?cat=${id ?? "none"}&${monthRangeQuery(period.key)}`,
               }))}
           >
-            <CardValue className="text-xl">{formatBRL(monthSpend.spent)}</CardValue>
+            <CardValue className="text-xl"><Money>{formatBRL(monthSpend.spent)}</Money></CardValue>
           </Breakdown>
           <div className="mt-4 h-2 rounded-full bg-bg-hover overflow-hidden">
             <div
@@ -158,11 +159,11 @@ export default async function DashboardPage({ searchParams }: Props) {
               href: "/transactions",
             }))}
           >
-            <CardValue className="text-xl">{formatBRL(monthSpend.income)}</CardValue>
+            <CardValue className="text-xl"><Money>{formatBRL(monthSpend.income)}</Money></CardValue>
           </Breakdown>
           <div className="mt-3 text-xs">
             <span className={monthSpend.income - monthSpend.spent >= 0 ? "text-accent" : "text-danger"}>
-              Saldo: {formatBRL(monthSpend.income - monthSpend.spent)}
+              Saldo: <Money>{formatBRL(monthSpend.income - monthSpend.spent)}</Money>
             </span>
           </div>
         </Card>
@@ -183,10 +184,10 @@ export default async function DashboardPage({ searchParams }: Props) {
               href: "/accounts",
             }))}
           >
-            <CardValue className="text-xl text-accent">{formatBRL(networth.net)}</CardValue>
+            <CardValue className="text-xl text-accent"><Money>{formatBRL(networth.net)}</Money></CardValue>
           </Breakdown>
           <div className="mt-3 text-xs text-fg-muted truncate">
-            {formatBRLCompact(networth.assets)} Ativos · {formatBRLCompact(networth.debts)} Dívidas
+            <Money>{formatBRLCompact(networth.assets)}</Money> Ativos · <Money>{formatBRLCompact(networth.debts)}</Money> Dívidas
           </div>
         </Card>
 
@@ -224,7 +225,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                   <span className="size-2.5 rounded-full" style={{ background: t.category.color ?? "#6b7280" }} />
                   {t.category.name}
                 </Link>
-                <span className="text-fg-muted">{formatBRL(t.spent)}</span>
+                <span className="text-fg-muted"><Money>{formatBRL(t.spent)}</Money></span>
               </li>
             ))}
           </ul>
@@ -261,7 +262,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                     </div>
                   </div>
                   <div className={`text-right whitespace-nowrap ${t.amount < 0 ? "" : "text-accent"}`}>
-                    {formatBRL(t.amount)}
+                    <Money>{formatBRL(t.amount)}</Money>
                   </div>
                 </li>
               ))}
@@ -296,7 +297,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                     <div className="truncate">{r.name}</div>
                     <div className="text-xs text-fg-muted">{formatDate(r.upcoming)}{r.category && ` · ${r.category.name}`}</div>
                   </div>
-                  <span className={r.amount > 0 ? "text-accent" : ""}>{formatBRL(r.amount)}</span>
+                  <span className={r.amount > 0 ? "text-accent" : ""}><Money>{formatBRL(r.amount)}</Money></span>
                 </li>
               ))}
             </ul>
@@ -319,7 +320,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                   <div className="flex items-center justify-between mb-1">
                     <span>{b.category.name}</span>
                     <span className="text-xs text-fg-muted">
-                      {formatBRL(b.spent)} de {formatBRL(b.effective)}
+                      <Money>{formatBRL(b.spent)}</Money> de <Money>{formatBRL(b.effective)}</Money>
                     </span>
                   </div>
                   <div className="h-1.5 rounded-full bg-bg-hover overflow-hidden">

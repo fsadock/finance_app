@@ -8,6 +8,7 @@ import { PortfolioChart } from "@/components/crypto/portfolio-chart";
 import { CryptoWallets } from "@/components/crypto/wallets";
 import { cn } from "@/lib/utils";
 import { CHART_SYMBOLS, type ChartSymbol } from "@/lib/market/prices";
+import { Money } from "@/components/ui/money";
 
 const ASSET_COLOR: Record<string, string> = {
   BTC: "#f7931a",
@@ -44,9 +45,9 @@ export default async function CryptoPage() {
         <div className="grid grid-cols-12 gap-4 mb-4">
           <Card className="col-span-12 lg:col-span-4 flex flex-col justify-center">
             <div className="text-sm text-fg-muted">Total em cripto</div>
-            <div className="mt-1 text-2xl font-semibold tracking-tight tabular-nums break-words sm:text-3xl">{formatBRL(total.brl)}</div>
+            <div className="mt-1 text-2xl font-semibold tracking-tight tabular-nums break-words sm:text-3xl"><Money>{formatBRL(total.brl)}</Money></div>
             <div className="mt-1 flex items-center gap-2 text-sm">
-              <span className="text-fg-muted tabular-nums">{formatUSD(total.usd)}</span>
+              <span className="text-fg-muted tabular-nums"><Money>{formatUSD(total.usd)}</Money></span>
               {total.change24h !== null && (
                 <span className={cn("font-medium tabular-nums", total.change24h >= 0 ? "text-accent" : "text-danger")}>
                   {total.change24h >= 0 ? "▲" : "▼"} {Math.abs(total.change24h).toFixed(2).replace(".", ",")}% em 24h
@@ -73,7 +74,7 @@ export default async function CryptoPage() {
                       <span className="size-2.5 shrink-0 rounded-full" style={{ background: ASSET_COLOR[a.symbol] ?? "#6b7280" }} />
                       <span className="truncate">{ASSET_NAME[a.symbol]}</span>
                     </span>
-                    <span className="shrink-0 tabular-nums">{formatBRL(a.value)}</span>
+                    <span className="shrink-0 tabular-nums"><Money>{formatBRL(a.value)}</Money></span>
                   </div>
                   <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-bg-elev">
                     <div
@@ -82,7 +83,7 @@ export default async function CryptoPage() {
                     />
                   </div>
                   <div className="mt-1 flex items-baseline justify-between gap-2 text-xs text-fg-muted">
-                    <span className="tabular-nums">{formatCryptoAmount(a.quantity)}</span>
+                    <span className="tabular-nums"><Money>{formatCryptoAmount(a.quantity)}</Money></span>
                     <span className="tabular-nums">{a.share > 0 && a.share < 0.01 ? "menos de 1" : Math.round(a.share * 100)}%</span>
                   </div>
                 </li>

@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Search } from "lucide-react";
 import { formatBRL } from "@/lib/domain/format";
 import { ListRow, MobileList } from "@/components/ui/list-row";
 import { cn } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 export type Position = {
   id: string;
@@ -160,13 +161,13 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
                   </div>
                 </td>
                 <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{COLUMNS[3]!.format!(p)}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{formatBRL(p.price)}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-right text-fg-muted tabular-nums">{formatBRL(p.cost)}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums">{formatBRL(p.value)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums"><Money>{formatBRL(p.price)}</Money></td>
+                <td className="whitespace-nowrap px-3 py-3 text-right text-fg-muted tabular-nums"><Money>{formatBRL(p.cost)}</Money></td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums"><Money>{formatBRL(p.value)}</Money></td>
                 <td className={cn("whitespace-nowrap py-3 pl-3 pr-6 text-right tabular-nums", p.pnl >= 0 ? "text-accent" : "text-danger")}>
                   {p.pnl >= 0 ? "+" : ""}
                   {p.pnlPct.toFixed(1)}%
-                  <div className="text-xs text-fg-subtle">{formatBRL(p.pnl)}</div>
+                  <div className="text-xs text-fg-subtle"><Money>{formatBRL(p.pnl)}</Money></div>
                 </td>
               </tr>
             ))}
@@ -192,13 +193,13 @@ export function PositionsTable({ positions }: { positions: Position[] }) {
             meta={
               <>
                 <span className="tabular-nums">{COLUMNS[3]!.format!(p)}</span>
-                <span>× {formatBRL(p.price)}</span>
+                <span>× <Money>{formatBRL(p.price)}</Money></span>
                 <span className="truncate">{p.account}</span>
               </>
             }
             value={
               <>
-                {formatBRL(p.value)}
+                <Money>{formatBRL(p.value)}</Money>
                 <div className={cn("text-xs", p.pnl >= 0 ? "text-accent" : "text-danger")}>
                   {p.pnl >= 0 ? "+" : ""}
                   {p.pnlPct.toFixed(1)}%

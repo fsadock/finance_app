@@ -8,6 +8,7 @@ import { Breakdown } from "@/components/ui/breakdown";
 import { formatBRL, formatBRLCompact, formatMonthKeyLong } from "@/lib/domain/format";
 import { PeriodPicker } from "@/components/layout/period-picker";
 import { formatPeriodLabel, parsePeriod } from "@/lib/domain/period";
+import { Money } from "@/components/ui/money";
 
 type Props = { searchParams: Promise<{ month?: string }> };
 
@@ -47,7 +48,7 @@ export default async function CashflowPage({ searchParams }: Props) {
             total={totalIncome}
             parts={composition.income.map((r) => ({ id: r.name, label: r.name, value: r.total }))}
           >
-            <CardValue className="text-accent">{formatBRL(totalIncome)}</CardValue>
+            <CardValue className="text-accent"><Money>{formatBRL(totalIncome)}</Money></CardValue>
           </Breakdown>
         </Card>
         <Card className="col-span-12 md:col-span-4">
@@ -60,7 +61,7 @@ export default async function CashflowPage({ searchParams }: Props) {
             total={totalSpend}
             parts={composition.spend.map((r) => ({ id: r.name, label: r.name, value: r.total, href: "/categories" }))}
           >
-            <CardValue className="text-danger">{formatBRL(totalSpend)}</CardValue>
+            <CardValue className="text-danger"><Money>{formatBRL(totalSpend)}</Money></CardValue>
           </Breakdown>
         </Card>
         <Card className="col-span-12 md:col-span-4">
@@ -68,7 +69,7 @@ export default async function CashflowPage({ searchParams }: Props) {
             <CardTitle>Saldo médio mensal</CardTitle>
           </CardHeader>
           <CardValue className={avgNet >= 0 ? "text-accent" : "text-danger"}>
-            {formatBRLCompact(avgNet)}
+            <Money>{formatBRLCompact(avgNet)}</Money>
           </CardValue>
           <div className="text-xs text-fg-muted mt-3">
             {monthsPositive} de {data.length} meses positivos
@@ -113,10 +114,10 @@ export default async function CashflowPage({ searchParams }: Props) {
                 <td className="px-6 py-3 capitalize">
                   {formatMonthKeyLong(d.month)}
                 </td>
-                <td className="px-6 py-3 text-right text-accent">{formatBRL(d.income)}</td>
-                <td className="px-6 py-3 text-right text-danger">{formatBRL(d.spend)}</td>
+                <td className="px-6 py-3 text-right text-accent"><Money>{formatBRL(d.income)}</Money></td>
+                <td className="px-6 py-3 text-right text-danger"><Money>{formatBRL(d.spend)}</Money></td>
                 <td className={`px-6 py-3 text-right font-medium ${d.net >= 0 ? "text-accent" : "text-danger"}`}>
-                  {formatBRL(d.net)}
+                  <Money>{formatBRL(d.net)}</Money>
                 </td>
               </tr>
             ))}
