@@ -23,6 +23,19 @@ export function classifyFlow(t: FlowInput): Flow {
   return "income";
 }
 
+/**
+ * Whether a transaction weighs on the budget, and who decides it: the owner's own mark first, then the transfer
+ * pairing, then the category. Every writer that assigns a category must go through here — a row whose category
+ * says "Salário" while the flag still says "excluded" disappears from every report with nothing on screen to
+ * explain it.
+ */
+export function budgetExclusion(
+  t: { excludeOverride: boolean | null; transferPairId?: string | null },
+  category: { excludeFromBudget: boolean } | null
+) {
+  return t.excludeOverride ?? (t.transferPairId != null || (category?.excludeFromBudget ?? false));
+}
+
 /** Signed contribution to "spent": expenses add, refunds subtract, income is ignored. */
 export function spendDelta(t: FlowInput) {
   const flow = classifyFlow(t);

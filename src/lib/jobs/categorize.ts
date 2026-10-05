@@ -8,6 +8,7 @@ import {
   CATEGORIZE_MIN_CONFIDENCE,
   CATEGORIZE_CACHE_RULE_MIN_CONFIDENCE,
 } from "@/lib/domain/constants";
+import { budgetExclusion } from "@/lib/domain/flows";
 import { errorMessage } from "@/lib/utils";
 
 /**
@@ -36,6 +37,7 @@ async function categorizeReviewTransactions(skipIds: string[] = [], { useAI = tr
         totalInstallments: true,
         pluggyCategory: true,
         excludeOverride: true,
+        transferPairId: true,
         account: { select: { type: true } },
       },
       take: CATEGORIZE_BATCH_SIZE,
@@ -89,7 +91,7 @@ async function categorizeReviewTransactions(skipIds: string[] = [], { useAI = tr
 
     await prisma.transaction.update({
       where: { id: s.txId },
-      data: { categoryId: cat.id, status: "POSTED", excludeFromBudget: tx.excludeOverride ?? cat.excludeFromBudget },
+      data: { categoryId: cat.id, status: "POSTED", excludeFromBudget: budgetExclusion(tx, cat) },
     });
     fromAI++;
 

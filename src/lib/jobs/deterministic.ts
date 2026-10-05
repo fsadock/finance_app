@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/infra/db";
 import { deterministicCategory } from "@/lib/domain/brazil";
+import { budgetExclusion } from "@/lib/domain/flows";
 
 /**
  * Backfill for the no-AI rules: categorizes REVIEW transactions that match a deterministic rule
@@ -22,6 +23,7 @@ export async function applyDeterministicRules() {
       counterpartyType: true,
       paymentMethod: true,
       excludeOverride: true,
+      transferPairId: true,
       account: { select: { type: true } },
     },
   });
@@ -33,7 +35,7 @@ export async function applyDeterministicRules() {
     updates.push(
       prisma.transaction.update({
         where: { id: t.id },
-        data: { categoryId: cat.id, status: "POSTED", excludeFromBudget: t.excludeOverride ?? cat.excludeFromBudget },
+        data: { categoryId: cat.id, status: "POSTED", excludeFromBudget: budgetExclusion(t, cat) },
       })
     );
   }
