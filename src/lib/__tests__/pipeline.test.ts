@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { BUDGET_RELEVANT } from "@/lib/domain/flows";
+import { merchantPattern } from "@/lib/domain/merchant";
 
 const dir = mkdtempSync(path.join(tmpdir(), "financas-pipeline-"));
 const DATABASE_URL = `file:${path.join(dir, "test.db")}`;
@@ -315,6 +316,25 @@ describe("post-sync pipeline", () => {
     expect(out.categorized).toBe(1);
     expect(out.aiError).toBeNull();
     expect(await prisma.transaction.findUniqueOrThrow({ where: { id: shop.id } })).toMatchObject({ categoryId: ids.mercado });
+  });
+
+  it("leaves money from the owner's unconnected bank to the owner, not to the AI", async () => {
+    claude({ Pix: { category: "Transferências", confidence: 0.95 } });
+    const salary = await tx("Pix", 1792.52, { counterpartyType: "SELF", paymentMethod: "PIX" });
+    const ownRule = await tx("Transferencia Caixa", 2548.25, { counterpartyType: "SELF" });
+    const aiRule = await tx("Pix Cash In Externo", 1886.51, { counterpartyType: "SELF" });
+    const salario = await prisma.category.create({ data: { name: "Salário", isIncome: true } });
+    await prisma.merchantRule.create({ data: { pattern: merchantPattern(ownRule)!, categoryId: salario.id, source: "USER" } });
+    await prisma.merchantRule.create({ data: { pattern: merchantPattern(aiRule)!, categoryId: ids.transferencias!, source: "AI" } });
+
+    await runPostSyncJobs();
+
+    const sent = parse.mock.calls.map(([req]) => (req as { messages: { content: string }[] }).messages[0]!.content).join("\n");
+    expect(sent).not.toContain(salary.id);
+    expect(await prisma.transaction.findUniqueOrThrow({ where: { id: salary.id } })).toMatchObject({ status: "REVIEW", categoryId: null });
+    expect(await counts(salary.id)).toBe(true);
+    expect(await prisma.transaction.findUniqueOrThrow({ where: { id: ownRule.id } })).toMatchObject({ categoryId: salario.id });
+    expect(await prisma.transaction.findUniqueOrThrow({ where: { id: aiRule.id } })).toMatchObject({ status: "REVIEW", categoryId: null });
   });
 
   it("detects recurrings without an AI key, under the merchant's name", async () => {

@@ -69,6 +69,14 @@ export function isCardBillPaymentDescription(description: string) {
   );
 }
 
+/**
+ * Money from the owner's own CPF that transfer pairing didn't match to an outflow of a connected account: it came
+ * from a bank the app doesn't see, so only the owner knows whether it is a salary or savings moved over.
+ */
+export function isFromUnconnectedOwnAccount(t: { amount: number; counterpartyType: string | null; transferPairId: string | null }) {
+  return t.amount > 0 && t.counterpartyType === "SELF" && t.transferPairId === null;
+}
+
 export const DETERMINISTIC_CATEGORIES = ["Transferências", "Pagamento de fatura", "Investimentos", "Rendimentos"] as const;
 
 /**

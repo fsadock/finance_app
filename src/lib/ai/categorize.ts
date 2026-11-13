@@ -48,7 +48,7 @@ APP DE ENTREGA: quem decide é a LOJA, não o aplicativo.
 
 PIX / TED / DOC — o método NÃO define a categoria, o destinatário define:
 - Saída para o próprio titular (mesma titularidade): "Transferências"
-- Entrada vinda do próprio titular, inclusive quando o remetente tem o MESMO NOME do dono da conta: "Transferências" (é dinheiro trazido de outro banco dele, não receita)
+- Entrada vinda do próprio titular, inclusive quando o remetente tem o MESMO NOME do dono da conta: é dinheiro de um banco que o app não vê e pode ser salário. NÃO use "Transferências": escolha a categoria mais provável com confidence baixa (<0.5) para o dono revisar
 - Contraparte é empresa (CNPJ): é compra/pagamento — classifique pelo nome do comerciante
 - Saída para pessoa física (CPF): use o nome/descrição (aluguel → Aluguel, diarista → Contas de casa, professor → Educação, médico/psicólogo → Saúde); sem pista, "Pagamentos a pessoas"
 - Entrada de pessoa física (CPF): geralmente "Reembolsos" (divisão de conta, devolução), salvo indício de salário

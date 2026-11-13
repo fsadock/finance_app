@@ -3,6 +3,7 @@ import { logger } from "@/lib/infra/logger";
 import { aiErrorMessage, getAnthropicOrNull } from "@/lib/ai/client";
 import { suggestCategories, type CategorySuggestion as Suggestion } from "@/lib/ai/categorize";
 import { matchRulesToTransactions, merchantPattern } from "@/lib/domain/merchant";
+import { isFromUnconnectedOwnAccount } from "@/lib/domain/brazil";
 import {
   CATEGORIZE_BATCH_SIZE,
   CATEGORIZE_MIN_CONFIDENCE,
@@ -55,7 +56,13 @@ async function categorizeReviewTransactions(skipIds: string[] = [], { useAI = tr
   const catByName = new Map(categories.map((c) => [c.name, c]));
 
   // Pass 1: apply existing rules
-  const { matched, remaining } = matchRulesToTransactions(txs, rules);
+  // Only the owner decides money from their own unconnected bank: their rules apply, the AI's don't, and
+  // what no rule covers waits in review.
+  const ownInflows = txs.filter(isFromUnconnectedOwnAccount);
+  const fromAnyRule = matchRulesToTransactions(txs.filter((t) => !isFromUnconnectedOwnAccount(t)), rules);
+  const fromUserRule = matchRulesToTransactions(ownInflows, rules.filter((r) => r.source === "USER"));
+  const matched = [...fromAnyRule.matched, ...fromUserRule.matched];
+  const remaining = fromAnyRule.remaining;
   let fromRules = 0;
   for (const { tx: t, rule } of matched) {
     await prisma.$transaction([
