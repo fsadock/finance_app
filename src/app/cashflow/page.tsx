@@ -19,10 +19,14 @@ export default async function CashflowPage({ searchParams }: Props) {
     getSankeyData(period.date),
     getCashflowComposition(12, period.date),
   ]);
-  const totalIncome = data.reduce((s, d) => s + d.income, 0);
-  const totalSpend = data.reduce((s, d) => s + d.spend, 0);
-  const avgNet = data.length > 0 ? (totalIncome - totalSpend) / data.length : 0;
-  const monthsPositive = data.filter((d) => d.net > 0).length;
+  const total = (pick: (d: (typeof data)[number]) => number) => data.reduce((s, d) => s + pick(d), 0);
+  const totalSalary = total((d) => d.salary);
+  const totalOther = total((d) => d.otherIncome);
+  const totalSpend = total((d) => d.spend);
+  const perMonth = (v: number) => (data.length > 0 ? v / data.length : 0);
+  const avgSalaryLeft = perMonth(totalSalary - totalSpend);
+  const avgNet = perMonth(totalSalary + totalOther - totalSpend);
+  const monthsCovered = data.filter((d) => d.salary >= d.spend).length;
 
   const cumData = data.map((d, i) => ({
     month: d.month,
@@ -33,30 +37,33 @@ export default async function CashflowPage({ searchParams }: Props) {
     <>
       <PageHeader
         title="Fluxo de Caixa"
-        subtitle={`Receitas vs despesas · 12 meses até ${formatPeriodLabel(period)} · estornos abatidos das despesas`}
+        subtitle={`Salário vs gastos · 12 meses até ${formatPeriodLabel(period)} · estornos abatidos dos gastos`}
         actions={<PeriodPicker />}
       />
 
       <div className="grid grid-cols-12 gap-4 mb-4">
         <Card className="col-span-12 md:col-span-4">
           <CardHeader>
-            <CardTitle>Receita total (12m)</CardTitle>
+            <CardTitle>Salário (12m)</CardTitle>
           </CardHeader>
           <Breakdown
             title="Receita de 12 meses, por categoria"
-            description="A tabela abaixo mostra mês a mês; isto mostra de onde veio."
-            total={totalIncome}
+            description="O salário e o que entrou além dele."
+            total={totalSalary + totalOther}
             parts={composition.income.map((r) => ({ id: r.name, label: r.name, value: r.total }))}
           >
-            <CardValue className="text-accent"><Money>{formatBRL(totalIncome)}</Money></CardValue>
+            <CardValue className="text-accent"><Money>{formatBRL(totalSalary)}</Money></CardValue>
+            <div className="text-xs text-fg-muted mt-3">
+              + <Money>{formatBRL(totalOther)}</Money> de outras receitas
+            </div>
           </Breakdown>
         </Card>
         <Card className="col-span-12 md:col-span-4">
           <CardHeader>
-            <CardTitle>Despesa total (12m)</CardTitle>
+            <CardTitle>Gastos (12m)</CardTitle>
           </CardHeader>
           <Breakdown
-            title="Despesa de 12 meses, por categoria"
+            title="Gastos de 12 meses, por categoria"
             description="A tabela abaixo mostra mês a mês; isto mostra em que foi."
             total={totalSpend}
             parts={composition.spend.map((r) => ({ id: r.name, label: r.name, value: r.total, href: "/categories" }))}
@@ -66,13 +73,14 @@ export default async function CashflowPage({ searchParams }: Props) {
         </Card>
         <Card className="col-span-12 md:col-span-4">
           <CardHeader>
-            <CardTitle>Saldo médio mensal</CardTitle>
+            <CardTitle>Salário − gastos, por mês</CardTitle>
           </CardHeader>
-          <CardValue className={avgNet >= 0 ? "text-accent" : "text-danger"}>
-            <Money>{formatBRLCompact(avgNet)}</Money>
+          <CardValue className={avgSalaryLeft >= 0 ? "text-accent" : "text-danger"}>
+            <Money>{formatBRLCompact(avgSalaryLeft)}</Money>
           </CardValue>
           <div className="text-xs text-fg-muted mt-3">
-            {monthsPositive} de {data.length} meses positivos
+            O salário cobriu os gastos em {monthsCovered} de {data.length} meses · com as outras receitas,{" "}
+            <Money>{formatBRLCompact(avgNet)}</Money>/mês
           </div>
         </Card>
       </div>
@@ -86,7 +94,7 @@ export default async function CashflowPage({ searchParams }: Props) {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Receitas e despesas por mês</CardTitle>
+          <CardTitle>Salário, outras receitas e gastos por mês</CardTitle>
         </CardHeader>
         <CashflowChart data={data} />
       </Card>
@@ -103,9 +111,11 @@ export default async function CashflowPage({ searchParams }: Props) {
           <thead>
             <tr className="text-left text-xs text-fg-muted border-b border-border">
               <th className="px-6 py-3 font-medium">Mês</th>
-              <th className="px-6 py-3 font-medium text-right">Receita</th>
-              <th className="px-6 py-3 font-medium text-right">Despesa</th>
-              <th className="px-6 py-3 font-medium text-right">Saldo</th>
+              <th className="px-6 py-3 font-medium text-right">Salário</th>
+              <th className="hidden px-6 py-3 font-medium text-right md:table-cell">Outras receitas</th>
+              <th className="px-6 py-3 font-medium text-right">Gastos</th>
+              <th className="px-6 py-3 font-medium text-right">Salário − gastos</th>
+              <th className="hidden px-6 py-3 font-medium text-right md:table-cell">Saldo</th>
             </tr>
           </thead>
           <tbody>
@@ -114,9 +124,13 @@ export default async function CashflowPage({ searchParams }: Props) {
                 <td className="px-6 py-3 capitalize">
                   {formatMonthKeyLong(d.month)}
                 </td>
-                <td className="px-6 py-3 text-right text-accent"><Money>{formatBRL(d.income)}</Money></td>
+                <td className="px-6 py-3 text-right text-accent"><Money>{formatBRL(d.salary)}</Money></td>
+                <td className="hidden px-6 py-3 text-right text-fg-muted md:table-cell"><Money>{formatBRL(d.otherIncome)}</Money></td>
                 <td className="px-6 py-3 text-right text-danger"><Money>{formatBRL(d.spend)}</Money></td>
-                <td className={`px-6 py-3 text-right font-medium ${d.net >= 0 ? "text-accent" : "text-danger"}`}>
+                <td className={`px-6 py-3 text-right font-medium ${d.salary - d.spend >= 0 ? "text-accent" : "text-danger"}`}>
+                  <Money>{formatBRL(d.salary - d.spend)}</Money>
+                </td>
+                <td className={`hidden px-6 py-3 text-right md:table-cell ${d.net >= 0 ? "text-accent" : "text-danger"}`}>
                   <Money>{formatBRL(d.net)}</Money>
                 </td>
               </tr>

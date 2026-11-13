@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/infra/db";
-import { BUDGET_RELEVANT, FLOW_SELECT, classifyFlow, spendDelta } from "@/lib/domain/flows";
+import { BUDGET_RELEVANT, FLOW_SELECT, SALARY_CATEGORY, classifyFlow, spendDelta } from "@/lib/domain/flows";
 import { lastMonthKeys, monthBounds, monthKey, monthKeyToDate } from "@/lib/domain/format";
 
 export async function getMonthlyCashflow(monthsBack = 6, anchor = new Date()) {
@@ -8,16 +8,23 @@ export async function getMonthlyCashflow(monthsBack = 6, anchor = new Date()) {
   const { end } = monthBounds(anchor);
   const txs = await prisma.transaction.findMany({
     where: { AND: [{ chargeDate: { gte: start, lt: end } }, BUDGET_RELEVANT] },
-    select: { ...FLOW_SELECT, chargeDate: true },
+    select: { ...FLOW_SELECT, chargeDate: true, category: { select: { isIncome: true, name: true } } },
   });
-  const buckets = new Map(keys.map((k) => [k, { income: 0, spend: 0 }]));
+  const buckets = new Map(keys.map((k) => [k, { income: 0, salary: 0, spend: 0 }]));
   for (const t of txs) {
     const b = buckets.get(monthKey(t.chargeDate));
     if (!b) continue;
-    if (classifyFlow(t) === "income") b.income += t.amount;
-    else b.spend += spendDelta(t);
+    if (classifyFlow(t) === "income") {
+      b.income += t.amount;
+      if (t.category?.name === SALARY_CATEGORY) b.salary += t.amount;
+    } else b.spend += spendDelta(t);
   }
-  return Array.from(buckets.entries()).map(([month, v]) => ({ month, ...v, net: v.income - v.spend }));
+  return Array.from(buckets.entries()).map(([month, v]) => ({
+    month,
+    ...v,
+    otherIncome: v.income - v.salary,
+    net: v.income - v.spend,
+  }));
 }
 
 export async function getSankeyData(month = new Date()) {

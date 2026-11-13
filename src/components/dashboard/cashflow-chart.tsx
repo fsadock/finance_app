@@ -12,7 +12,9 @@ import {
 import { formatBRLCompact } from "@/lib/domain/format";
 import { CHART_AXIS_PROPS, CHART_GRID_PROPS, CHART_TOOLTIP_PROPS } from "@/components/ui/chart-theme";
 
-type Row = { month: string; income: number; spend: number; net: number };
+type Row = { month: string; salary: number; otherIncome: number; spend: number };
+
+const LABEL: Record<string, string> = { salary: "Salário", otherIncome: "Outras receitas", spend: "Despesa" };
 
 const monthLabel = (m: string) => {
   const [y, mm] = m.split("-");
@@ -32,9 +34,10 @@ export function CashflowChart({ data }: { data: Row[] }) {
             cursor={{ fill: "rgba(255,255,255,0.03)" }}
             {...CHART_TOOLTIP_PROPS}
             labelFormatter={(l) => monthLabel(String(l))}
-            formatter={(v, n) => [formatBRLCompact(Number(v)), n === "income" ? "Receita" : "Despesa"]}
+            formatter={(v, n) => [formatBRLCompact(Number(v)), LABEL[String(n)] ?? String(n)]}
           />
-          <Bar dataKey="income" fill="#00d28d" radius={[6, 6, 0, 0]} />
+          <Bar dataKey="salary" stackId="income" fill="#00d28d" />
+          <Bar dataKey="otherIncome" stackId="income" fill="#00d28d" fillOpacity={0.35} radius={[6, 6, 0, 0]} />
           <Bar dataKey="spend" fill="#ff5d5d" radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>

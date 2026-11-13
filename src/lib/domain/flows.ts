@@ -16,6 +16,9 @@ type FlowInput = {
   category: { isIncome: boolean } | null;
 };
 
+/** The income the cash flow sets against spending; the other income categories are shown apart. */
+export const SALARY_CATEGORY = "Salário";
+
 export function classifyFlow(t: FlowInput): Flow {
   if (t.amount < 0) return "expense";
   if (t.category?.isIncome) return "income";

@@ -337,6 +337,20 @@ describe("post-sync pipeline", () => {
     expect(await prisma.transaction.findUniqueOrThrow({ where: { id: aiRule.id } })).toMatchObject({ status: "REVIEW", categoryId: null });
   });
 
+  it("splits the month's income into salary and the rest", async () => {
+    const { getMonthlyCashflow } = await import("@/lib/data/cashflow");
+    const today = new Date();
+    const salario = await prisma.category.create({ data: { name: "Salário", isIncome: true } });
+    const doacoes = await prisma.category.create({ data: { name: "Doações recebidas", isIncome: true } });
+    await tx("Pix", 1792.52, { date: today, status: "POSTED", categoryId: salario.id });
+    await tx("Pix", 460, { date: today, status: "POSTED", categoryId: doacoes.id });
+    await tx("Padaria Pão Quente", -100, { date: today, status: "POSTED", categoryId: ids.mercado });
+
+    const [month] = await getMonthlyCashflow(1, today);
+
+    expect(month).toMatchObject({ salary: 1792.52, otherIncome: 460, spend: 100, net: 2152.52 });
+  });
+
   it("detects recurrings without an AI key, under the merchant's name", async () => {
     parse.mockClear();
     const charges = await Promise.all([65, 35, 5].map((d) => tx("Plano NuCel", -25, { date: daysAgo(d) })));
