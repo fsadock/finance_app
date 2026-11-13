@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { parsePeriod, shiftPeriod, formatPeriodLabel } from "@/lib/domain/period";
+import { monthKey } from "@/lib/domain/format";
 
 const MONTHS = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
@@ -35,7 +36,7 @@ export function PeriodPicker({ minYear }: { minYear?: number }) {
       </button>
       <select
         value={period.month}
-        onChange={(e) => navigate(`${period.year}-${String(Number(e.target.value)).padStart(2, "0")}`)}
+        onChange={(e) => navigate(monthKey(new Date(period.year, Number(e.target.value) - 1, 1)))}
         className="bg-transparent text-sm px-2 py-1 outline-none cursor-pointer"
       >
         {MONTHS.map((m, i) => (
@@ -44,7 +45,7 @@ export function PeriodPicker({ minYear }: { minYear?: number }) {
       </select>
       <select
         value={period.year}
-        onChange={(e) => navigate(`${e.target.value}-${String(period.month).padStart(2, "0")}`)}
+        onChange={(e) => navigate(monthKey(new Date(Number(e.target.value), period.month - 1, 1)))}
         className="bg-transparent text-sm px-2 py-1 outline-none cursor-pointer"
       >
         {Array.from({ length: maxY - minY + 1 }, (_, i) => maxY - i).map((y) => (
@@ -59,7 +60,7 @@ export function PeriodPicker({ minYear }: { minYear?: number }) {
         <ChevronRight className="size-4" />
       </button>
       <button
-        onClick={() => navigate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`)}
+        onClick={() => navigate(monthKey(now))}
         className="text-xs px-2 py-1 rounded hover:bg-bg-hover text-fg-muted hover:text-fg"
       >
         Hoje

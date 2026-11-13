@@ -1,3 +1,4 @@
+import { subMonths } from "date-fns";
 import { prisma } from "@/lib/infra/db";
 import { newPassThroughs } from "@/lib/domain/pass-through";
 
@@ -20,8 +21,7 @@ const LOOKBACK_MONTHS = 14;
  * money that funds it — so it never weighs on the budget again. See domain/pass-through.ts.
  */
 export async function applyPassThroughs() {
-  const since = new Date();
-  since.setMonth(since.getMonth() - LOOKBACK_MONTHS);
+  const since = subMonths(new Date(), LOOKBACK_MONTHS);
   const txs = await prisma.transaction.findMany({ where: { chargeDate: { gte: since } }, select: SELECT });
   const found = newPassThroughs(txs);
   if (found.length > 0) {

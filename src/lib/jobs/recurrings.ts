@@ -1,4 +1,4 @@
-import { subMonths } from "date-fns";
+import { subMonths, subYears } from "date-fns";
 import { prisma } from "@/lib/infra/db";
 import { logger } from "@/lib/infra/logger";
 import { errorMessage } from "@/lib/utils";
@@ -117,12 +117,9 @@ export async function refreshRecurrings(today = new Date()) {
   const recurrings = await prisma.recurring.findMany({ where: { pattern: { not: null } } });
   if (recurrings.length === 0) return { linked: 0, changed: 0 };
 
-  const linkSince = new Date(today);
-  linkSince.setMonth(linkSince.getMonth() - 3);
-  const historySince = new Date(today);
-  historySince.setMonth(historySince.getMonth() - 25);
-  const yearAgo = new Date(today);
-  yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+  const linkSince = subMonths(today, 3);
+  const historySince = subMonths(today, 25);
+  const yearAgo = subYears(today, 1);
 
   const txs = await prisma.transaction.findMany({
     where: { date: { gte: historySince, lte: today }, transferPairId: null, totalInstallments: null },

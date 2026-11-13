@@ -1,11 +1,11 @@
+import { subMonths } from "date-fns";
 import { prisma } from "@/lib/infra/db";
 import { buildInstallmentPlans } from "@/lib/domain/installments";
 import { getOpenBillStarts } from "@/lib/data/cards";
 
 /** Card purchases in installments ("parcelado") from the last 4 years, grouped into plans. */
 export async function getInstallmentPlans() {
-  const since = new Date();
-  since.setMonth(since.getMonth() - 48);
+  const since = subMonths(new Date(), 48);
   const [txs, openBillStarts, paid] = await Promise.all([
     prisma.transaction.findMany({
     where: {

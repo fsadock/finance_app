@@ -1,3 +1,4 @@
+import { subYears } from "date-fns";
 import { getPluggy, pluggyErrorMessage } from "@/lib/pluggy/client";
 import { prisma } from "@/lib/infra/db";
 import { getConfig, setConfig } from "@/lib/infra/config";
@@ -164,8 +165,7 @@ export async function syncItem(itemId: string) {
     }
 
     // Pull all available history (Pluggy returns whatever the bank provides; cap at 5 years back)
-    const from = new Date();
-    from.setFullYear(from.getFullYear() - 5);
+    const from = subYears(new Date(), 5);
     let page = 1;
     while (true) {
       const txs = await withRetry(() =>
