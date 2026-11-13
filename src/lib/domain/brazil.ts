@@ -69,6 +69,8 @@ export function isCardBillPaymentDescription(description: string) {
   );
 }
 
+export const DETERMINISTIC_CATEGORIES = ["Transferências", "Pagamento de fatura", "Investimentos", "Rendimentos"] as const;
+
 /**
  * Classifications that don't need AI — they come from how Brazilian banks label movements.
  * Returns the category name to apply, or null to leave the transaction for rules/AI.
@@ -81,7 +83,7 @@ export function deterministicCategory(t: {
   accountType: string;
   counterpartyType: string | null;
   paymentMethod: string | null;
-}): "Transferências" | "Pagamento de fatura" | "Investimentos" | "Rendimentos" | null {
+}): (typeof DETERMINISTIC_CATEGORIES)[number] | null {
   const d = t.description.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
   // Money sent to the owner's own CPF is a transfer. Money *arriving* from the owner's CPF is not decided here:

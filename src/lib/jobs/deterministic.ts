@@ -1,15 +1,14 @@
 import { prisma } from "@/lib/infra/db";
-import { deterministicCategory } from "@/lib/domain/brazil";
+import { DETERMINISTIC_CATEGORIES, deterministicCategory } from "@/lib/domain/brazil";
 import { budgetExclusion } from "@/lib/domain/flows";
 
 /**
- * Backfill for the no-AI rules: categorizes REVIEW transactions that match a deterministic rule
- * (own-account Pix, card bill payments, investment moves, balance yield). Idempotent; never touches
- * user-categorized rows.
+ * The no-AI rules: categorizes REVIEW transactions that match a deterministic rule (own-account Pix,
+ * card bill payments, investment moves, balance yield). Idempotent; never touches user-categorized rows.
  */
 export async function applyDeterministicRules() {
   const categories = await prisma.category.findMany({
-    where: { name: { in: ["Transferências", "Pagamento de fatura", "Investimentos", "Rendimentos"] } },
+    where: { name: { in: [...DETERMINISTIC_CATEGORIES] } },
     select: { id: true, name: true, excludeFromBudget: true },
   });
   const byName = new Map(categories.map((c) => [c.name, c]));

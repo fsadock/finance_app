@@ -2,7 +2,7 @@ import { getPluggy, pluggyErrorMessage } from "@/lib/pluggy/client";
 import { prisma } from "@/lib/infra/db";
 import { getConfig, setConfig } from "@/lib/infra/config";
 import { snapshotBalances } from "@/lib/jobs/snapshots";
-import { deterministicCategory, onlyDigits, parseInstallmentFromDescription, resolveCounterparty } from "@/lib/domain/brazil";
+import { onlyDigits, parseInstallmentFromDescription, resolveCounterparty } from "@/lib/domain/brazil";
 import { withRetry } from "@/lib/infra/retry";
 import { logger } from "@/lib/infra/logger";
 import type { AccountType as PrismaAccountType, InvestmentType as PrismaInvestmentType } from "@/generated/prisma/client";
@@ -80,15 +80,10 @@ export async function syncItem(itemId: string) {
   const institutionName = String(item.connector?.name ?? "Open Finance");
   logger.info("sync:start", { itemId, institution: institutionName });
 
-  const [accountsPage, ownerDocuments, fixedCategories] = await Promise.all([
+  const [accountsPage, ownerDocuments] = await Promise.all([
     withRetry(() => pluggy.fetchAccounts(itemId)),
     getOwnerDocuments(itemId),
-    prisma.category.findMany({
-      where: { name: { in: ["Transferências", "Pagamento de fatura", "Investimentos", "Rendimentos"] } },
-      select: { id: true, name: true, excludeFromBudget: true },
-    }),
   ]);
-  const fixedCategoryByName = new Map(fixedCategories.map((c) => [c.name, c]));
   const stats = { accounts: 0, transactions: 0, updated: 0, investments: 0 };
   const syncedAccountIds: string[] = [];
 
@@ -206,16 +201,6 @@ export async function syncItem(itemId: string) {
               ? parseInstallmentFromDescription(t.description ?? "")
               : null;
         const paymentMethod = t.paymentData?.paymentMethod?.toUpperCase() ?? null;
-        // No-AI classifications: own-account Pix, card bill payments, investment moves, balance yield
-        const fixedName = deterministicCategory({
-          description: t.description ?? "",
-          amount,
-          accountType: mapped,
-          counterpartyType: counterparty.type,
-          paymentMethod,
-        });
-        const fixed = fixedName ? fixedCategoryByName.get(fixedName) : undefined;
-
         toCreate.push({
           accountId: acct.id,
           date,
@@ -224,9 +209,7 @@ export async function syncItem(itemId: string) {
           currency: t.currencyCode ?? "BRL",
           description: t.description || t.descriptionRaw || "Sem descrição",
           merchantRaw: t.descriptionRaw ?? null,
-          status: fixed ? ("POSTED" as const) : ("REVIEW" as const),
-          categoryId: fixed?.id ?? null,
-          excludeFromBudget: fixed?.excludeFromBudget ?? false,
+          status: "REVIEW" as const,
           pluggyTxId: t.id,
           paymentMethod,
           counterpartyName: counterparty.name,
