@@ -79,7 +79,6 @@ export async function detectTransfers(daysBack = TRANSFER_DETECTION_DAYS_BACK) {
     const data = {
       transferPairId: pairId,
       categoryId: catId(isBillPayment ? "Pagamento de fatura" : "Transferências"),
-      excludeFromBudget: true,
       status: "POSTED" as const,
     };
     await prisma.$transaction([
@@ -96,7 +95,7 @@ export async function unpairTransfer(txId: string) {
   if (!tx?.transferPairId) return { ok: false };
   await prisma.transaction.updateMany({
     where: { transferPairId: tx.transferPairId },
-    data: { transferPairId: null, excludeFromBudget: false, categoryId: null, status: "REVIEW" },
+    data: { transferPairId: null, categoryId: null, status: "REVIEW" },
   });
   return { ok: true };
 }

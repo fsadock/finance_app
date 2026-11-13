@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/infra/db";
 import { DETERMINISTIC_CATEGORIES, deterministicCategory } from "@/lib/domain/brazil";
-import { budgetExclusion } from "@/lib/domain/flows";
 
 /**
  * The no-AI rules: categorizes REVIEW transactions that match a deterministic rule (own-account Pix,
@@ -9,7 +8,7 @@ import { budgetExclusion } from "@/lib/domain/flows";
 export async function applyDeterministicRules() {
   const categories = await prisma.category.findMany({
     where: { name: { in: [...DETERMINISTIC_CATEGORIES] } },
-    select: { id: true, name: true, excludeFromBudget: true },
+    select: { id: true, name: true },
   });
   const byName = new Map(categories.map((c) => [c.name, c]));
 
@@ -34,7 +33,7 @@ export async function applyDeterministicRules() {
     updates.push(
       prisma.transaction.update({
         where: { id: t.id },
-        data: { categoryId: cat.id, status: "POSTED", excludeFromBudget: budgetExclusion(t, cat) },
+        data: { categoryId: cat.id, status: "POSTED" },
       })
     );
   }

@@ -146,9 +146,9 @@ model Transaction {
   recurring         Recurring? @relation(fields: [recurringId], references: [id])
   tags              Tag[]
   pluggyTxId        String?    @unique
-  excludeFromBudget Boolean    @default(false)
   /// The owner's own decision about the budget, which survives recategorization: true never counts (money that
-  /// only passes through, like a bill someone else sends you the money for), null follows the category.
+  /// only passes through, like a bill someone else sends you the money for), null follows the transfer pairing and
+  /// the category. See BUDGET_RELEVANT in src/lib/domain/flows.ts.
   excludeOverride   Boolean?
   transferPairId    String?
   /// Pluggy structured data (Brazil): PIX | TED | DOC | BOLETO | …
@@ -172,9 +172,8 @@ model Transaction {
 
   @@index([accountId, date])
   @@index([date])
-  @@index([date, excludeFromBudget])
   @@index([accountId, chargeDate])
-  @@index([chargeDate, excludeFromBudget])
+  @@index([chargeDate])
   @@index([categoryId])
   @@index([status])
   @@index([transferPairId])

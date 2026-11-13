@@ -27,7 +27,7 @@ export async function applyPassThroughs() {
   if (found.length > 0) {
     await prisma.transaction.updateMany({
       where: { id: { in: found.map((t) => t.id) } },
-      data: { excludeOverride: true, excludeFromBudget: true },
+      data: { excludeOverride: true },
     });
   }
   return { marked: found.length };

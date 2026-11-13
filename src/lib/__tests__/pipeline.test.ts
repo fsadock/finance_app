@@ -5,6 +5,7 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { BUDGET_RELEVANT } from "@/lib/domain/flows";
 
 const dir = mkdtempSync(path.join(tmpdir(), "financas-pipeline-"));
 const DATABASE_URL = `file:${path.join(dir, "test.db")}`;
@@ -35,6 +36,9 @@ vi.mock("@/lib/jobs/pass-through", async (importOriginal) => {
 type Db = typeof import("@/lib/infra/db")["prisma"];
 let prisma: Db;
 let runPostSyncJobs: typeof import("@/lib/jobs/pipeline")["runPostSyncJobs"];
+
+/** Whether the transaction weighs on the budget, asked the way every report asks it. */
+const counts = async (id: string) => (await prisma.transaction.count({ where: { AND: [{ id }, BUDGET_RELEVANT] } })) === 1;
 
 const daysAgo = (n: number) => {
   const d = new Date();
@@ -120,7 +124,8 @@ describe("post-sync pipeline", () => {
     const out = await runPostSyncJobs();
 
     const get = (id: string) => prisma.transaction.findUniqueOrThrow({ where: { id } });
-    expect(await get(invest.id)).toMatchObject({ categoryId: ids.investimentos, status: "POSTED", excludeFromBudget: true });
+    expect(await get(invest.id)).toMatchObject({ categoryId: ids.investimentos, status: "POSTED" });
+    expect(await counts(invest.id)).toBe(false);
     expect(await get(pixOut.id)).toMatchObject({ categoryId: ids.transferencias, status: "POSTED" });
     const [a, b] = await Promise.all([get(pixOut.id), get(pixIn.id)]);
     expect(a.transferPairId).toBeTruthy();
@@ -201,8 +206,8 @@ describe("post-sync pipeline", () => {
     claude({});
     const at = (daysBack: number) => daysAgo(daysBack);
     // the owner marked August's pair: a boleto someone else sends the money for
-    await tx("Bankslip", -2279, { date: at(62), status: "POSTED", excludeOverride: true, excludeFromBudget: true });
-    await tx("Pix", 2279, { date: at(64), status: "POSTED", excludeOverride: true, excludeFromBudget: true });
+    await tx("Bankslip", -2279, { date: at(62), status: "POSTED", excludeOverride: true });
+    await tx("Pix", 2279, { date: at(64), status: "POSTED", excludeOverride: true });
     // September's pair arrived with the sync, still counting
     const boleto = await tx("Bankslip", -2279, { date: at(32), status: "POSTED" });
     const pix = await tx("Pix", 2280, { date: at(33), status: "POSTED" });
@@ -211,37 +216,37 @@ describe("post-sync pipeline", () => {
     const out = await runPostSyncJobs();
 
     const get = (id: string) => prisma.transaction.findUniqueOrThrow({ where: { id } });
-    expect(await get(boleto.id)).toMatchObject({ excludeOverride: true, excludeFromBudget: true });
-    expect(await get(pix.id)).toMatchObject({ excludeOverride: true, excludeFromBudget: true });
+    expect(await get(boleto.id)).toMatchObject({ excludeOverride: true });
+    expect(await get(pix.id)).toMatchObject({ excludeOverride: true });
+    expect(await counts(boleto.id)).toBe(false);
+    expect(await counts(pix.id)).toBe(false);
     // same amount, but a real purchase on another day: untouched
-    expect(await get(grocery.id)).toMatchObject({ excludeOverride: null, excludeFromBudget: false });
+    expect(await get(grocery.id)).toMatchObject({ excludeOverride: null });
+    expect(await counts(grocery.id)).toBe(true);
     expect(out.passThroughs).toBe(2);
   });
 
   it("keeps the owner's pass-through mark when a rule categorizes the transaction", async () => {
     claude({});
-    const marked = await tx("Padaria Pão Quente", -20, { excludeOverride: true, excludeFromBudget: true });
+    const marked = await tx("Padaria Pão Quente", -20, { excludeOverride: true });
 
     await runPostSyncJobs();
 
     // the user rule assigns Mercado (which counts), but the owner's mark wins
-    expect(await prisma.transaction.findUniqueOrThrow({ where: { id: marked.id } })).toMatchObject({
-      categoryId: ids.mercado,
-      excludeFromBudget: true,
-    });
+    expect(await prisma.transaction.findUniqueOrThrow({ where: { id: marked.id } })).toMatchObject({ categoryId: ids.mercado });
+    expect(await counts(marked.id)).toBe(false);
   });
 
-  it("moves the budget flag when the owner picks a category by hand", async () => {
+  it("counts a transaction again when the owner picks a category by hand", async () => {
     const { setTransactionCategory } = await import("@/app/actions/transactions");
     const salario = await prisma.category.create({ data: { name: "Salário", isIncome: true } });
     // the pipeline read this salary Pix as a transfer, so it stopped counting
-    const pix = await tx("Pix Nossa Empresa", 583.67, { status: "POSTED", categoryId: ids.transferencias, excludeFromBudget: true });
+    const pix = await tx("Pix Nossa Empresa", 583.67, { status: "POSTED", categoryId: ids.transferencias });
     // another one the owner marked as money that only passes through
     const marked = await tx("Pix Nossa Empresa", 583.67, {
       date: daysAgo(35),
       status: "POSTED",
       categoryId: ids.transferencias,
-      excludeFromBudget: true,
       excludeOverride: true,
     });
 
@@ -249,9 +254,11 @@ describe("post-sync pipeline", () => {
 
     const get = (id: string) => prisma.transaction.findUniqueOrThrow({ where: { id } });
     // corrected to Salário, so it counts as income again
-    expect(await get(pix.id)).toMatchObject({ categoryId: salario.id, excludeFromBudget: false });
+    expect(await get(pix.id)).toMatchObject({ categoryId: salario.id });
+    expect(await counts(pix.id)).toBe(true);
     // same merchant, same new category — but the owner's mark still wins
-    expect(await get(marked.id)).toMatchObject({ categoryId: salario.id, excludeFromBudget: true });
+    expect(await get(marked.id)).toMatchObject({ categoryId: salario.id });
+    expect(await counts(marked.id)).toBe(false);
   });
 
   it("keeps a paired transfer out of the budget when its category changes", async () => {
@@ -259,17 +266,14 @@ describe("post-sync pipeline", () => {
     const paired = await tx("Pix Entre Contas", 300, {
       status: "POSTED",
       categoryId: ids.transferencias,
-      excludeFromBudget: true,
       transferPairId: "pair_x",
     });
 
     await setTransactionCategory(paired.id, ids.outros!);
 
     // the pairing owns the exclusion and is undone by "desfazer o pareamento", not by the category
-    expect(await prisma.transaction.findUniqueOrThrow({ where: { id: paired.id } })).toMatchObject({
-      categoryId: ids.outros,
-      excludeFromBudget: true,
-    });
+    expect(await prisma.transaction.findUniqueOrThrow({ where: { id: paired.id } })).toMatchObject({ categoryId: ids.outros });
+    expect(await counts(paired.id)).toBe(false);
   });
 
   it("keeps the good suggestions when Claude answers a category that doesn't exist", async () => {

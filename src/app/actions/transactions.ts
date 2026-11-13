@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { findCounterpart } from "@/lib/domain/pass-through";
-import { budgetExclusion } from "@/lib/domain/flows";
 import { DAY_MS } from "@/lib/domain/format";
 import { prisma } from "@/lib/infra/db";
 import { merchantPattern } from "@/lib/domain/merchant";
@@ -34,13 +33,11 @@ export async function setTransactionCategory(txId: string, categoryId: string | 
 
   const tx = await prisma.transaction.findUnique({
     where: { id },
-    select: { id: true, description: true, merchantRaw: true, counterpartyName: true, excludeOverride: true, transferPairId: true },
+    select: { id: true, description: true, merchantRaw: true, counterpartyName: true },
   });
   if (!tx) throw new Error("Transação não encontrada");
 
   const pattern = merchantPattern(tx);
-  // the flag has to move with the category: an excluded one left behind drops the transaction out of every report
-  const cat = catId ? await prisma.category.findUnique({ where: { id: catId }, select: { excludeFromBudget: true } }) : null;
 
   if (catId) {
     // 1. USER rule (overrides AI rules forever)
@@ -54,37 +51,24 @@ export async function setTransactionCategory(txId: string, categoryId: string | 
     // 2. Update target tx + propagate to all matching tx (same pattern)
     if (pattern) {
       const allTx = await prisma.transaction.findMany({
-        select: { id: true, description: true, merchantRaw: true, counterpartyName: true, excludeOverride: true, transferPairId: true },
+        select: { id: true, description: true, merchantRaw: true, counterpartyName: true },
       });
-      const matching = allTx.filter((t) => merchantPattern(t) === pattern);
-      // same category for all of them, but the budget flag is each transaction's own (its mark, its pairing)
-      const excluded = matching.filter((t) => budgetExclusion(t, cat)).map((t) => t.id);
-      const counted = matching.filter((t) => !budgetExclusion(t, cat)).map((t) => t.id);
-      await prisma.$transaction(
-        [
-          { ids: excluded, flag: true },
-          { ids: counted, flag: false },
-        ]
-          .filter((g) => g.ids.length > 0)
-          .map((g) =>
-            prisma.transaction.updateMany({
-              where: { id: { in: g.ids } },
-              data: { categoryId: catId, status: "POSTED", excludeFromBudget: g.flag },
-            })
-          )
-      );
+      await prisma.transaction.updateMany({
+        where: { id: { in: allTx.filter((t) => merchantPattern(t) === pattern).map((t) => t.id) } },
+        data: { categoryId: catId, status: "POSTED" },
+      });
     } else {
       // No usable pattern — just update this single tx
       await prisma.transaction.update({
         where: { id },
-        data: { categoryId: catId, status: "POSTED", excludeFromBudget: budgetExclusion(tx, cat) },
+        data: { categoryId: catId, status: "POSTED" },
       });
     }
   } else {
     // Clear category on the single tx only (don't mass-uncategorize others)
     await prisma.transaction.update({
       where: { id },
-      data: { categoryId: null, status: "REVIEW", excludeFromBudget: budgetExclusion(tx, null) },
+      data: { categoryId: null, status: "REVIEW" },
     });
   }
 
@@ -165,7 +149,6 @@ const PASS_THROUGH_SELECT = {
   amount: true,
   chargeDate: true,
   excludeOverride: true,
-  category: { select: { excludeFromBudget: true } },
 } as const;
 
 /**
@@ -191,9 +174,7 @@ export async function setPassThrough(txId: string, isPassThrough: boolean) {
     [tx, ...(counterpart ? [counterpart] : [])].map((t) =>
       prisma.transaction.update({
         where: { id: t.id },
-        data: isPassThrough
-          ? { excludeOverride: true, excludeFromBudget: true }
-          : { excludeOverride: null, excludeFromBudget: t.category?.excludeFromBudget ?? false },
+        data: { excludeOverride: isPassThrough ? true : null },
       })
     )
   );

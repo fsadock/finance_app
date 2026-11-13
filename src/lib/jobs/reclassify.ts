@@ -11,7 +11,7 @@ import { checkAiAvailable } from "@/lib/ai/client";
 type Backup = {
   createdAt: string;
   rules: { pattern: string; categoryId: string; confidence: number; hits: number }[];
-  transactions: { id: string; categoryId: string | null; status: "POSTED" | "PENDING" | "REVIEW"; excludeFromBudget: boolean }[];
+  transactions: { id: string; categoryId: string | null; status: "POSTED" | "PENDING" | "REVIEW" }[];
 };
 
 /**
@@ -36,7 +36,6 @@ export async function planReclassify() {
         amount: true,
         categoryId: true,
         status: true,
-        excludeFromBudget: true,
         account: { select: { type: true } },
         category: { select: { name: true } },
       },
@@ -91,20 +90,15 @@ export async function runReclassify(confirmation: string) {
   const backup: Backup = {
     createdAt: new Date().toISOString(),
     rules: plan.aiRules,
-    transactions: plan.toReset.map((t) => ({ id: t.id, categoryId: t.categoryId, status: t.status, excludeFromBudget: t.excludeFromBudget })),
+    transactions: plan.toReset.map((t) => ({ id: t.id, categoryId: t.categoryId, status: t.status })),
   };
   const value = JSON.stringify(backup);
 
   await prisma.$transaction([
     setConfig("reclassifyBackup", value),
     prisma.merchantRule.deleteMany({ where: { source: "AI" } }),
-    // excludeFromBudget follows the category, except where the owner marked the transaction (excludeOverride)
     prisma.transaction.updateMany({
-      where: { id: { in: plan.toReset.map((t) => t.id) }, excludeOverride: null },
-      data: { status: "REVIEW", categoryId: null, excludeFromBudget: false },
-    }),
-    prisma.transaction.updateMany({
-      where: { id: { in: plan.toReset.map((t) => t.id) }, NOT: { excludeOverride: null } },
+      where: { id: { in: plan.toReset.map((t) => t.id) } },
       data: { status: "REVIEW", categoryId: null },
     }),
   ]);
@@ -166,7 +160,7 @@ export async function undoReclassify() {
     ...txToRestore.map((t) =>
       prisma.transaction.update({
         where: { id: t.id },
-        data: { categoryId: t.categoryId, status: t.status, excludeFromBudget: t.excludeFromBudget },
+        data: { categoryId: t.categoryId, status: t.status },
       })
     ),
     deleteConfig("reclassifyBackup"),
