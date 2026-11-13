@@ -357,7 +357,6 @@ Keep copies outside the project folder. To restore, stop the app and put the bac
 | `pnpm db:seed` | Re-create missing default categories. Safe to run anytime. |
 | `pnpm db:studio` | Browse and edit the raw database in Prisma Studio. |
 | `pnpm db:wipe` | ⚠ Deletes **all** data (accounts, transactions, rules, budgets, goals, recurring items, connections). Keeps categories. Back up first. |
-| `pnpm db:dedupe` | One-off cleanup for duplicate accounts created by old versions. |
 
 ---
 
@@ -401,7 +400,7 @@ pnpm db:migrate   # create a migration after editing prisma/schema.prisma
 - This Next.js version has breaking changes from older ones. Read `node_modules/next/dist/docs/` before changing framework-level code (see `AGENTS.md`).
 
 ```text
-prisma/              schema, migrations, seed / wipe / dedupe scripts
+prisma/              schema, migrations, seed / wipe scripts
 src/app/             pages (App Router), API routes, server actions (src/app/actions)
 src/components/      UI components
 src/lib/domain/      pure rules, no database or network: money model (flows), Brazil (brazil), recurrence,
