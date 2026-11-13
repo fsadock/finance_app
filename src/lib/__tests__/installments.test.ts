@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildInstallmentPlans, committedByMonth, groupInstallmentPurchases, type InstallmentTx } from "@/lib/domain/installments";
+import { buildInstallmentPlans, committedByMonth, groupInstallmentPurchases, installmentChargeDates, type InstallmentTx } from "@/lib/domain/installments";
+import { monthKey } from "@/lib/domain/format";
 
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d);
 const today = day(2026, 9, 15);
@@ -147,12 +148,29 @@ describe("installment purchases (real Nubank cases, dates as Open Finance sent t
     expect(p!.remainingAmount).toBeCloseTo(504.9);
   });
 
-  it("keeps a second installment posted on the next closing day (Nubank: 1ª 06/08, 2ª 13/08)", () => {
-    const prime = [1, 2, 3].map((n) =>
-      tx({ description: `Amazon Prime ${n}/12`, amount: -13.9, installmentNumber: n, date: [day(2026, 8, 6), day(2026, 8, 13), day(2026, 9, 13)][n - 1]! })
+  // How Open Finance sent the Prime 12x bought on 05/08: posted ones on the closing day of the bill before
+  // their own (13/08, 13/09), the ones to come stamped purchase + (n − 1) months, a day later.
+  const monthsOf = (rows: InstallmentTx[]) => {
+    const dates = installmentChargeDates(rows);
+    return rows.map((r) => monthKey(dates.get(r.id)!));
+  };
+
+  it("counts one Nubank installment per month, though the posted ones carry the closing day before", () => {
+    const dates = [day(2026, 8, 5), day(2026, 8, 13), day(2026, 9, 13), day(2026, 11, 6)];
+    const prime = dates.map((date, i) =>
+      tx({ id: `p${i + 1}`, description: `Amazon Prime ${i + 1}/12`, amount: -13.9, installmentNumber: i + 1, date })
     );
-    // 2ª is in the closed September bill (posted 13/08, before the open bill started on 13/09): settled
+    expect(monthsOf(prime)).toEqual(["2026-08", "2026-09", "2026-10", "2026-11"]);
+    // 2ª is in the closed September bill (before the open bill started on 13/09): settled
     expect(buildInstallmentPlans(prime, nubank)[0]).toMatchObject({ paid: 2, remaining: 10 });
+  });
+
+  it("keeps installments the bank posted months early where it put them (Paccoby 10x, 3ª–10ª on 28/10)", () => {
+    const dates = [day(2025, 10, 7), day(2025, 10, 13), ...Array.from({ length: 8 }, () => day(2025, 10, 28))];
+    const paccoby = dates.map((date, i) =>
+      tx({ id: `c${i + 1}`, description: `Paccoby *Pacco ${i + 1}/10`, amount: -54, installmentNumber: i + 1, totalInstallments: 10, date })
+    );
+    expect(monthsOf(paccoby)).toEqual(["2025-10", "2025-11", ...Array.from({ length: 8 }, () => "2025-10")]);
   });
 
   it("keeps two similar purchases apart (Araujo Loja: two 3x purchases, both on 2/3)", () => {
@@ -182,31 +200,29 @@ describe("parcela quitada à mão", () => {
     tx(1, "2026-03-10"), tx(2, "2026-03-13"), tx(3, "2026-04-13"),
     tx(4, "2026-05-13"), tx(5, "2026-06-13"), tx(6, "2026-07-13"),
   ];
-  const today = new Date("2026-10-01");
+  // a fatura aberta do Nubank começou em 13/09: o que foi cobrado antes já está em fatura fechada
+  const opts = { today: new Date(2026, 9, 1), openBillStarts: new Map([["card", new Date(2026, 8, 13)]]) };
 
   it("projeta todas as parcelas, inclusive as que o banco não enviou", () => {
-    const [plan] = buildInstallmentPlans(rows, { today });
+    const [plan] = buildInstallmentPlans(rows, opts);
     expect(plan!.installments).toHaveLength(10);
     expect(plan!.installments.filter((i) => !i.received).map((i) => i.number)).toEqual([7, 8, 9, 10]);
     expect(plan!.remaining).toBe(3);
   });
 
   it("deixa de projetar o que o dono marcou como pago", () => {
-    const [plan] = buildInstallmentPlans(rows, { today });
+    const [plan] = buildInstallmentPlans(rows, opts);
     const key = plan!.key;
-    const [quitada] = buildInstallmentPlans(rows, {
-      today,
-      paidByHand: new Set([`${key}:9`, `${key}:10`]),
-    });
+    const [quitada] = buildInstallmentPlans(rows, { ...opts, paidByHand: new Set([`${key}:9`, `${key}:10`]) });
     expect(quitada!.remaining).toBe(1);
     expect(quitada!.remainingAmount).toBeCloseTo(333.4, 2);
-    expect([...quitada!.schedule.keys()]).toEqual(["2026-09"]);
+    expect([...quitada!.schedule.keys()]).toEqual(["2026-10"]);
   });
 
   it("mantém a compra visível depois de quitada, para poder desfazer", () => {
-    const [plan] = buildInstallmentPlans(rows, { today });
+    const [plan] = buildInstallmentPlans(rows, opts);
     const all = new Set(plan!.installments.map((i) => `${plan!.key}:${i.number}`));
-    const [quitada] = buildInstallmentPlans(rows, { today, paidByHand: all });
+    const [quitada] = buildInstallmentPlans(rows, { ...opts, paidByHand: all });
     expect(quitada).toBeDefined();
     expect(quitada!.remaining).toBe(0);
     expect(quitada!.schedule.size).toBe(0);

@@ -90,20 +90,29 @@ function purchaseAnchor(group: InstallmentRow[]): Date | null {
   return new Date(Math.min(...withPurchase.map((r) => addMonths(r.purchaseDate!, -(r.installmentNumber! - 1)).getTime())));
 }
 
+/** How far a bank's date can sit from an installment's own month and still be that month's posting. */
+const ONE_CYCLE_MS = 31 * DAY_MS;
+
 /**
- * When each installment of a purchase is charged, read from the bank's data without changing it.
- * Some banks (BTG) date future installments with the purchase date: 7/10 dated on the purchase day
- * is charged six months later. An installment n > 1 dated on the purchase day (±2 days) is read as
- * purchase + (n − 1) months; every other date is the bank's — including a second installment posted a
- * week later on the closing day (Nubank), which is a real bill posting.
+ * When each installment of a purchase is charged, read from the bank's data without changing it: one per
+ * month, purchase + (n − 1) months. Banks date them their own way — BTG stamps future installments with the
+ * purchase day, Nubank posts each on the closing day of the bill before it — so the purchase-day stamp, or a
+ * date within one billing cycle of the installment's month, is read as that month. A date further off is a
+ * real event, like installments paid early, and stays as the bank sent it.
  */
 function chargeDates(group: InstallmentRow[]): Map<number, Date> {
   const anchor = purchaseAnchor(group);
   const out = new Map<number, Date>();
   for (const r of group) {
     const n = r.installmentNumber!;
-    const stampedWithPurchase = anchor !== null && n > 1 && Math.abs(r.date.getTime() - anchor.getTime()) <= 2 * DAY_MS;
-    out.set(n, stampedWithPurchase ? addMonths(anchor, n - 1) : r.date);
+    if (anchor === null) {
+      out.set(n, r.date);
+      continue;
+    }
+    const own = addMonths(anchor, n - 1);
+    const stampedWithPurchase = n > 1 && Math.abs(r.date.getTime() - anchor.getTime()) <= 2 * DAY_MS;
+    const postedForThisMonth = Math.abs(r.date.getTime() - own.getTime()) <= ONE_CYCLE_MS;
+    out.set(n, stampedWithPurchase || postedForThisMonth ? own : r.date);
   }
   return out;
 }
