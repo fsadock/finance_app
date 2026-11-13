@@ -18,7 +18,7 @@ export async function getAnthropic() {
   return client;
 }
 
-export const MODEL_FAST = "claude-haiku-4-5-20251001";
+export const MODEL_FAST = "claude-haiku-5-5";
 
 /** Human-readable reason an AI call failed (e.g. no credits, invalid key) for the UI. */
 export function aiErrorMessage(e: unknown): string {
