@@ -39,8 +39,8 @@ describe("findCounterpart", () => {
     expect(findCounterpart(september[0]!, september)?.id).toBe("set-pix");
   });
 
-  it("ignores another account, another sign and another week", () => {
-    const far = tx({ id: "x", description: "Pix", amount: 2279, chargeDate: day(2026, 9, 30) });
+  it("ignores another account, another sign and another month", () => {
+    const far = tx({ id: "x", description: "Pix", amount: 2279, chargeDate: day(2026, 10, 15) });
     const other = tx({ id: "y", description: "Pix", amount: 2279, accountId: "nubank" });
     const sameSign = tx({ id: "z", amount: -2279 });
     expect(findCounterpart(september[0]!, [far, other, sameSign])).toBeNull();
@@ -70,6 +70,28 @@ describe("newPassThroughs", () => {
     const marked = [tx({ id: "pix-marcado", description: "Pix", amount: -2279, chargeDate: day(2026, 8, 14), excludeOverride: true })];
     const other = tx({ id: "pix-outro", description: "Pix", amount: -2280, chargeDate: day(2026, 9, 14) });
     expect(newPassThroughs([...marked, other])).toEqual([]);
+  });
+
+  // The condo: its fee changes every month, and the parents pay it back days or weeks after the boleto.
+  const condo = (id: string, amount: number, date: Date, over: Partial<PassThroughTx> = {}) =>
+    tx({ id, amount, chargeDate: date, counterpartyName: "CONDOMINIO DO EDIFICIO ANTARES", ...over });
+  const markedCondo = [
+    condo("ago-condo", -505, day(2026, 8, 5), { excludeOverride: true }),
+    tx({ id: "ago-volta", description: "Pix", amount: 505, chargeDate: day(2026, 8, 7), excludeOverride: true }),
+  ];
+
+  it("recognizes next month's condo though the fee changed, with the money paid back", () => {
+    const sept = [condo("set-condo", -525.11, day(2026, 9, 8)), tx({ id: "set-volta", description: "Pix", amount: 525.2, chargeDate: day(2026, 9, 9) })];
+    expect(newPassThroughs([...markedCondo, ...sept]).map((t) => t.id).sort()).toEqual(["set-condo", "set-volta"]);
+  });
+
+  it("waits for money paid back weeks later", () => {
+    const july = [condo("jul-condo", -475.35, day(2026, 7, 6)), tx({ id: "jul-volta", description: "Pix", amount: 476, chargeDate: day(2026, 7, 26) })];
+    expect(newPassThroughs([...markedCondo, ...july]).map((t) => t.id).sort()).toEqual(["jul-condo", "jul-volta"]);
+  });
+
+  it("keeps a bill nobody paid back as the owner's spending", () => {
+    expect(newPassThroughs([...markedCondo, condo("mar-condo", -495, day(2026, 3, 6))])).toEqual([]);
   });
 
   it("respects a transaction the owner put back in the budget", () => {

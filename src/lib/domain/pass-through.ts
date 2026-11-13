@@ -22,7 +22,13 @@ export function amountsCancel(a: number, b: number) {
   return Math.abs(a + b) <= Math.max(5, Math.abs(a) * 0.01);
 }
 
-const PAIR_WINDOW_DAYS = 5;
+/** How long the money that funds a bill can take to arrive: a parent paying back the condo took 20 days. */
+export const PAIR_WINDOW_DAYS = 25;
+
+/** A monthly bill's amount moves from one month to the next (a condo fee went from R$ 460 to R$ 526). */
+function sameBillAmount(a: number, b: number) {
+  return Math.abs(a - b) <= Math.abs(b) * 0.15;
+}
 
 /** The transaction on the other side of a pass-through: same account, opposite sign, same amount, days apart. */
 export function findCounterpart<T extends PassThroughTx>(tx: T, candidates: T[]): T | null {
@@ -64,7 +70,9 @@ function sameTimeOfMonth(a: Date, b: Date) {
 
 /**
  * The ones to mark automatically: a transaction that repeats a bill the owner already marked as a pass-through
- * (same account, same description, same amount within tolerance), plus whatever funds it.
+ * (same account, same description, a similar amount around the same day), together with the money that funds it.
+ * Both or neither: a bill nobody paid back is the owner's own spending, and stays in the budget until the money
+ * arrives.
  */
 export function newPassThroughs<T extends PassThroughTx>(txs: T[]): T[] {
   const marked = txs.filter((t) => t.excludeOverride === true);
@@ -78,22 +86,23 @@ export function newPassThroughs<T extends PassThroughTx>(txs: T[]): T[] {
     byBill.get(key)!.push(t);
   }
 
+  const unmarked = txs.filter((t) => t.excludeOverride === null);
   const found = new Map<string, T>();
-  for (const t of txs) {
-    if (t.excludeOverride !== null) continue;
+  for (const t of unmarked) {
     const key = billKey(t);
     const examples = key ? byBill.get(key) : undefined;
     // a marked example of the same bill, in another month, for about the same amount and around the same day
     const repeats = examples?.some(
       (e) =>
-        amountsCancel(t.amount, -e.amount) &&
+        sameBillAmount(t.amount, e.amount) &&
         e.chargeDate.getTime() !== t.chargeDate.getTime() &&
         sameTimeOfMonth(t.chargeDate, e.chargeDate)
     );
     if (!repeats) continue;
+    const counterpart = findCounterpart(t, unmarked);
+    if (!counterpart) continue;
     found.set(t.id, t);
-    const counterpart = findCounterpart(t, txs);
-    if (counterpart && counterpart.excludeOverride === null) found.set(counterpart.id, counterpart);
+    found.set(counterpart.id, counterpart);
   }
   return [...found.values()];
 }

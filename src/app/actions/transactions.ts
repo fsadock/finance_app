@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { findCounterpart } from "@/lib/domain/pass-through";
+import { PAIR_WINDOW_DAYS, findCounterpart } from "@/lib/domain/pass-through";
 import { DAY_MS } from "@/lib/domain/format";
 import { prisma } from "@/lib/infra/db";
 import { merchantPattern } from "@/lib/domain/merchant";
@@ -164,7 +164,10 @@ export async function setPassThrough(txId: string, isPassThrough: boolean) {
   const window = await prisma.transaction.findMany({
     where: {
       accountId: tx.accountId,
-      chargeDate: { gte: new Date(tx.chargeDate.getTime() - 5 * DAY_MS), lte: new Date(tx.chargeDate.getTime() + 5 * DAY_MS) },
+      chargeDate: {
+        gte: new Date(tx.chargeDate.getTime() - PAIR_WINDOW_DAYS * DAY_MS),
+        lte: new Date(tx.chargeDate.getTime() + PAIR_WINDOW_DAYS * DAY_MS),
+      },
     },
     select: PASS_THROUGH_SELECT,
   });
