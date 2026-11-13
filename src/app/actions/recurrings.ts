@@ -14,8 +14,7 @@ void sameCadences;
 const idSchema = z.string().min(1);
 
 function revalidate() {
-  revalidatePath("/recurrings");
-  revalidatePath("/");
+  revalidatePath("/", "layout");
 }
 
 export async function setRecurringActive(id: string, active: boolean) {

@@ -93,6 +93,6 @@ export async function removeEmailSettings(): Promise<Result> {
 export async function saveLockMinutes(minutes: number): Promise<Result> {
   const value = z.number().int().min(0).max(1440).parse(minutes);
   await setConfig("lockMinutes", String(value));
-  revalidatePath("/settings");
+  revalidatePath("/", "layout");
   return { ok: true, message: value > 0 ? `Pedirá a passkey ${lockLabel(value).toLowerCase()}.` : "Bloqueio desligado." };
 }

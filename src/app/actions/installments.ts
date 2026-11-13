@@ -26,8 +26,6 @@ export async function setInstallmentsPaid(input: z.input<typeof schema>) {
     ? prisma.$transaction([clear, prisma.installmentPaid.createMany({ data: numbers.map((number) => ({ planKey, number })) })])
     : clear);
 
-  revalidatePath("/installments");
-  revalidatePath("/next-month");
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   return { ok: true };
 }

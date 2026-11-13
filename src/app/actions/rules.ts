@@ -8,7 +8,7 @@ const idSchema = z.string().min(1);
 
 export async function deleteMerchantRule(id: string) {
   await prisma.merchantRule.delete({ where: { id: idSchema.parse(id) } });
-  revalidatePath("/rules");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -18,6 +18,6 @@ export async function setMerchantRuleCategory(id: string, categoryId: string) {
     where: { id: idSchema.parse(id) },
     data: { categoryId: idSchema.parse(categoryId), source: "USER", confidence: 1 },
   });
-  revalidatePath("/rules");
+  revalidatePath("/", "layout");
   return { ok: true };
 }

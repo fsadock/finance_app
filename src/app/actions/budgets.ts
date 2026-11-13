@@ -43,8 +43,7 @@ export async function setBudget(input: {
     update: { monthlyLimit },
   });
 
-  revalidatePath("/categories");
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -59,8 +58,7 @@ export async function deleteBudget(input: { categoryId: string; startMonth: stri
   if (inherited && inherited.monthlyLimit > 0) {
     await prisma.budget.create({ data: { categoryId, startMonth, monthlyLimit: 0 } });
   }
-  revalidatePath("/categories");
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -68,7 +66,7 @@ export async function toggleRollover(categoryId: string, enabled: boolean) {
   const id = z.string().min(1).parse(categoryId);
   const on = z.boolean().parse(enabled);
   await prisma.category.update({ where: { id }, data: { rolloverEnabled: on } });
-  revalidatePath("/categories");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -112,7 +110,6 @@ export async function applyRebalance(
         : [prisma.budget.create({ data: { categoryId, startMonth: nextMonth, monthlyLimit: original.get(categoryId)! } })]),
     ])
   );
-  revalidatePath("/categories");
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   return { ok: true };
 }

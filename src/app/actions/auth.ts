@@ -16,7 +16,7 @@ export async function createDeviceCode() {
 /** Removing a passkey also signs out every browser that used it. */
 export async function removeDevice(passkeyId: string) {
   await prisma.passkey.delete({ where: { id: z.string().min(1).parse(passkeyId) } });
-  revalidatePath("/settings");
+  revalidatePath("/", "layout");
 }
 
 export async function signOut() {

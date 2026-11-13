@@ -39,15 +39,13 @@ export async function setGoal(input: z.input<typeof setGoalSchema>) {
     await prisma.goal.create({ data });
   }
 
-  revalidatePath("/goals");
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
 export async function deleteGoal(id: string) {
   z.string().min(1).parse(id);
   await prisma.goal.delete({ where: { id } });
-  revalidatePath("/goals");
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   return { ok: true };
 }

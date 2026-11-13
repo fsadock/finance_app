@@ -11,16 +11,14 @@ const setCCCycleCloseDaySchema = z.number().int().min(1).max(28).nullable();
 export async function setCCMonthlyLimit(limit: number | null) {
   const parsed = setCCMonthlyLimitSchema.parse(limit);
   await (parsed && parsed > 0 ? setConfig("ccMonthlyLimit", String(parsed)) : deleteConfig("ccMonthlyLimit"));
-  revalidatePath("/");
-  revalidatePath("/accounts");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
 export async function setCCCycleCloseDay(day: number | null) {
   const validated = setCCCycleCloseDaySchema.parse(day);
   await (validated ? setConfig("ccCycleCloseDay", String(validated)) : deleteConfig("ccCycleCloseDay"));
-  revalidatePath("/");
-  revalidatePath("/accounts");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 

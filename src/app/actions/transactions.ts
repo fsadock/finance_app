@@ -88,9 +88,7 @@ export async function setTransactionCategory(txId: string, categoryId: string | 
     });
   }
 
-  revalidatePath("/transactions");
-  revalidatePath("/");
-  revalidatePath("/categories");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -98,7 +96,7 @@ export async function setTransactionNotes(txId: string, notes: string) {
   const id = txIdSchema.parse(txId);
   const value = z.string().max(500).parse(notes).trim();
   await prisma.transaction.update({ where: { id }, data: { notes: value || null } });
-  revalidatePath("/transactions");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -121,8 +119,7 @@ export async function createCategory(input: z.input<typeof createCategorySchema>
       isIncome: isIncome ?? false,
     },
   });
-  revalidatePath("/categories");
-  revalidatePath("/transactions");
+  revalidatePath("/", "layout");
   return c;
 }
 
@@ -142,8 +139,7 @@ export async function addTransactionTag(txId: string, tagName: string) {
     },
   });
 
-  revalidatePath("/transactions");
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -156,8 +152,7 @@ export async function removeTransactionTag(txId: string, tagId: string) {
     data: { tags: { disconnect: { id: tid } } },
   });
 
-  revalidatePath("/transactions");
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
