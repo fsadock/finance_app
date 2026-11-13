@@ -4,12 +4,12 @@ import { useSyncExternalStore } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/** Lido também por um script no <head>, que aplica o atributo antes da primeira pintura. */
+/** Also read by a script in <head>, which applies the attribute before the first paint. */
 const KEY = "financas_private";
 
 /**
- * O estado real é o atributo no <html> — é ele que o CSS enxerga, e é ele que o script do <head> já
- * aplicou antes do React existir. Então o React lê de lá em vez de guardar uma cópia que pode divergir.
+ * The state is the attribute on <html>: it is what the CSS sees and what the <head> script already set before
+ * React ran. React reads it there instead of keeping a copy that could disagree.
  */
 const listeners = new Set<() => void>();
 const subscribe = (notify: () => void) => {
@@ -24,16 +24,16 @@ function setHidden(next: boolean) {
   try {
     localStorage.setItem(KEY, next ? "1" : "0");
   } catch {
-    // janela anônima pode bloquear o storage; a preferência vale só para esta sessão
+    // a private window may block storage; then the preference lasts for this session only
   }
   for (const notify of listeners) notify();
 }
 
 /**
- * Esconde os valores da tela, como o olhinho dos apps de banco.
+ * Hides the amounts on screen, like the eye toggle in banking apps.
  *
- * A preferência é deste aparelho, não da conta: esconder no celular não deveria esconder no notebook de
- * casa. Por isso mora no localStorage e nunca vai para o servidor.
+ * The preference belongs to this device, not the account: hiding on a phone shouldn't hide on the laptop at
+ * home. So it lives in localStorage and never reaches the server.
  */
 export function PrivacyToggle({ className }: { className?: string }) {
   const hidden = useSyncExternalStore(subscribe, isHidden, onServer);

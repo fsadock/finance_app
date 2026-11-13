@@ -70,8 +70,8 @@ export function inferCadence(dates: Date[]): Cadence | null {
 }
 
 /**
- * A cadência só quando os intervalos se repetem: ao menos 3 datas e todos os intervalos compatíveis com a
- * cadência. Duas compras no mesmo restaurante com 30 dias de distância não são uma assinatura.
+ * The cadence only when the gaps repeat: at least 3 dates, every gap compatible with it. Two meals at the same
+ * restaurant 30 days apart are not a subscription.
  */
 export function regularCadence(dates: Date[]): Cadence | null {
   if (dates.length < 3) return null;

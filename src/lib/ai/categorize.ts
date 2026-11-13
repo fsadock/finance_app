@@ -26,8 +26,8 @@ type TxForAI = {
 };
 
 /**
- * Regras de classificação. Mandado como system com cache_control, então cresce de graça na segunda chamada —
- * mas cada regra aqui é uma que o usuário não precisa corrigir à mão depois.
+ * Classification rules. Sent as a cached system prompt, so a longer prompt costs nothing after the first call,
+ * and each rule here is a correction the owner doesn't make by hand.
  */
 const SYSTEM_PROMPT = (categoryList: string) => `Você é um classificador de transações bancárias brasileiras.
 Para cada transação, escolha a categoria mais apropriada da lista no fim. Valores negativos são saídas; positivos, entradas.
@@ -123,8 +123,8 @@ export async function suggestCategories(remaining: TxForAI[], categories: { name
     })
     .join("\n");
 
-  // categoryName como texto livre, validado depois: uma resposta fora da lista descartava o lote inteiro
-  // de 40 transações, e bastava um Pix para isso acontecer.
+  // categoryName is free text, checked against the list afterwards: as an enum, one answer outside the list
+  // fails the whole batch.
   const SuggestionsSchema = z.object({
     suggestions: z.array(z.object({ txId: z.string(), categoryName: z.string(), confidence: z.number() })),
   });

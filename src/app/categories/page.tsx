@@ -65,8 +65,8 @@ export default async function CategoriesPage({ searchParams }: Props) {
   const trendCategories = byPeriod.slice(0, TREND_SIZE);
   const rest = byPeriod.slice(TREND_SIZE);
   // Stacked, the bar is every category added up, so what the named ones leave out has to be in it.
-  // A month where refunds outweighed spending is reported as the negative it is: clamping it to zero
-  // used to inflate these months by exactly the amount that came back.
+  // A month where refunds outweighed spending stays negative: clamping it to zero would overstate the month
+  // by exactly the amount that came back.
   const trendData = months.map((mo) => {
     const row: Record<string, number | string> = { month: mo };
     for (const { cat } of trendCategories) row[cat.name] = spentIn(cat.id, mo);

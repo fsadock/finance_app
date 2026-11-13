@@ -283,7 +283,7 @@ describe("post-sync pipeline", () => {
     const out = await runPostSyncJobs();
 
     expect(await prisma.transaction.findUniqueOrThrow({ where: { id: shop.id } })).toMatchObject({ categoryId: ids.mercado });
-    // a inválida volta para revisão em vez de derrubar o lote inteiro
+    // the invalid one goes back to review instead of failing the whole batch
     expect(await prisma.transaction.findUniqueOrThrow({ where: { id: unknown.id } })).toMatchObject({ status: "REVIEW" });
     expect(out.aiError).toBeNull();
   });

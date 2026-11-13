@@ -72,7 +72,7 @@ export async function addCryptoPurchase(input: { symbol: string; quantity: numbe
       symbol,
       quantity,
       totalBrl,
-      // "2026-08-02" lido como dia local: new Date() leria como UTC e mostraria o dia anterior aqui
+      // "2026-08-02" as a local day: new Date() reads it as UTC, which is the previous day in Brazil
       date: dateOnly(date),
     },
   });

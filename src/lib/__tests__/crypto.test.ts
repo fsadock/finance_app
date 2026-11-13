@@ -21,7 +21,7 @@ const holding = (over: Partial<Holding> & { symbol: Holding["symbol"] }): Holdin
 
 describe("detectChain", () => {
   it("reconhece endereços reais de cada rede", () => {
-    // endereços públicos conhecidos (bloco gênesis do Bitcoin e a conta de sistema da Solana)
+    // well-known public addresses (Bitcoin's genesis block and Solana's system account)
     expect(detectChain("bc1qgdjqv0av3q56jvd82tkdjpy7gdp9ut8tlqmgrpmv24sq90ecnvqqjwvw97")).toBe("BITCOIN");
     expect(detectChain("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa")).toBe("BITCOIN");
     expect(detectChain("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM")).toBe("SOLANA");
@@ -77,7 +77,7 @@ describe("portfolioChange24h", () => {
   const change = (s: string) => ({ BTC: -2, SOL: 6 })[s];
 
   it("pesa a variação pelo tamanho de cada posição", () => {
-    // R$ 900 em BTC caindo 2% e R$ 100 em SOL subindo 6% dão -1,2% no conjunto
+    // R$ 900 of BTC down 2% and R$ 100 of SOL up 6% make -1.2% overall
     const total = portfolioChange24h(
       [
         holding({ symbol: "BTC", quantity: 1, priceBrl: 900 }),

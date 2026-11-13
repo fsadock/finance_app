@@ -42,8 +42,8 @@ async function categorizeReviewTransactions(skipIds: string[] = [], { useAI = tr
       },
       take: CATEGORIZE_BATCH_SIZE,
     }),
-    // Todas: o prompt manda usar "Transferências", "Investimentos", "Pagamento de fatura" e
-    // "Previdência privada", que ficam de fora do orçamento mas são classificações legítimas.
+    // All of them: the prompt asks for "Transferências", "Investimentos", "Pagamento de fatura" and
+    // "Previdência privada", which stay out of the budget but are valid categories.
     prisma.category.findMany(),
     prisma.merchantRule.findMany(),
   ]);

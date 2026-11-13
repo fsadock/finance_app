@@ -27,7 +27,7 @@ async function pricedWallets() {
         id: i.id,
         symbol: (i.ticker ?? "BTC") as CryptoSymbol,
         quantity: i.quantity,
-        // o custo vem das compras informadas, não do que estava gravado no último sync
+        // cost comes from the purchases the owner entered, not from what the last sync stored
         costBasis: costOf(i.ticker ?? "").perUnit,
         // the stored price is the last sync's; the live quote wins while the screen is open
         priceBrl: quote?.brl ?? i.currentPrice,

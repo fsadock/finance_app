@@ -32,8 +32,8 @@ export default async function RootLayout({
   // Every page shows live personal data: never prerender at build time
   await connection();
   const html = (body: React.ReactNode) => (
-    // O script abaixo põe `data-private` aqui antes da hidratação; sem isto o React reclama de um
-    // atributo que ele não renderizou — e o descarta, desligando o modo privado no carregamento.
+    // The script below sets `data-private` here before hydration; without this React would discard an
+    // attribute it didn't render, turning private mode off on load.
     <html
       lang="pt-BR"
       suppressHydrationWarning

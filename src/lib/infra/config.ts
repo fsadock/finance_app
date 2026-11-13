@@ -15,7 +15,7 @@ const CONFIG_KEYS = {
   anthropicApiKey: "setting:anthropic_api_key",
   resendApiKey: "setting:resend_api_key",
   recoveryEmail: "setting:recovery_email",
-  /** Minutos parado até pedir a passkey de novo; 0 desliga. */
+  /** Idle minutes before the passkey is asked again; 0 turns it off. */
   lockMinutes: "setting:lock_minutes",
 } as const;
 
