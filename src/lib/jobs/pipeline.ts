@@ -12,6 +12,16 @@ import { refreshRecurrings } from "@/lib/jobs/recurrings";
 import { detectRecurrings } from "@/lib/ai/recurrings";
 import { aiErrorMessage } from "@/lib/ai/client";
 
+/** A failed step is logged and skipped, so the steps after it still run. */
+async function step<T>(name: string, run: () => Promise<T>): Promise<T | null> {
+  try {
+    return await run();
+  } catch (e) {
+    logger.error(`post-sync:${name}_failed`, { error: errorMessage(e) });
+    return null;
+  }
+}
+
 /**
  * @param fullHistory scan all history for transfer pairs — used on the first sync of a newly connected
  * bank, whose outflows can pair with older inflows (e.g. salary moved from that bank, already categorized).
@@ -35,55 +45,35 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
   };
   logger.info("post-sync:start");
 
-  try {
-    out.duplicatesRemoved = (await removeDuplicateTransactions()).removed;
-  } catch (e) {
-    logger.error("post-sync:duplicates_failed", { error: errorMessage(e) });
-  }
-
-  try {
-    out.chargeDatesUpdated = (await updateChargeDates()).updated;
-  } catch (e) {
-    logger.error("post-sync:charge_dates_failed", { error: errorMessage(e) });
-  }
-
-  try {
-    const d = await applyDeterministicRules();
-    out.deterministic = d.categorized;
-  } catch (e) {
-    logger.error("post-sync:deterministic_failed", { error: errorMessage(e) });
-  }
-
-  try {
-    out.transfersPaired = (await detectTransfers(fullHistory ? 365 * 5 : TRANSFER_DETECTION_DAYS_BACK)).paired;
-  } catch (e) {
-    logger.error("post-sync:transfers_failed", { error: errorMessage(e) });
-  }
-
-  out.passThroughs = (await applyPassThroughs()).marked;
-
+  out.duplicatesRemoved = (await step("duplicates", removeDuplicateTransactions))?.removed ?? 0;
+  out.chargeDatesUpdated = (await step("charge_dates", updateChargeDates))?.updated ?? 0;
+  out.deterministic = (await step("deterministic", applyDeterministicRules))?.categorized ?? 0;
+  out.transfersPaired =
+    (await step("transfers", () => detectTransfers(fullHistory ? 365 * 5 : TRANSFER_DETECTION_DAYS_BACK)))?.paired ?? 0;
+  out.passThroughs = (await step("pass_through", applyPassThroughs))?.marked ?? 0;
   // watch-only wallets: read straight from the blockchains, so they refresh with everything else
-  try {
-    out.cryptoWallets = (await syncCryptoWallets()).wallets;
-  } catch (e) {
-    logger.error("post-sync:crypto_failed", { error: errorMessage(e) });
+  out.cryptoWallets = (await step("crypto", syncCryptoWallets))?.wallets ?? 0;
+
+  const c = await step("categorize", () => categorizeAllPending());
+  if (c) {
+    out.categorized = c.applied;
+    out.fromRules = c.fromRules;
+    out.fromAI = c.fromAI;
+    out.pendingReview = c.remaining;
+    out.aiError = c.error;
   }
 
-  const c = await categorizeAllPending();
-  out.categorized = c.applied;
-  out.fromRules = c.fromRules;
-  out.fromAI = c.fromAI;
-  out.pendingReview = c.remaining;
-  out.aiError = c.error;
+  const refreshed = await step("recurrings", () => refreshRecurrings());
+  out.recurringsLinked = refreshed?.linked ?? 0;
+  out.recurringsChanged = refreshed?.changed ?? 0;
 
-  try {
-    const refreshed = await refreshRecurrings();
-    out.recurringsLinked = refreshed.linked;
-    out.recurringsChanged = refreshed.changed;
-    if (!out.aiError && c.aiConfigured) out.recurringsDetected = (await detectRecurrings()).detected;
-  } catch (e) {
-    out.aiError ??= aiErrorMessage(e);
-    logger.error("post-sync:recurrings_failed", { error: errorMessage(e) });
+  if (refreshed && c?.aiConfigured && !out.aiError) {
+    try {
+      out.recurringsDetected = (await detectRecurrings()).detected;
+    } catch (e) {
+      out.aiError = aiErrorMessage(e);
+      logger.error("post-sync:ai_recurrings_failed", { error: errorMessage(e) });
+    }
   }
 
   logger.info("post-sync:done", out);

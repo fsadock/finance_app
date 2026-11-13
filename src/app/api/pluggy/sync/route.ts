@@ -19,14 +19,12 @@ export async function POST(req: Request) {
     const itemId: string | undefined = body.itemId;
 
     if (itemId) {
-      try {
-        const result = await syncItem(itemId);
-        const post = await runPostSyncJobs({ fullHistory: result.isNew });
-        return NextResponse.json({ stats: { ...result.stats, ...post } });
-      } catch (e) {
+      const result = await syncItem(itemId).catch(async (e) => {
         await markSyncFailed(itemId, e);
         throw e;
-      }
+      });
+      const post = await runPostSyncJobs({ fullHistory: result.isNew });
+      return NextResponse.json({ stats: { ...result.stats, ...post } });
     }
 
     // No itemId → sync all known items

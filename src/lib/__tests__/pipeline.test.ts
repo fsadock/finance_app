@@ -20,6 +20,17 @@ vi.mock("@/lib/ai/client", () => ({
   aiErrorMessage: (e: unknown) => `IA indisponível: ${e instanceof Error ? e.message : String(e)}`,
 }));
 
+const passThrough = vi.hoisted(() => ({ fail: false }));
+vi.mock("@/lib/jobs/pass-through", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/jobs/pass-through")>();
+  return {
+    applyPassThroughs: async () => {
+      if (passThrough.fail) throw new Error("database is locked");
+      return real.applyPassThroughs();
+    },
+  };
+});
+
 type Db = typeof import("@/lib/infra/db")["prisma"];
 let prisma: Db;
 let runPostSyncJobs: typeof import("@/lib/jobs/pipeline")["runPostSyncJobs"];
@@ -286,5 +297,18 @@ describe("post-sync pipeline", () => {
     expect((await prisma.transaction.findUniqueOrThrow({ where: { id: bakery.id } })).status).toBe("POSTED");
     expect((await prisma.transaction.findUniqueOrThrow({ where: { id: shop.id } })).status).toBe("REVIEW");
     expect(out.aiError).toContain("credit balance is too low");
+  });
+
+  it("skips a failing step, runs the ones after it, and does not blame the AI", async () => {
+    claude({ "Loja Nova XYZ": { category: "Mercado", confidence: 0.9 } });
+    const shop = await tx("Loja Nova XYZ", -80);
+
+    passThrough.fail = true;
+    const out = await runPostSyncJobs().finally(() => (passThrough.fail = false));
+
+    expect(out.passThroughs).toBe(0);
+    expect(out.categorized).toBe(1);
+    expect(out.aiError).toBeNull();
+    expect(await prisma.transaction.findUniqueOrThrow({ where: { id: shop.id } })).toMatchObject({ categoryId: ids.mercado });
   });
 });
