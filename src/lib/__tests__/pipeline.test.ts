@@ -13,8 +13,9 @@ process.env.DATABASE_URL = DATABASE_URL;
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 const parse = vi.fn();
+const ai = vi.hoisted(() => ({ configured: true }));
 vi.mock("@/lib/ai/client", () => ({
-  getAnthropicOrNull: async () => ({}),
+  getAnthropicOrNull: async () => (ai.configured ? {} : null),
   getAnthropic: async () => ({ messages: { parse } }),
   MODEL_FAST: "test-model",
   aiErrorMessage: (e: unknown) => `IA indisponível: ${e instanceof Error ? e.message : String(e)}`,
@@ -310,5 +311,20 @@ describe("post-sync pipeline", () => {
     expect(out.categorized).toBe(1);
     expect(out.aiError).toBeNull();
     expect(await prisma.transaction.findUniqueOrThrow({ where: { id: shop.id } })).toMatchObject({ categoryId: ids.mercado });
+  });
+
+  it("detects recurrings without an AI key, under the merchant's name", async () => {
+    parse.mockClear();
+    const charges = await Promise.all([65, 35, 5].map((d) => tx("Plano NuCel", -25, { date: daysAgo(d) })));
+
+    ai.configured = false;
+    const out = await runPostSyncJobs().finally(() => (ai.configured = true));
+
+    expect(parse).not.toHaveBeenCalled();
+    expect(out.recurringsDetected).toBe(1);
+    const rec = await prisma.recurring.findFirstOrThrow();
+    expect(rec).toMatchObject({ name: "Plano NuCel", amount: -25, cadence: "MONTHLY", detectedByAI: false });
+    const linked = await prisma.transaction.count({ where: { id: { in: charges.map((c) => c.id) }, recurringId: rec.id } });
+    expect(linked).toBe(3);
   });
 });

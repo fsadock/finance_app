@@ -134,7 +134,7 @@ The steps below are the manual install, for development or if you manage Node.js
 | **Node.js 24 (LTS)** and **pnpm 10** | `better-sqlite3` is a native module compiled for one Node major version. Use exactly Node 24. |
 | **[mise](https://mise.jdx.dev)** (recommended) | Installs the pinned Node/pnpm versions from `mise.toml` automatically. |
 | A **Pluggy** account | Bank/card sync (Open Finance Brasil). Required; created during setup (step 6). |
-| An **Anthropic API key with credits** | AI categorization and recurring detection. **Optional**: a Claude.ai subscription does *not* include API credits. |
+| An **Anthropic API key with credits** | AI categorization and naming of new recurring items. **Optional**: a Claude.ai subscription does *not* include API credits. |
 | git | To clone and update the project. |
 
 ### 2. Get the code and dependencies
@@ -277,10 +277,11 @@ Each person then connects their own banks (their own Meu Pluggy account) and cre
 
 ### Using the app without AI
 
-Everything works without an Anthropic key except automatic categorization of *unknown* merchants and automatic recurring detection:
+Everything works without an Anthropic key except automatic categorization of *unknown* merchants:
 
 - Built-in rules still classify own-account Pix, card bill payments, investment moves and balance yield.
 - Your merchant rules still apply on every sync, so after you categorize a merchant once, it's automatic.
+- New recurring items are still detected, named as the bank wrote the merchant (or the payee, for a generic description like *Bankslip*). Rename them in **Recorrentes**.
 - New merchants stay in *Revisar* until you pick a category. Without a key, AI steps are skipped silently; with a key that fails (e.g. no credits), the sync message shows *IA indisponível*.
 
 ---
@@ -299,7 +300,7 @@ Each sync runs this pipeline on new transactions:
 3. **Merchant rules** (the **Regras** page): each rule maps a merchant to a category. For generic descriptions like *Pix*, *TED* or *Bankslip*, the rule is keyed by the **counterparty's name**, so "Pix to the bakery" and "Pix to a friend" never share a rule. **Your** rules always win; AI never overwrites them.
 4. **AI** (if configured): Claude Haiku classifies what's left using the description plus structured data (payment method, CPF/CNPJ counterparty, merchant, MCC, installment, the bank's own category). Answers with confidence ≥ 0.6 are applied; ≥ 0.8 are also saved as *IA* rules so that merchant never needs the AI again. Anything below 0.6 stays in *Revisar*.
 
-After categorization, **recurring detection** links new charges to known recurring items and updates their next dates (no AI), then uses AI (if configured) to detect new ones.
+After categorization, **recurring detection** links new charges to known recurring items and updates their next dates (no AI), then detects new ones: charges from one merchant at regular dates with a stable amount. With AI, Claude names them and drops what isn't a contract; without it, each is saved under the merchant's name.
 
 Buttons:
 
@@ -409,7 +410,7 @@ src/lib/data/        everything pages read, one module per subject (spending, ca
 src/lib/jobs/        processing that writes derived data; pipeline.ts runs after every sync:
                      deterministic rules → transfers → categorize → recurrings
 src/lib/pluggy/      Pluggy client and data import
-src/lib/ai/          Claude calls only: category suggestions and recurring detection
+src/lib/ai/          Claude calls only: category suggestions and recurring names
 src/lib/infra/       database, config and credentials, logger, retry, rate limit
 src/lib/auth/        passkey sign-in and sessions; src/proxy.ts sends signed-out requests to /login
 src/lib/__tests__/   unit tests for the pure logic

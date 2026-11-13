@@ -1,5 +1,7 @@
 import { addDays, addMonths, differenceInCalendarDays } from "date-fns";
 import { localDayKey, startOfDay } from "@/lib/domain/format";
+import { groupingKey, isGenericDescription, normalizeForGrouping } from "@/lib/domain/merchant";
+import { RECURRING_CV_THRESHOLD, RECURRING_MIN_OCCURRENCES } from "@/lib/domain/constants";
 
 /** Same values as the RecurringCadence enum in schema.prisma (checked at compile time in actions/recurrings.ts). */
 export const CADENCES = ["WEEKLY", "BIWEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"] as const;
@@ -243,4 +245,50 @@ export function matchUnnamedPayments(
     if (rival) result.delete(pid);
   }
   return result;
+}
+
+export type RecurringSample = {
+  id: string;
+  description: string;
+  counterpartyName?: string | null;
+  amount: number;
+  date: Date;
+  categoryId: string | null;
+};
+export type RecurringCandidate = {
+  pattern: string;
+  /** The merchant as the bank wrote it; for a generic description ("Pix", "Bankslip"), the payee. */
+  name: string;
+  samples: RecurringSample[];
+  avgAmount: number;
+  cadence: Cadence;
+};
+
+function merchantName(t: RecurringSample) {
+  const payee = t.counterpartyName?.trim();
+  return payee && isGenericDescription(normalizeForGrouping(t.description)) ? payee : t.description;
+}
+
+/** Groups outflows and inflows by merchant, keeping the groups that repeat at regular dates with a stable amount. */
+export function recurringCandidates(txs: RecurringSample[], knownPatterns: Set<string>): RecurringCandidate[] {
+  const groups = new Map<string, RecurringSample[]>();
+  for (const t of txs) {
+    const pattern = groupingKey(t);
+    if (!pattern || knownPatterns.has(pattern)) continue;
+    const key = `${t.amount < 0 ? "out" : "in"}:${pattern}`;
+    groups.set(key, [...(groups.get(key) ?? []), t]);
+  }
+
+  const candidates: RecurringCandidate[] = [];
+  for (const [key, samples] of groups) {
+    if (samples.length < RECURRING_MIN_OCCURRENCES) continue;
+    const cadence = regularCadence(samples.map((s) => s.date));
+    if (!cadence) continue;
+    const amounts = samples.map((s) => s.amount);
+    const avg = amounts.reduce((s, x) => s + x, 0) / amounts.length;
+    const stddev = Math.sqrt(amounts.reduce((s, x) => s + (x - avg) ** 2, 0) / amounts.length);
+    if (Math.abs(stddev / avg) > RECURRING_CV_THRESHOLD) continue;
+    candidates.push({ pattern: key.slice(key.indexOf(":") + 1), name: merchantName(samples.at(-1)!), samples, avgAmount: avg, cadence });
+  }
+  return candidates;
 }

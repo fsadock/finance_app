@@ -1,15 +1,109 @@
+import { subMonths } from "date-fns";
 import { prisma } from "@/lib/infra/db";
 import { logger } from "@/lib/infra/logger";
-import { groupingKey, isUnnamedBillPayment } from "@/lib/domain/merchant";
+import { errorMessage } from "@/lib/utils";
+import { aiErrorMessage } from "@/lib/ai/client";
+import { suggestRecurrings } from "@/lib/ai/recurrings";
+import { BUDGET_RELEVANT } from "@/lib/domain/flows";
+import { RECURRING_LOOKBACK_MONTHS, RECURRING_MIN_CONFIDENCE } from "@/lib/domain/constants";
+import { groupingKey, isUnnamedBillPayment, normalizeForGrouping } from "@/lib/domain/merchant";
 import {
   CADENCE_TO_MONTHLY,
   detectRecurringChange,
   matchUnnamedPayments,
   nextDueDate,
   nextOccurrence,
+  recurringCandidates,
   type AutoChangeRecord,
   type Cadence,
+  type RecurringCandidate,
 } from "@/lib/domain/recurrence";
+
+type Pick = { candidate: RecurringCandidate; name: string; cadence: Cadence; categoryId: string | null; confidence: number };
+
+async function picksFromAI(candidates: RecurringCandidate[], categories: { id: string; name: string }[]): Promise<Pick[]> {
+  const { detected, usage } = await suggestRecurrings(candidates, categories);
+  logger.info("ai:recurrings", { candidates: candidates.length, detected: detected.length, ...usage });
+  const catByName = new Map(categories.map((c) => [c.name, c.id]));
+  const used = new Set<number>();
+  const picks: Pick[] = [];
+  for (const d of detected) {
+    const candidate = candidates[d.candidate];
+    if (!candidate || used.has(d.candidate) || d.confidence < RECURRING_MIN_CONFIDENCE) continue;
+    used.add(d.candidate);
+    const categoryId = d.categoryName ? (catByName.get(d.categoryName) ?? null) : null;
+    picks.push({ candidate, name: d.name, cadence: d.cadence, categoryId, confidence: d.confidence });
+  }
+  return picks;
+}
+
+function picksWithoutAI(candidates: RecurringCandidate[]): Pick[] {
+  return candidates.map((candidate) => ({
+    candidate,
+    name: candidate.name,
+    cadence: candidate.cadence,
+    categoryId: candidate.samples.findLast((s) => s.categoryId)?.categoryId ?? null,
+    confidence: 1,
+  }));
+}
+
+/**
+ * Saves the recurrings found in the last months that aren't known yet. With AI, Claude names them and drops what
+ * isn't a contract; without it, every candidate is saved under the merchant's name. An AI failure is returned,
+ * not thrown, so it can be shown.
+ */
+export async function detectRecurrings({ useAI }: { useAI: boolean }) {
+  const [txs, categories, existing] = await Promise.all([
+    prisma.transaction.findMany({
+      where: {
+        AND: [BUDGET_RELEVANT],
+        date: { gte: subMonths(new Date(), RECURRING_LOOKBACK_MONTHS) },
+        recurringId: null,
+        // card installments ("parcelado") look monthly but are a single purchase, not a subscription
+        totalInstallments: null,
+        transferPairId: null,
+      },
+      select: { id: true, description: true, counterpartyName: true, amount: true, date: true, categoryId: true },
+      orderBy: { date: "asc" },
+    }),
+    prisma.category.findMany({ where: { excludeFromBudget: false }, select: { id: true, name: true } }),
+    prisma.recurring.findMany({ select: { name: true, pattern: true } }),
+  ]);
+
+  const known = new Set(existing.map((e) => e.pattern ?? normalizeForGrouping(e.name)).filter(Boolean));
+  const candidates = recurringCandidates(txs, known);
+  if (candidates.length === 0) return { detected: 0, aiError: null };
+
+  let picks: Pick[];
+  try {
+    picks = useAI ? await picksFromAI(candidates, categories) : picksWithoutAI(candidates);
+  } catch (e) {
+    logger.error("ai:recurrings_failed", { error: errorMessage(e) });
+    return { detected: 0, aiError: aiErrorMessage(e) };
+  }
+
+  for (const { candidate, name, cadence, categoryId, confidence } of picks) {
+    const lastDate = candidate.samples.at(-1)!.date;
+    const rec = await prisma.recurring.create({
+      data: {
+        name,
+        pattern: candidate.pattern,
+        amount: Math.round(candidate.avgAmount * 100) / 100,
+        cadence,
+        categoryId,
+        lastDate,
+        nextDate: nextDueDate(lastDate, cadence),
+        confidence,
+        detectedByAI: useAI,
+      },
+    });
+    await prisma.transaction.updateMany({
+      where: { id: { in: candidate.samples.map((s) => s.id) } },
+      data: { isRecurring: true, recurringId: rec.id },
+    });
+  }
+  return { detected: picks.length, aiError: null };
+}
 
 /**
  * No-AI maintenance for known recurrings, run after every sync:

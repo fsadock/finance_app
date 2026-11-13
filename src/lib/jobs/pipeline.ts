@@ -8,9 +8,7 @@ import { applyPassThroughs } from "@/lib/jobs/pass-through";
 import { syncCryptoWallets } from "@/lib/jobs/crypto";
 import { detectTransfers } from "@/lib/jobs/transfers";
 import { categorizeAllPending } from "@/lib/jobs/categorize";
-import { refreshRecurrings } from "@/lib/jobs/recurrings";
-import { detectRecurrings } from "@/lib/ai/recurrings";
-import { aiErrorMessage } from "@/lib/ai/client";
+import { detectRecurrings, refreshRecurrings } from "@/lib/jobs/recurrings";
 
 /** A failed step is logged and skipped, so the steps after it still run. */
 async function step<T>(name: string, run: () => Promise<T>): Promise<T | null> {
@@ -67,13 +65,10 @@ export async function runPostSyncJobs({ fullHistory = false } = {}) {
   out.recurringsLinked = refreshed?.linked ?? 0;
   out.recurringsChanged = refreshed?.changed ?? 0;
 
-  if (refreshed && c?.aiConfigured && !out.aiError) {
-    try {
-      out.recurringsDetected = (await detectRecurrings()).detected;
-    } catch (e) {
-      out.aiError = aiErrorMessage(e);
-      logger.error("post-sync:ai_recurrings_failed", { error: errorMessage(e) });
-    }
+  if (refreshed && c && !out.aiError) {
+    const detected = await step("detect_recurrings", () => detectRecurrings({ useAI: c.aiConfigured }));
+    out.recurringsDetected = detected?.detected ?? 0;
+    out.aiError = detected?.aiError ?? null;
   }
 
   logger.info("post-sync:done", out);
